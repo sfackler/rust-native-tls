@@ -7,4 +7,4 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 security-framework = "0.1"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-openssl = "0.7"
+openssl = "0.7.10"

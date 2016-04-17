@@ -1,16 +1,24 @@
 use std::io;
+use std::fmt;
 
 #[cfg(target_os = "macos")]
 #[path = "imp/security_framework.rs"]
 mod imp;
-
 #[cfg(not(target_os = "macos"))]
 #[path = "imp/openssl.rs"]
 mod imp;
+#[cfg(test)]
+mod test;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Error(imp::Error);
+
+impl fmt::Debug for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, fmt)
+    }
+}
 
 pub struct ClientBuilder(imp::ClientBuilder);
 
@@ -21,9 +29,28 @@ impl ClientBuilder {
             Err(err) => Err(Error(err)),
         }
     }
+
+    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<SslStream<S>>
+        where S: io::Read + io::Write
+    {
+        match self.0.handshake(domain, stream) {
+            Ok(s) => Ok(SslStream(s)),
+            Err(err) => Err(Error(err)),
+        }
+    }
 }
 
 pub struct SslStream<S>(imp::SslStream<S>);
+
+impl<S> SslStream<S> {
+    pub fn get_ref(&self) -> &S {
+        self.0.get_ref()
+    }
+
+    pub fn get_mut(&mut self) -> &mut S {
+        self.0.get_mut()
+    }
+}
 
 impl<S: io::Read + io::Write> io::Read for SslStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {

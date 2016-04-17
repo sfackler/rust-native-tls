@@ -4,8 +4,25 @@ use self::security_framework::base;
 use self::security_framework::secure_transport;
 use std::fmt;
 use std::io;
+use std::error;
 
 pub struct Error(base::Error);
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        error::Error::description(&self.0)
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        error::Error::cause(&self.0)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, fmt)
+    }
+}
 
 impl fmt::Debug for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {

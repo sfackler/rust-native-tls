@@ -1,3 +1,4 @@
+use std::error;
 use std::io;
 use std::fmt;
 
@@ -13,6 +14,22 @@ mod test;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Error(imp::Error);
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        error::Error::description(&self.0)
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        error::Error::cause(&self.0)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, fmt)
+    }
+}
 
 impl fmt::Debug for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {

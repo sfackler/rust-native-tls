@@ -2,10 +2,27 @@ extern crate openssl;
 
 use std::io;
 use std::fmt;
+use std::error;
 use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER};
 use self::openssl::ssl::error::SslError;
 
 pub struct Error(SslError);
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        error::Error::description(&self.0)
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        error::Error::cause(&self.0)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, fmt)
+    }
+}
 
 impl fmt::Debug for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {

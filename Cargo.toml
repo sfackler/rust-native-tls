@@ -1,0 +1,6 @@
+[package]
+name = "native-tls"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+
+[dependencies]

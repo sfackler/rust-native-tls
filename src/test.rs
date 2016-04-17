@@ -5,7 +5,6 @@ use super::*;
 
 #[test]
 fn connect_google() {
-
     let mut builder = ClientBuilder::new().unwrap();
     let s = TcpStream::connect("google.com:443").unwrap();
     let mut socket = builder.handshake("google.com", s).unwrap();

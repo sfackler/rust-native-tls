@@ -62,7 +62,7 @@ impl ClientBuilder {
 
 pub struct SslStream<S>(imp::SslStream<S>);
 
-impl<S> SslStream<S> {
+impl<S: io::Read + io::Write> SslStream<S> {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }

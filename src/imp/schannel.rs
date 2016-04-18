@@ -56,15 +56,13 @@ impl ClientBuilder {
 
 pub struct SslStream<S>(schannel::SslStream<S>);
 
-impl<S> SslStream<S> {
+impl<S: io::Read + io::Write> SslStream<S> {
     pub fn get_ref(&self) -> &S {
-    	unimplemented!()
-        //self.0.get_ref()
+        self.0.get_ref()
     }
 
     pub fn get_mut(&mut self) -> &mut S {
-    	unimplemented!()
-        // self.0.get_mut()
+        self.0.get_mut()
     }
 }
 

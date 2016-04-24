@@ -42,21 +42,21 @@ impl ClientBuilder {
 		Ok(ClientBuilder(Arc::new(schannel::SslInfo::Client(schannel::SslInfoClient::new()))))
 	}
 
-    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<SslStream<S>, Error>
+    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>, Error>
         where S: io::Read + io::Write
     {
         let mut s = try!(schannel::SslStream::new(stream, &self.0));
         s.set_host(domain);
         match s.init() {
             Some(err) => Err(err.into()),
-            None => Ok(SslStream(s))
+            None => Ok(TlsStream(s))
         }
     }
 }
 
-pub struct SslStream<S>(schannel::SslStream<S>);
+pub struct TlsStream<S>(schannel::SslStream<S>);
 
-impl<S: io::Read + io::Write> SslStream<S> {
+impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }
@@ -66,13 +66,13 @@ impl<S: io::Read + io::Write> SslStream<S> {
     }
 }
 
-impl<S: io::Read + io::Write> io::Read for SslStream<S> {
+impl<S: io::Read + io::Write> io::Read for TlsStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
 }
 
-impl<S: io::Read + io::Write> io::Write for SslStream<S> {
+impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }

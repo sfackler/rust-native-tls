@@ -50,19 +50,19 @@ impl ClientBuilder {
         }
     }
 
-    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<SslStream<S>>
+    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>>
         where S: io::Read + io::Write
     {
         match self.0.handshake(domain, stream) {
-            Ok(s) => Ok(SslStream(s)),
+            Ok(s) => Ok(TlsStream(s)),
             Err(err) => Err(Error(err)),
         }
     }
 }
 
-pub struct SslStream<S>(imp::SslStream<S>);
+pub struct TlsStream<S>(imp::TlsStream<S>);
 
-impl<S: io::Read + io::Write> SslStream<S> {
+impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }
@@ -72,13 +72,13 @@ impl<S: io::Read + io::Write> SslStream<S> {
     }
 }
 
-impl<S: io::Read + io::Write> io::Read for SslStream<S> {
+impl<S: io::Read + io::Write> io::Read for TlsStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
 }
 
-impl<S: io::Read + io::Write> io::Write for SslStream<S> {
+impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }

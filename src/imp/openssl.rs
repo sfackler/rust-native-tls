@@ -47,17 +47,17 @@ impl ClientBuilder {
     }
 
     // FIXME hostname verification
-    pub fn handshake<S>(&mut self, _domain: &str, stream: S) -> Result<SslStream<S>, Error>
+    pub fn handshake<S>(&mut self, _domain: &str, stream: S) -> Result<TlsStream<S>, Error>
         where S: io::Read + io::Write
     {
         let s = try!(ssl::SslStream::connect(&self.0, stream));
-        Ok(SslStream(s))
+        Ok(TlsStream(s))
     }
 }
 
-pub struct SslStream<S>(ssl::SslStream<S>);
+pub struct TlsStream<S>(ssl::SslStream<S>);
 
-impl<S: io::Read + io::Write> SslStream<S> {
+impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }
@@ -67,13 +67,13 @@ impl<S: io::Read + io::Write> SslStream<S> {
     }
 }
 
-impl<S: io::Read + io::Write> io::Read for SslStream<S> {
+impl<S: io::Read + io::Write> io::Read for TlsStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
 }
 
-impl<S: io::Read + io::Write> io::Write for SslStream<S> {
+impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }

@@ -3,7 +3,7 @@ extern crate openssl;
 use std::io;
 use std::fmt;
 use std::error;
-use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER};
+use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl};
 use self::openssl::ssl::error::SslError;
 
 pub struct Error(SslError);
@@ -47,10 +47,12 @@ impl ClientBuilder {
     }
 
     // FIXME hostname verification
-    pub fn handshake<S>(&mut self, _domain: &str, stream: S) -> Result<TlsStream<S>, Error>
+    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>, Error>
         where S: io::Read + io::Write
     {
-        let s = try!(ssl::SslStream::connect(&self.0, stream));
+        let ssl = try!(self.0.into_ssl());
+        try!(ssl.set_hostname(domain));
+        let s = try!(ssl::SslStream::connect(ssl, stream));
         Ok(TlsStream(s))
     }
 }

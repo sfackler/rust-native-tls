@@ -10,4 +10,4 @@ security-framework = "0.1.4"
 schannel = { git = "https://github.com/sfackler/schannel-rs", default-features = false }
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
-openssl = "0.7.10"
+openssl = { git = "https://github.com/sfackler/rust-openssl" }

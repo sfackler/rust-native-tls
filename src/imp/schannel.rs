@@ -38,9 +38,9 @@ impl From<schannel::SslError> for Error {
 pub struct ClientBuilder(Arc<schannel::SslInfo>);
 
 impl ClientBuilder {
-	pub fn new() -> Result<ClientBuilder, Error> {
-		Ok(ClientBuilder(Arc::new(schannel::SslInfo::Client(schannel::SslInfoClient::new()))))
-	}
+    pub fn new() -> Result<ClientBuilder, Error> {
+        Ok(ClientBuilder(Arc::new(schannel::SslInfo::Client(schannel::SslInfoClient::new()))))
+    }
 
     pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>, Error>
         where S: io::Read + io::Write
@@ -49,7 +49,7 @@ impl ClientBuilder {
         s.set_host(domain);
         match s.init() {
             Some(err) => Err(err.into()),
-            None => Ok(TlsStream(s))
+            None => Ok(TlsStream(s)),
         }
     }
 }

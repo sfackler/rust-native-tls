@@ -17,3 +17,10 @@ fn connect_google() {
     assert!(result.starts_with(b"HTTP/1.0"));
     assert!(result.ends_with(b"</HTML>\r\n") || result.ends_with(b"</html>"));
 }
+
+#[test]
+fn connect_google_bad_hostname() {
+    let mut builder = ClientBuilder::new().unwrap();
+    let s = TcpStream::connect("google.com:443").unwrap();
+    assert!(builder.handshake("foo.com", s).is_err());
+}

@@ -53,7 +53,7 @@ impl ClientBuilder {
         let mut ssl = try!(self.0.into_ssl());
         try!(ssl.set_hostname(domain));
         let domain = domain.to_owned();
-        ssl.set_verify(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
+        ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 
         let s = try!(ssl::SslStream::connect(ssl, stream));
         Ok(TlsStream(s))

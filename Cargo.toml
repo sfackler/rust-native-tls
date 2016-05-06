@@ -11,4 +11,4 @@ schannel = { git = "https://github.com/sfackler/schannel-rs", default-features =
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
 openssl = "0.7.11"
-openssl-verify = { git = "https://github.com/sfackler/rust-openssl-verify" }
+openssl-verify = "0.1"

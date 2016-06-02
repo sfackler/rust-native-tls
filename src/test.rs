@@ -19,8 +19,8 @@ fn connect_google() {
 }
 
 #[test]
-fn connect_google_bad_hostname() {
+fn connect_bad_hostname() {
     let mut builder = ClientBuilder::new().unwrap();
-    let s = TcpStream::connect("google.com:443").unwrap();
-    assert!(builder.handshake("foo.com", s).is_err());
+    let s = TcpStream::connect("wrong.host.badssl.com:443").unwrap();
+    assert!(builder.handshake("wrong.host.badssl.com", s).is_err());
 }

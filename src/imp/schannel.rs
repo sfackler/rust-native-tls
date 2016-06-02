@@ -1,11 +1,11 @@
 extern crate schannel;
 
-use std::sync::Arc;
 use std::io;
 use std::fmt;
 use std::error;
+use self::schannel::{Direction, SchannelCred, TlsStreamBuilder};
 
-pub struct Error(schannel::SslError);
+pub struct Error(io::Error);
 
 impl error::Error for Error {
     fn description(&self) -> &str {
@@ -29,32 +29,31 @@ impl fmt::Debug for Error {
     }
 }
 
-impl From<schannel::SslError> for Error {
-    fn from(error: schannel::SslError) -> Error {
+impl From<io::Error> for Error {
+    fn from(error: io::Error) -> Error {
         Error(error)
     }
 }
 
-pub struct ClientBuilder(Arc<schannel::SslInfo>);
+pub struct ClientBuilder;
 
 impl ClientBuilder {
-    pub fn new() -> Result<ClientBuilder, Error> {
-        Ok(ClientBuilder(Arc::new(schannel::SslInfo::Client(schannel::SslInfoClient::new()))))
-    }
+	pub fn new() -> Result<ClientBuilder, Error> {
+        Ok(ClientBuilder)
+	}
 
     pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>, Error>
         where S: io::Read + io::Write
     {
-        let mut s = try!(schannel::SslStream::new(stream, &self.0));
-        s.set_host(domain);
-        match s.init() {
-            Some(err) => Err(err.into()),
-            None => Ok(TlsStream(s)),
-        }
+        let cred = try!(SchannelCred::builder().acquire(Direction::Outbound));
+        let stream = try!(TlsStreamBuilder::new()
+                              .domain(domain)
+                              .initialize(cred, stream));
+        Ok(TlsStream(stream))
     }
 }
 
-pub struct TlsStream<S>(schannel::SslStream<S>);
+pub struct TlsStream<S>(schannel::TlsStream<S>);
 
 impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {

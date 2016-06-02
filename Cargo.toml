@@ -7,8 +7,11 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 security-framework = "0.1.4"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = { git = "https://github.com/sfackler/schannel-rs", default-features = false }
+schannel = { git = "https://github.com/sfackler/schannel-rs", branch = "rewrite" }
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
 openssl = "0.7.11"
 openssl-verify = "0.1"
+
+[replace]
+"winapi:0.2.7" = { git = "https://github.com/sfackler/winapi-rs" }

@@ -87,3 +87,16 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
         self.0.flush()
     }
 }
+
+fn _check_kinds() {
+    use std::net::TcpStream;
+
+    fn is_sync<T: Sync>() {}
+    fn is_send<T: Send>() {}
+    is_sync::<Error>();
+    is_send::<Error>();
+    is_sync::<ClientBuilder>();
+    is_send::<ClientBuilder>();
+    is_sync::<TlsStream<TcpStream>>();
+    is_send::<TlsStream<TcpStream>>();
+}

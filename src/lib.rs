@@ -62,6 +62,12 @@ impl ClientBuilder {
 
 pub struct TlsStream<S>(imp::TlsStream<S>);
 
+impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, fmt)
+    }
+}
+
 impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()

@@ -4,7 +4,8 @@ extern crate openssl_verify;
 use std::io;
 use std::fmt;
 use std::error;
-use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl};
+use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl, SSL_OP_NO_SSLV2,
+                         SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
 use self::openssl::ssl::error::SslError;
 use self::openssl_verify::verify_callback;
 
@@ -43,7 +44,9 @@ pub struct ClientBuilder(SslContext);
 impl ClientBuilder {
     pub fn new() -> Result<ClientBuilder, Error> {
         let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
+        ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
         try!(ctx.set_default_verify_paths());
+        try!(ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
         Ok(ClientBuilder(ctx))
     }
 

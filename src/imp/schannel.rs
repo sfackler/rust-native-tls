@@ -3,7 +3,8 @@ extern crate schannel;
 use std::io;
 use std::fmt;
 use std::error;
-use self::schannel::{Direction, SchannelCred, TlsStreamBuilder};
+use self::schannel::schannel_cred::{Direction, SchannelCred};
+use self::schannel::tls_stream;
 
 pub struct Error(io::Error);
 
@@ -46,14 +47,14 @@ impl ClientBuilder {
         where S: io::Read + io::Write
     {
         let cred = try!(SchannelCred::builder().acquire(Direction::Outbound));
-        let stream = try!(TlsStreamBuilder::new()
+        let stream = try!(tls_stream::Builder::new()
                               .domain(domain)
                               .initialize(cred, stream));
         Ok(TlsStream(stream))
     }
 }
 
-pub struct TlsStream<S>(schannel::TlsStream<S>);
+pub struct TlsStream<S>(tls_stream::TlsStream<S>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {

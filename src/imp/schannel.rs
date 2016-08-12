@@ -36,6 +36,56 @@ impl From<io::Error> for Error {
     }
 }
 
+pub struct MidHandshakeTlsStream<S>(tls_stream::MidHandshakeTlsStream<S>);
+
+impl<S> fmt::Debug for MidHandshakeTlsStream<S>
+    where S: fmt::Debug {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, fmt)
+    }
+}
+
+impl<S> MidHandshakeTlsStream<S>
+    where S: io::Read + io::Write
+{
+    pub fn get_ref(&self) -> &S {
+        self.0.get_ref()
+    }
+
+    pub fn get_mut(&mut self) -> &mut S {
+        self.0.get_mut()
+    }
+
+    pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
+        match self.0.handshake() {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+pub enum HandshakeError<S> {
+    Failure(Error),
+    Interrupted(MidHandshakeTlsStream<S>),
+}
+
+impl<S> From<tls_stream::HandshakeError<S>> for HandshakeError<S> {
+    fn from(e: tls_stream::HandshakeError<S>) -> HandshakeError<S> {
+        match e {
+            tls_stream::HandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
+            tls_stream::HandshakeError::Interrupted(s) => {
+                HandshakeError::Interrupted(MidHandshakeTlsStream(s))
+            }
+        }
+    }
+}
+
+impl<S> From<io::Error> for HandshakeError<S> {
+    fn from(e: io::Error) -> HandshakeError<S> {
+        HandshakeError::Failure(e.into())
+    }
+}
+
 pub struct ClientBuilder;
 
 impl ClientBuilder {
@@ -43,14 +93,17 @@ impl ClientBuilder {
         Ok(ClientBuilder)
 	}
 
-    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>, Error>
+    pub fn handshake<S>(&mut self,
+                        domain: &str,
+                        stream: S)
+                        -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let cred = try!(SchannelCred::builder().acquire(Direction::Outbound));
-        let stream = try!(tls_stream::Builder::new()
-                              .domain(domain)
-                              .initialize(cred, stream));
-        Ok(TlsStream(stream))
+        match tls_stream::Builder::new().domain(domain).connect(cred, stream) {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 

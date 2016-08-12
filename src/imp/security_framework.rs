@@ -36,18 +36,80 @@ impl From<base::Error> for Error {
     }
 }
 
-pub struct ClientBuilder(secure_transport::ClientBuilder);
+pub enum HandshakeError<S> {
+    Interrupted(MidHandshakeTlsStream<S>),
+    Failure(Error),
+}
+
+impl<S> From<secure_transport::HandshakeError<S>> for HandshakeError<S> {
+    fn from(e: secure_transport::HandshakeError<S>) -> HandshakeError<S> {
+        match e {
+            secure_transport::HandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
+            secure_transport::HandshakeError::Interrupted(s) => {
+                HandshakeError::Interrupted(MidHandshakeTlsStream(s))
+            }
+        }
+    }
+}
+
+impl<S> From<base::Error> for HandshakeError<S> {
+    fn from(e: base::Error) -> HandshakeError<S> {
+        HandshakeError::Failure(e.into())
+    }
+}
+
+pub struct MidHandshakeTlsStream<S>(secure_transport::MidHandshakeSslStream<S>);
+
+impl<S> fmt::Debug for MidHandshakeTlsStream<S>
+    where S: fmt::Debug
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, fmt)
+    }
+}
+
+impl<S> MidHandshakeTlsStream<S>
+{
+    pub fn get_ref(&self) -> &S {
+        self.0.get_ref()
+    }
+
+    pub fn get_mut(&mut self) -> &mut S {
+        self.0.get_mut()
+    }
+}
+
+impl<S> MidHandshakeTlsStream<S>
+    where S: io::Read + io::Write
+{
+    pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
+        match self.0.handshake() {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+pub struct ClientBuilder(());
 
 impl ClientBuilder {
     pub fn new() -> Result<ClientBuilder, Error> {
-        Ok(ClientBuilder(secure_transport::ClientBuilder::new()))
+        Ok(ClientBuilder(()))
     }
 
-    pub fn handshake<S>(&mut self, domain: &str, stream: S) -> Result<TlsStream<S>, Error>
+    pub fn handshake<S>(&mut self,
+                        domain: &str,
+                        stream: S)
+                        -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let s = try!(self.0.handshake(domain, stream));
-        Ok(TlsStream(s))
+        let mut ctx = try!(secure_transport::SslContext::new(secure_transport::ProtocolSide::Client,
+                                                             secure_transport::ConnectionType::Stream));
+        try!(ctx.set_peer_domain_name(domain));
+        match ctx.handshake(stream) {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
     }
 }
 

@@ -7,8 +7,8 @@ authors = ["Steven Fackler <sfackler@gmail.com>"]
 security-framework = "0.1.5"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = { git = "https://github.com/sfackler/schannel-rs" }
+schannel = "0.1"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
-openssl = "0.7.11"
-openssl-verify = "0.1"
+openssl = "0.8"
+openssl-verify = "0.2"

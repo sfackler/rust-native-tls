@@ -1,3 +1,6 @@
+//! An abstraction over platform-specific TLS impolementations.
+#![warn(missing_docs)]
+
 use std::any::Any;
 use std::error;
 use std::error::Error as StdError;
@@ -17,8 +20,10 @@ mod imp;
 #[cfg(test)]
 mod test;
 
+/// A typedef of the result type returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
 
+/// An error returned from the TLS implementation.
 pub struct Error(imp::Error);
 
 impl error::Error for Error {
@@ -43,6 +48,7 @@ impl fmt::Debug for Error {
     }
 }
 
+/// A TLS stream which has been interrupted midway through the handshake process.
 pub struct MidHandshakeTlsStream<S>(imp::MidHandshakeTlsStream<S>);
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
@@ -56,14 +62,17 @@ impl<S> fmt::Debug for MidHandshakeTlsStream<S>
 impl<S> MidHandshakeTlsStream<S>
     where S: io::Read + io::Write
 {
+    /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }
 
+    /// Returns a mutable reference to the inner stream.
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
     }
 
+    /// Restarts the handshake process.
     pub fn handshake(self) -> result::Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
             Ok(s) => Ok(TlsStream(s)),
@@ -72,9 +81,14 @@ impl<S> MidHandshakeTlsStream<S>
     }
 }
 
+/// An error returned from `ClientBuilder::handshake`.
 #[derive(Debug)]
 pub enum HandshakeError<S> {
+    /// A fatal error.
     Failure(Error),
+
+    /// A stream interrupted midway through the handshake process due to a
+    /// `WouldBlock` error.
     Interrupted(MidHandshakeTlsStream<S>),
 }
 
@@ -119,9 +133,11 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
     }
 }
 
+/// A builder for client-side TLS connections.
 pub struct ClientBuilder(imp::ClientBuilder);
 
 impl ClientBuilder {
+    /// Creates a new builder with default settings.
     pub fn new() -> Result<ClientBuilder> {
         match imp::ClientBuilder::new() {
             Ok(builder) => Ok(ClientBuilder(builder)),
@@ -129,6 +145,15 @@ impl ClientBuilder {
         }
     }
 
+    /// Initiates a TLS handshake.
+    ///
+    /// The provided domain will be used for both SNI and certificate hostname
+    /// validation.
+    ///
+    /// If the socket is nonblocking and a `WouldBlock` error is returned during
+    /// the handshake, a `HandshakeError::Interrupted` error will be returned
+    /// which can be used to restart the handshake when the socket is ready
+    /// again.
     pub fn handshake<S>(&mut self,
                         domain: &str,
                         stream: S)
@@ -142,6 +167,7 @@ impl ClientBuilder {
     }
 }
 
+/// A stream managing a TLS session.
 pub struct TlsStream<S>(imp::TlsStream<S>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
@@ -151,10 +177,12 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
+    /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }
 
+    /// Returns a mutable reference to the inner stream.
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
     }

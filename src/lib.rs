@@ -1,4 +1,4 @@
-//! An abstraction over platform-specific TLS impolementations.
+//! An abstraction over platform-specific TLS implementations.
 #![warn(missing_docs)]
 
 use std::any::Any;
@@ -17,6 +17,7 @@ mod imp;
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 #[path = "imp/openssl.rs"]
 mod imp;
+
 #[cfg(test)]
 mod test;
 

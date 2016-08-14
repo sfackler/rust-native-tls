@@ -140,3 +140,22 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
         self.0.flush()
     }
 }
+
+/// SChannel-specific extensions to `TlsStream`.
+pub trait TlsStreamExt<S> {
+    /// Returns a shared reference to the SChannel `TlsStream`.
+    fn raw_stream(&self) -> &tls_stream::TlsStream<S>;
+
+    /// Returns a mutable reference to the SChannel `TlsSslStream`.
+    fn raw_stream_mut(&mut self) -> &mut tls_stream::TlsStream<S>;
+}
+
+impl<S> TlsStreamExt<S> for ::TlsStream<S> {
+    fn raw_stream(&self) -> &tls_stream::TlsStream<S> {
+        &(self.0).0
+    }
+
+    fn raw_stream_mut(&mut self) -> &mut tls_stream::TlsStream<S> {
+        &mut (self.0).0
+    }
+}

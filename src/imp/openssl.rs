@@ -161,10 +161,10 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
 /// OpenSSL-specific extensions to `TlsStream`.
 pub trait TlsStreamExt<S> {
-    /// Returns a shared reference to the `SslStream`.
+    /// Returns a shared reference to the OpenSSL `SslStream`.
     fn raw_stream(&self) -> &ssl::SslStream<S>;
 
-    /// Returns a mutable reference to the `SslStream`.
+    /// Returns a mutable reference to the OpenSSL `SslStream`.
     fn raw_stream_mut(&mut self) -> &mut ssl::SslStream<S>;
 }
 

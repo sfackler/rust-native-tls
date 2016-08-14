@@ -1,6 +1,10 @@
 //! An abstraction over platform-specific TLS implementations.
 //!
-//! # Example
+//! Specifically, this crate uses SChannel on Windows (via the `schannel` crate), Secure Transport
+//! on OSX (via the `security-framework` crate), and OpenSSL (via the `openssl` crate) on all other
+//! platforms.
+//!
+//! # Examples
 //!
 //! ```rust
 //! use native_tls::ClientBuilder;

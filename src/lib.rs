@@ -31,6 +31,8 @@ use std::io;
 use std::fmt;
 use std::result;
 
+pub mod backend;
+
 #[cfg(target_os = "macos")]
 #[path = "imp/security_framework.rs"]
 mod imp;

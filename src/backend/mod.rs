@@ -1,5 +1,8 @@
 //! TLS backend-specific functionality.
 
+#[cfg(target_os = "macos")]
+pub mod security_framework;
+
 #[cfg(target_os = "windows")]
 pub mod schannel;
 

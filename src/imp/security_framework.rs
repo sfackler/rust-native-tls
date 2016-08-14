@@ -146,3 +146,22 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
         self.0.flush()
     }
 }
+
+/// Security Framework-specific extensions to `TlsStream`.
+pub trait TlsStreamExt<S> {
+    /// Returns a shared reference to the Security Framework `SslStream`.
+    fn raw_stream(&self) -> &secure_transport::SslStream<S>;
+
+    /// Returns a mutable reference to the Security Framework `SslStream`.
+    fn raw_stream_mut(&mut self) -> &mut secure_transport::SslStream<S>;
+}
+
+impl<S> TlsStreamExt<S> for ::TlsStream<S> {
+    fn raw_stream(&self) -> &secure_transport::SslStream<S> {
+        &(self.0).0
+    }
+
+    fn raw_stream_mut(&mut self) -> &mut secure_transport::SslStream<S> {
+        &mut (self.0).0
+    }
+}

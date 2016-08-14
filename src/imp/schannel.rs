@@ -146,7 +146,7 @@ pub trait TlsStreamExt<S> {
     /// Returns a shared reference to the SChannel `TlsStream`.
     fn raw_stream(&self) -> &tls_stream::TlsStream<S>;
 
-    /// Returns a mutable reference to the SChannel `TlsSslStream`.
+    /// Returns a mutable reference to the SChannel `TlsStream`.
     fn raw_stream_mut(&mut self) -> &mut tls_stream::TlsStream<S>;
 }
 

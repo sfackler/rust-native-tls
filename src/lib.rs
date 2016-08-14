@@ -21,6 +21,7 @@
 //! stream.read_to_end(&mut res).unwrap();
 //! println!("{}", String::from_utf8_lossy(&res));
 //! ```
+#![doc(html_root_url="https://sfackler.github.io/rust-native-tls/doc/v0.1.0")]
 #![warn(missing_docs)]
 
 use std::any::Any;

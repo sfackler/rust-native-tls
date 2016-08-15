@@ -135,7 +135,7 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
 
 impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
-        Ok(self.0.pending())
+        Ok(self.0.ssl().pending())
     }
 
     pub fn get_ref(&self) -> &S {

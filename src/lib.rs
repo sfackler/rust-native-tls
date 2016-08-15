@@ -74,6 +74,12 @@ impl fmt::Debug for Error {
     }
 }
 
+impl From<imp::Error> for Error {
+    fn from(err: imp::Error) -> Error {
+        Error(err)
+    }
+}
+
 /// A TLS stream which has been interrupted midway through the handshake process.
 pub struct MidHandshakeTlsStream<S>(imp::MidHandshakeTlsStream<S>);
 
@@ -211,6 +217,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// Returns a mutable reference to the inner stream.
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
+    }
+
+    /// Returns the number of bytes that can be read without resulting in any network calls.
+    pub fn buffered_read_size(&self) -> Result<usize> {
+        Ok(try!(self.0.buffered_read_size()))
     }
 }
 

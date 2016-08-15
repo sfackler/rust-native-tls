@@ -69,6 +69,7 @@ impl<S> fmt::Debug for MidHandshakeTlsStream<S>
 }
 
 impl<S> MidHandshakeTlsStream<S>
+    where S: io::Read + io::Write
 {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
@@ -77,11 +78,7 @@ impl<S> MidHandshakeTlsStream<S>
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
     }
-}
 
-impl<S> MidHandshakeTlsStream<S>
-    where S: io::Read + io::Write
-{
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
             Ok(s) => Ok(TlsStream(s)),
@@ -128,6 +125,10 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
+    }
+
+    pub fn buffered_read_size(&self) -> Result<usize, Error> {
+        Ok(try!(self.0.context().buffered_read_size()))
     }
 }
 

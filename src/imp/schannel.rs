@@ -116,6 +116,10 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
+    pub fn buffered_read_size(&self) -> Result<usize, Error> {
+        Ok(self.0.get_buf().len())
+    }
+
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }

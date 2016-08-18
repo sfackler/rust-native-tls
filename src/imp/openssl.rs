@@ -4,9 +4,11 @@ extern crate openssl_verify;
 use std::io;
 use std::fmt;
 use std::error;
+use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl, SSL_OP_NO_SSLV2,
                          SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION, MidHandshakeSslStream};
-use self::openssl::error::ErrorStack;
+use self::openssl::x509::X509;
+use self::openssl::crypto::pkey::PKey;
 use self::openssl_verify::verify_callback;
 
 pub struct Error(ssl::Error);
@@ -43,6 +45,13 @@ impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Error {
         ssl::Error::Ssl(err).into()
     }
+}
+
+pub struct Certificate(X509);
+
+pub struct Identity {
+    cert: X509,
+    pkey: PKey,
 }
 
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);
@@ -98,15 +107,19 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
     }
 }
 
+fn ctx() -> Result<SslContext, Error> {
+    let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
+    ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
+    try!(ctx.set_default_verify_paths());
+    try!(ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
+    Ok(ctx)
+}
+
 pub struct ClientBuilder(SslContext);
 
 impl ClientBuilder {
     pub fn new() -> Result<ClientBuilder, Error> {
-        let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
-        ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
-        try!(ctx.set_default_verify_paths());
-        try!(ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
-        Ok(ClientBuilder(ctx))
+        ctx().map(ClientBuilder)
     }
 
     pub fn handshake<S>(&mut self,
@@ -121,6 +134,29 @@ impl ClientBuilder {
         ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 
         let s = try!(ssl::SslStream::connect(ssl, stream));
+        Ok(TlsStream(s))
+    }
+}
+
+pub struct ServerBuilder(SslContext);
+
+impl ServerBuilder {
+    pub fn new<I>(identity: Identity, certs: I) -> Result<ServerBuilder, Error>
+        where I: IntoIterator<Item = Certificate>
+    {
+        let mut ctx = try!(ctx());
+        try!(ctx.set_certificate(&identity.cert));
+        try!(ctx.set_private_key(&identity.pkey));
+        for cert in certs {
+            try!(ctx.add_extra_chain_cert(&cert.0));
+        }
+        Ok(ServerBuilder(ctx))
+    }
+
+    pub fn handshake<S>(&mut self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        let s = try!(ssl::SslStream::accept(&self.0, stream));
         Ok(TlsStream(s))
     }
 }

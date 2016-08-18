@@ -80,6 +80,10 @@ impl From<imp::Error> for Error {
     }
 }
 
+pub struct Certificate(imp::Certificate);
+
+pub struct Identity(imp::Identity);
+
 /// A TLS stream which has been interrupted midway through the handshake process.
 pub struct MidHandshakeTlsStream<S>(imp::MidHandshakeTlsStream<S>);
 
@@ -193,6 +197,28 @@ impl ClientBuilder {
         where S: io::Read + io::Write
     {
         match self.0.handshake(domain, stream) {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+pub struct ServerBuilder(imp::ServerBuilder);
+
+impl ServerBuilder {
+    pub fn new<I>(identity: Identity, certs: I) -> Result<ServerBuilder>
+        where I: IntoIterator<Item = Certificate>
+    {
+        match imp::ServerBuilder::new(identity.0, certs.into_iter().map(|c| c.0)) {
+            Ok(builder) => Ok(ServerBuilder(builder)),
+            Err(err) => Err(Error(err)),
+        }
+    }
+
+    pub fn handshake<S>(&mut self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        match self.0.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }

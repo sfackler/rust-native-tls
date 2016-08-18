@@ -15,5 +15,8 @@ security-framework = "0.1.5"
 schannel = "0.1"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
-openssl = "0.8"
+openssl = "0.8.1"
 openssl-verify = "0.2"
+
+[replace]
+"openssl:0.8.1" = { git = "https://github.com/sfackler/rust-openssl" }

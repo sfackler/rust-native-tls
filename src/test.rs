@@ -36,7 +36,7 @@ fn server() {
     let port = listener.local_addr().unwrap().port();
 
     let python = if cfg!(windows) {
-        "python2.exe"
+        "python.exe"
     } else {
         "python2"
     };

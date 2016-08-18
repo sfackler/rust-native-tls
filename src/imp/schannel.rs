@@ -3,6 +3,8 @@ extern crate schannel;
 use std::io;
 use std::fmt;
 use std::error;
+use self::schannel::cert_store::PfxImportOptions;
+use self::schannel::cert_context::CertContext;
 use self::schannel::schannel_cred::{Direction, SchannelCred};
 use self::schannel::tls_stream;
 
@@ -33,6 +35,46 @@ impl fmt::Debug for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Error {
         Error(error)
+    }
+}
+
+pub struct Certificate(CertContext);
+
+pub struct Identity(CertContext);
+
+pub struct Pkcs12 {
+    pub identity: Identity,
+    pub chain: Vec<Certificate>,
+}
+
+impl Pkcs12 {
+    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+        let mut store = try!(PfxImportOptions::new()
+            .password(pass)
+            .import(buf));
+        let mut identity = None;
+        let mut chain = vec![];
+
+        for cert in store.certs() {
+            if cert.private_key().silent(true).compare_key(true).acquire().is_ok() {
+                identity = Some(cert);
+            } else {
+                chain.push(Certificate(cert));
+            }
+        }
+
+        let identity = match identity {
+            Some(identity) => identity,
+            None => {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                          "No identity found in PKCS #12 archive").into());
+            },
+        };
+
+        Ok(Pkcs12 {
+            identity: Identity(identity),
+            chain: chain,
+        })
     }
 }
 
@@ -101,6 +143,35 @@ impl ClientBuilder {
     {
         let cred = try!(SchannelCred::builder().acquire(Direction::Outbound));
         match tls_stream::Builder::new().domain(domain).connect(cred, stream) {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+pub struct ServerBuilder {
+    identity: CertContext,
+    chain: Vec<CertContext>,
+}
+
+impl ServerBuilder {
+    pub fn new<I>(identity: Identity, chain: I) -> Result<ServerBuilder, Error>
+        where I: IntoIterator<Item = Certificate>
+    {
+        Ok(ServerBuilder {
+            identity: identity.0,
+            chain: chain.into_iter().map(|c| c.0).collect(),
+        })
+    }
+
+    pub fn handshake<S>(&mut self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        let mut builder = SchannelCred::builder();
+        builder.cert(self.identity.clone());
+        // FIXME we're probably missing the certificate chain?
+        let cred = try!(builder.acquire(Direction::Inbound));
+        match tls_stream::Builder::new().accept(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }

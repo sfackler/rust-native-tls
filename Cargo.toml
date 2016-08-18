@@ -20,3 +20,4 @@ openssl-verify = "0.2"
 
 [replace]
 "openssl:0.8.1" = { git = "https://github.com/sfackler/rust-openssl" }
+"schannel:0.1.0" = { git = "https://github.com/steffengy/schannel-rs" }

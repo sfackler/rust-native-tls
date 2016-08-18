@@ -168,6 +168,7 @@ impl ServerBuilder {
         let mut ctx = try!(ctx());
         try!(ctx.set_certificate(&identity.cert));
         try!(ctx.set_private_key(&identity.pkey));
+        try!(ctx.check_private_key());
         for cert in certs {
             try!(ctx.add_extra_chain_cert(&cert.0));
         }

@@ -72,6 +72,7 @@ impl Pkcs12 {
 
         Ok(Pkcs12 {
             identity: Identity(import.identity),
+            // FIXME possibly use the chain from the trust result instead?
             chain: import.cert_chain
                 .into_iter()
                 .filter(|c| c.to_der() != identity_cert)

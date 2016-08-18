@@ -66,10 +66,17 @@ impl Pkcs12 {
             .import(buf));
         let import = import.pop().unwrap();
 
+        // The identity's cert shows up in the chain, so filter it out to avoid sending twice
+        // FIXME should probably use CFEquals here
+        let identity_cert = try!(import.identity.certificate()).to_der();
+
         Ok(Pkcs12 {
             identity: Identity(import.identity),
-            // FIXME filter out the identity's cert (we're sending it twice currently)
-            chain: import.cert_chain.into_iter().map(Certificate).collect(),
+            chain: import.cert_chain
+                .into_iter()
+                .filter(|c| c.to_der() != identity_cert)
+                .map(Certificate)
+                .collect(),
         })
     }
 }

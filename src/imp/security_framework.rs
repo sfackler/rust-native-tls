@@ -1,7 +1,15 @@
 extern crate security_framework;
+extern crate tempdir;
 
 use self::security_framework::base;
-use self::security_framework::secure_transport;
+use self::security_framework::certificate::SecCertificate;
+use self::security_framework::identity::SecIdentity;
+use self::security_framework::import_export::Pkcs12ImportOptions;
+use self::security_framework::random::SecRandom;
+use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType};
+use self::security_framework::os::macos::keychain;
+use self::security_framework::os::macos::import_export::Pkcs12ImportOptionsExt;
+use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
 use std::error;
@@ -33,6 +41,36 @@ impl fmt::Debug for Error {
 impl From<base::Error> for Error {
     fn from(error: base::Error) -> Error {
         Error(error)
+    }
+}
+
+pub struct Certificate(SecCertificate);
+
+pub struct Identity(SecIdentity);
+
+pub struct Pkcs12 {
+    pub identity: Identity,
+    pub chain: Vec<Certificate>,
+}
+
+impl Pkcs12 {
+    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+        let dir = TempDir::new("native_tls").unwrap(); //fixme
+        let keychain = try!(keychain::CreateOptions::new()
+            .password(pass) // FIXME maybe generate a secure random password here?
+            .create(dir.path().join("keychain")));
+
+        let mut import = try!(Pkcs12ImportOptions::new()
+            .passphrase(pass)
+            .keychain(keychain)
+            .import(buf));
+        let import = import.pop().unwrap();
+
+        Ok(Pkcs12 {
+            identity: Identity(import.identity),
+            // FIXME filter out the identity's cert (we're sending it twice currently)
+            chain: import.cert_chain.into_iter().map(Certificate).collect(),
+        })
     }
 }
 
@@ -100,9 +138,35 @@ impl ClientBuilder {
                         -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let mut ctx = try!(secure_transport::SslContext::new(secure_transport::ProtocolSide::Client,
-                                                             secure_transport::ConnectionType::Stream));
+        let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
         try!(ctx.set_peer_domain_name(domain));
+        match ctx.handshake(stream) {
+            Ok(s) => Ok(TlsStream(s)),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+pub struct ServerBuilder {
+    identity: SecIdentity,
+    chain: Vec<SecCertificate>,
+}
+
+impl ServerBuilder {
+    pub fn new<I>(identity: Identity, chain: I) -> Result<ServerBuilder, Error>
+        where I: IntoIterator<Item = Certificate>
+    {
+        Ok(ServerBuilder {
+            identity: identity.0,
+            chain: chain.into_iter().map(|c| c.0).collect(),
+        })
+    }
+
+    pub fn handshake<S>(&mut self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
+        try!(ctx.set_certificate(&self.identity, &self.chain));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

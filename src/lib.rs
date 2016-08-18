@@ -84,6 +84,24 @@ pub struct Certificate(imp::Certificate);
 
 pub struct Identity(imp::Identity);
 
+pub struct Pkcs12 {
+    pub identity: Identity,
+    pub chain: Vec<Certificate>,
+    _p: (),
+}
+
+impl Pkcs12 {
+    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12> {
+        let pkcs12 = try!(imp::Pkcs12::parse(buf, pass));
+
+        Ok(Pkcs12 {
+            identity: Identity(pkcs12.identity),
+            chain: pkcs12.chain.into_iter().map(Certificate).collect(),
+            _p: ()
+        })
+    }
+}
+
 /// A TLS stream which has been interrupted midway through the handshake process.
 pub struct MidHandshakeTlsStream<S>(imp::MidHandshakeTlsStream<S>);
 

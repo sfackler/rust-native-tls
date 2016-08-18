@@ -4,11 +4,12 @@ extern crate openssl_verify;
 use std::io;
 use std::fmt;
 use std::error;
+use self::openssl::crypto::pkey::PKey;
+use self::openssl::crypto::pkcs12;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl, SSL_OP_NO_SSLV2,
                          SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION, MidHandshakeSslStream};
 use self::openssl::x509::X509;
-use self::openssl::crypto::pkey::PKey;
 use self::openssl_verify::verify_callback;
 
 pub struct Error(ssl::Error);
@@ -52,6 +53,26 @@ pub struct Certificate(X509);
 pub struct Identity {
     cert: X509,
     pkey: PKey,
+}
+
+pub struct Pkcs12 {
+    pub identity: Identity,
+    pub chain: Vec<Certificate>,
+}
+
+impl Pkcs12 {
+    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+        let pkcs12 = try!(pkcs12::Pkcs12::from_der(buf));
+        let parsed = try!(pkcs12.parse(pass));
+
+        Ok(Pkcs12 {
+            identity: Identity {
+                cert: parsed.cert,
+                pkey: parsed.pkey,
+            },
+            chain: parsed.chain.into_iter().map(Certificate).collect(),
+        })
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);

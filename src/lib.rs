@@ -80,17 +80,23 @@ impl From<imp::Error> for Error {
     }
 }
 
+/// An X509 certificate.
 pub struct Certificate(imp::Certificate);
 
+/// A certificate paired with its private key.
 pub struct Identity(imp::Identity);
 
+/// A parsed PKCS #12 archive.
 pub struct Pkcs12 {
+    /// The identity.
     pub identity: Identity,
+    /// The intermediate certificate chain.
     pub chain: Vec<Certificate>,
     _p: (),
 }
 
 impl Pkcs12 {
+    /// Parses a PKCS #12 archive, using the specified password to decrypt the key.
     pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12> {
         let pkcs12 = try!(imp::Pkcs12::parse(buf, pass));
 
@@ -221,9 +227,11 @@ impl ClientBuilder {
     }
 }
 
+/// A builder for server-side TLS connections.
 pub struct ServerBuilder(imp::ServerBuilder);
 
 impl ServerBuilder {
+    /// Creates a new builder with default settings.
     pub fn new<I>(identity: Identity, certs: I) -> Result<ServerBuilder>
         where I: IntoIterator<Item = Certificate>
     {
@@ -233,6 +241,12 @@ impl ServerBuilder {
         }
     }
 
+    /// Initiates a TLS handshake.
+    ///
+    /// If the socket is nonblocking and a `WouldBlock` error is returned during
+    /// the handshake, a `HandshakeError::Interrupted` error will be returned
+    /// which can be used to restart the handshake when the socket is ready
+    /// again.
     pub fn handshake<S>(&mut self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {

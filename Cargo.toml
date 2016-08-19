@@ -16,9 +16,8 @@ tempdir = "0.3"
 schannel = "0.1"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
-openssl = "0.8.1"
+openssl = "0.8.2"
 openssl-verify = "0.2"
 
 [replace]
-"openssl:0.8.1" = { git = "https://github.com/sfackler/rust-openssl" }
 "schannel:0.1.0" = { git = "https://github.com/steffengy/schannel-rs" }

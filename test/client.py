@@ -2,9 +2,9 @@ import socket
 import ssl
 import sys
 
-ctx = ssl.create_default_context(cafile = "root-ca.pem")
-s = ctx.wrap_socket(socket.socket(socket.AF_INET),
-                    server_hostname = "foobar.com")
+s = ssl.wrap_socket(socket.socket(socket.AF_INET),
+                    ca_certs="root-ca.pem",
+                    cert_reqs=ssl.CERT_REQUIRED)
 s.connect(("localhost", int(sys.argv[1])))
 
 s.sendall("hello")

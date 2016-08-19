@@ -38,7 +38,7 @@ fn server() {
     let python = if cfg!(windows) {
         "python.exe"
     } else {
-        "python2"
+        "python"
     };
 
     let mut client = Command::new(python)

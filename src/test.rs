@@ -30,7 +30,7 @@ fn connect_bad_hostname() {
 fn server() {
     let buf = include_bytes!("../test/identity.p12");
     let pkcs12 = Pkcs12::parse(buf, "mypass").unwrap();
-    let mut builder = ServerBuilder::new(pkcs12.identity, pkcs12.chain).unwrap();
+    let mut builder = ServerBuilder::new(pkcs12).unwrap();
 
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();

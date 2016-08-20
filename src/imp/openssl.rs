@@ -48,16 +48,10 @@ impl From<ErrorStack> for Error {
     }
 }
 
-pub struct Certificate(X509);
-
-pub struct Identity {
+pub struct Pkcs12 {
     cert: X509,
     pkey: PKey,
-}
-
-pub struct Pkcs12 {
-    pub identity: Identity,
-    pub chain: Vec<Certificate>,
+    chain: Vec<X509>,
 }
 
 impl Pkcs12 {
@@ -66,11 +60,9 @@ impl Pkcs12 {
         let parsed = try!(pkcs12.parse(pass));
 
         Ok(Pkcs12 {
-            identity: Identity {
-                cert: parsed.cert,
-                pkey: parsed.pkey,
-            },
-            chain: parsed.chain.into_iter().map(Certificate).collect(),
+            cert: parsed.cert,
+            pkey: parsed.pkey,
+            chain: parsed.chain.into_iter().collect(),
         })
     }
 }
@@ -162,15 +154,13 @@ impl ClientBuilder {
 pub struct ServerBuilder(SslContext);
 
 impl ServerBuilder {
-    pub fn new<I>(identity: Identity, certs: I) -> Result<ServerBuilder, Error>
-        where I: IntoIterator<Item = Certificate>
-    {
+    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
         let mut ctx = try!(ctx());
-        try!(ctx.set_certificate(&identity.cert));
-        try!(ctx.set_private_key(&identity.pkey));
+        try!(ctx.set_certificate(&pkcs12.cert));
+        try!(ctx.set_private_key(&pkcs12.pkey));
         try!(ctx.check_private_key());
-        for cert in certs {
-            try!(ctx.add_extra_chain_cert(&cert.0));
+        for cert in &pkcs12.chain {
+            try!(ctx.add_extra_chain_cert(&cert));
         }
         Ok(ServerBuilder(ctx))
     }

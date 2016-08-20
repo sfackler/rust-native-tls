@@ -42,13 +42,9 @@ impl From<base::Error> for Error {
     }
 }
 
-pub struct Certificate(SecCertificate);
-
-pub struct Identity(SecIdentity);
-
 pub struct Pkcs12 {
-    pub identity: Identity,
-    pub chain: Vec<Certificate>,
+    identity: SecIdentity,
+    chain: Vec<SecCertificate>,
 }
 
 impl Pkcs12 {
@@ -69,12 +65,11 @@ impl Pkcs12 {
         let identity_cert = try!(import.identity.certificate()).to_der();
 
         Ok(Pkcs12 {
-            identity: Identity(import.identity),
+            identity: import.identity,
             // FIXME possibly use the chain from the trust result instead?
             chain: import.cert_chain
                 .into_iter()
                 .filter(|c| c.to_der() != identity_cert)
-                .map(Certificate)
                 .collect(),
         })
     }
@@ -154,17 +149,13 @@ impl ClientBuilder {
 }
 
 pub struct ServerBuilder {
-    identity: SecIdentity,
-    chain: Vec<SecCertificate>,
+    pkcs12: Pkcs12,
 }
 
 impl ServerBuilder {
-    pub fn new<I>(identity: Identity, chain: I) -> Result<ServerBuilder, Error>
-        where I: IntoIterator<Item = Certificate>
-    {
+    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
         Ok(ServerBuilder {
-            identity: identity.0,
-            chain: chain.into_iter().map(|c| c.0).collect(),
+            pkcs12: pkcs12,
         })
     }
 
@@ -172,7 +163,7 @@ impl ServerBuilder {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
-        try!(ctx.set_certificate(&self.identity, &self.chain));
+        try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

@@ -80,31 +80,14 @@ impl From<imp::Error> for Error {
     }
 }
 
-/// An X509 certificate.
-pub struct Certificate(imp::Certificate);
-
-/// A certificate paired with its private key.
-pub struct Identity(imp::Identity);
-
-/// A parsed PKCS #12 archive.
-pub struct Pkcs12 {
-    /// The identity.
-    pub identity: Identity,
-    /// The intermediate certificate chain.
-    pub chain: Vec<Certificate>,
-    _p: (),
-}
+/// A PKCS #12 archive.
+pub struct Pkcs12(imp::Pkcs12);
 
 impl Pkcs12 {
     /// Parses a PKCS #12 archive, using the specified password to decrypt the key.
     pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12> {
         let pkcs12 = try!(imp::Pkcs12::parse(buf, pass));
-
-        Ok(Pkcs12 {
-            identity: Identity(pkcs12.identity),
-            chain: pkcs12.chain.into_iter().map(Certificate).collect(),
-            _p: ()
-        })
+        Ok(Pkcs12(pkcs12))
     }
 }
 
@@ -232,10 +215,8 @@ pub struct ServerBuilder(imp::ServerBuilder);
 
 impl ServerBuilder {
     /// Creates a new builder with default settings.
-    pub fn new<I>(identity: Identity, certs: I) -> Result<ServerBuilder>
-        where I: IntoIterator<Item = Certificate>
-    {
-        match imp::ServerBuilder::new(identity.0, certs.into_iter().map(|c| c.0)) {
+    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder> {
+        match imp::ServerBuilder::new(pkcs12.0) {
             Ok(builder) => Ok(ServerBuilder(builder)),
             Err(err) => Err(Error(err)),
         }

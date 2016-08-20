@@ -38,13 +38,8 @@ impl From<io::Error> for Error {
     }
 }
 
-pub struct Certificate(CertContext);
-
-pub struct Identity(CertContext);
-
 pub struct Pkcs12 {
-    pub identity: Identity,
-    pub chain: Vec<Certificate>,
+    cert: CertContext,
 }
 
 impl Pkcs12 {
@@ -53,13 +48,10 @@ impl Pkcs12 {
             .password(pass)
             .import(buf));
         let mut identity = None;
-        let mut chain = vec![];
 
         for cert in store.certs() {
             if cert.private_key().silent(true).compare_key(true).acquire().is_ok() {
                 identity = Some(cert);
-            } else {
-                chain.push(Certificate(cert));
             }
         }
 
@@ -72,8 +64,7 @@ impl Pkcs12 {
         };
 
         Ok(Pkcs12 {
-            identity: Identity(identity),
-            chain: chain,
+            cert: identity,
         })
     }
 }
@@ -150,17 +141,13 @@ impl ClientBuilder {
 }
 
 pub struct ServerBuilder {
-    identity: CertContext,
-    chain: Vec<CertContext>,
+    cert: CertContext,
 }
 
 impl ServerBuilder {
-    pub fn new<I>(identity: Identity, chain: I) -> Result<ServerBuilder, Error>
-        where I: IntoIterator<Item = Certificate>
-    {
+    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
         Ok(ServerBuilder {
-            identity: identity.0,
-            chain: chain.into_iter().map(|c| c.0).collect(),
+            cert: pkcs12.cert,
         })
     }
 
@@ -168,7 +155,7 @@ impl ServerBuilder {
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
-        builder.cert(self.identity.clone());
+        builder.cert(self.cert.clone());
         // FIXME we're probably missing the certificate chain?
         let cred = try!(builder.acquire(Direction::Inbound));
         match tls_stream::Builder::new().accept(cred, stream) {

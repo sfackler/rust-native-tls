@@ -55,7 +55,7 @@ pub struct Pkcs12 {
 }
 
 impl Pkcs12 {
-    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
         let pkcs12 = try!(pkcs12::Pkcs12::from_der(buf));
         let parsed = try!(pkcs12.parse(pass));
 

@@ -1,4 +1,5 @@
 extern crate security_framework;
+extern crate security_framework_sys;
 extern crate tempdir;
 
 use self::security_framework::base;
@@ -48,8 +49,13 @@ pub struct Pkcs12 {
 }
 
 impl Pkcs12 {
-    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let dir = TempDir::new("native_tls").unwrap(); //fixme
+    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+        let dir = match TempDir::new("native_tls") {
+            Ok(dir) => dir,
+            // Gotta throw away the real error :(
+            Err(_) => return Err(Error(base::Error::from(security_framework_sys::base::errSecIO))),
+        };
+
         let keychain = try!(keychain::CreateOptions::new()
             .password(pass) // FIXME maybe generate a secure random password here?
             .create(dir.path().join("keychain")));

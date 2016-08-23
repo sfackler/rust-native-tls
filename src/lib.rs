@@ -6,6 +6,8 @@
 //!
 //! # Examples
 //!
+//! To connect as a client to a remote server:
+//!
 //! ```rust
 //! use native_tls::ClientBuilder;
 //! use std::io::{Read, Write};
@@ -84,9 +86,20 @@ impl From<imp::Error> for Error {
 pub struct Pkcs12(imp::Pkcs12);
 
 impl Pkcs12 {
-    /// Parses a PKCS #12 archive, using the specified password to decrypt the key.
-    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12> {
-        let pkcs12 = try!(imp::Pkcs12::parse(buf, pass));
+    /// Parses a DER-formatted PKCS #12 archive, using the specified password to decrypt the key.
+    ///
+    /// The archive should contain a leaf certificate and its private key, as well any intermediate
+    /// certificates that should be sent to clients to allow them to build a chain to a trusted
+    /// root. The chain certificates should be in order from the leaf certificate towards the root.
+    ///
+    /// PKCS #12 archives typically have the file extension `.p12` or `.pfx`, and can be created
+    /// with the OpenSSL `pkcs12` tool:
+    ///
+    /// ```bash
+    /// openssl pkcs12 -export -out identity.pfx -inkey cert.pem -in cert.pem -certfile chain_certs.pem
+    /// ```
+    pub fn from_der(der: &[u8], password: &str) -> Result<Pkcs12> {
+        let pkcs12 = try!(imp::Pkcs12::from_der(der, password));
         Ok(Pkcs12(pkcs12))
     }
 }

@@ -43,7 +43,7 @@ pub struct Pkcs12 {
 }
 
 impl Pkcs12 {
-    pub fn parse(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
         let mut store = try!(PfxImportOptions::new()
             .password(pass)
             .import(buf));

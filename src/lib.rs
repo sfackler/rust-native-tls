@@ -132,7 +132,7 @@ impl Pkcs12 {
     /// with the OpenSSL `pkcs12` tool:
     ///
     /// ```bash
-    /// openssl pkcs12 -export -out identity.pfx -inkey cert.pem -in cert.pem -certfile chain_certs.pem
+    /// openssl pkcs12 -export -out identity.pfx -inkey key.pem -in cert.pem -certfile chain_certs.pem
     /// ```
     pub fn from_der(der: &[u8], password: &str) -> Result<Pkcs12> {
         let pkcs12 = try!(imp::Pkcs12::from_der(der, password));

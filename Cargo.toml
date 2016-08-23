@@ -20,6 +20,10 @@ schannel = "0.1"
 openssl = "0.8.2"
 openssl-verify = "0.2"
 
+[dev-dependencies]
+openssl = "0.8"
+openssl-verify = "0.2"
+
 [replace]
 "schannel:0.1.0" = { git = "https://github.com/steffengy/schannel-rs" }
 "security-framework:0.1.8" = { git = "https://github.com/sfackler/rust-security-framework" }

@@ -62,6 +62,11 @@
 #![doc(html_root_url="https://sfackler.github.io/rust-native-tls/doc/v0.1.0")]
 #![warn(missing_docs)]
 
+#[cfg(test)]
+extern crate openssl;
+#[cfg(test)]
+extern crate openssl_verify;
+
 use std::any::Any;
 use std::error;
 use std::error::Error as StdError;

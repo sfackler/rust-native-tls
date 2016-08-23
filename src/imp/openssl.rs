@@ -135,7 +135,7 @@ impl ClientBuilder {
         ctx().map(ClientBuilder)
     }
 
-    pub fn handshake<S>(&mut self,
+    pub fn handshake<S>(&self,
                         domain: &str,
                         stream: S)
                         -> Result<TlsStream<S>, HandshakeError<S>>
@@ -165,7 +165,7 @@ impl ServerBuilder {
         Ok(ServerBuilder(ctx))
     }
 
-    pub fn handshake<S>(&mut self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn handshake<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let s = try!(ssl::SslStream::accept(&self.0, stream));

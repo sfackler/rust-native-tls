@@ -6,7 +6,7 @@ use super::*;
 
 #[test]
 fn connect_google() {
-    let mut builder = ClientBuilder::new().unwrap();
+    let builder = ClientBuilder::new().unwrap();
     let s = TcpStream::connect("google.com:443").unwrap();
     let mut socket = builder.handshake("google.com", s).unwrap();
 
@@ -21,7 +21,7 @@ fn connect_google() {
 
 #[test]
 fn connect_bad_hostname() {
-    let mut builder = ClientBuilder::new().unwrap();
+    let builder = ClientBuilder::new().unwrap();
     let s = TcpStream::connect("wrong.host.badssl.com:443").unwrap();
     assert!(builder.handshake("wrong.host.badssl.com", s).is_err());
 }
@@ -30,7 +30,7 @@ fn connect_bad_hostname() {
 fn server() {
     let buf = include_bytes!("../test/identity.p12");
     let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
-    let mut builder = ServerBuilder::new(pkcs12).unwrap();
+    let builder = ServerBuilder::new(pkcs12).unwrap();
 
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();

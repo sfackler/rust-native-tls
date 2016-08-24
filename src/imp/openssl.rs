@@ -122,9 +122,7 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
 
 fn ctx() -> Result<SslContext, Error> {
     let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
-    ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
     try!(ctx.set_default_verify_paths());
-    try!(ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
     Ok(ctx)
 }
 

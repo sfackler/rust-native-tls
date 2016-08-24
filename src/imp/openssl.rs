@@ -149,6 +149,25 @@ impl ClientBuilder {
     }
 }
 
+/// OpenSSL-specific extensions to `ClientBuilder`.
+pub trait ClientBuilderExt {
+    /// Returns a shared reference to the inner `SslContext`.
+    fn context(&self) -> &SslContext;
+
+    /// Returns a mutable reference to the inner `SslContext`.
+    fn context_mut(&mut self) -> &mut SslContext;
+}
+
+impl ClientBuilderExt for ::ClientBuilder {
+    fn context(&self) -> &SslContext {
+        &(self.0).0
+    }
+
+    fn context_mut(&mut self) -> &mut SslContext {
+        &mut (self.0).0
+    }
+}
+
 pub struct ServerBuilder(SslContext);
 
 impl ServerBuilder {
@@ -168,6 +187,25 @@ impl ServerBuilder {
     {
         let s = try!(ssl::SslStream::accept(&self.0, stream));
         Ok(TlsStream(s))
+    }
+}
+
+/// OpenSSL-specific extensions to `ServerBuilder`.
+pub trait ServerBuilderExt {
+    /// Returns a shared reference to the inner `SslContext`.
+    fn context(&self) -> &SslContext;
+
+    /// Returns a mutable reference to the inner `SslContext`.
+    fn context_mut(&mut self) -> &mut SslContext;
+}
+
+impl ServerBuilderExt for ::ServerBuilder {
+    fn context(&self) -> &SslContext {
+        &(self.0).0
+    }
+
+    fn context_mut(&mut self) -> &mut SslContext {
+        &mut (self.0).0
     }
 }
 

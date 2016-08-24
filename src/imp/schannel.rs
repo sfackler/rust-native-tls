@@ -125,11 +125,13 @@ pub struct ClientBuilder {
 
 impl ClientBuilder {
 	pub fn new() -> Result<ClientBuilder, Error> {
-        Ok(ClientBuilder)
+        Ok(ClientBuilder {
+            cert: None,
+        })
 	}
 
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        self.cert = Some(pkcs12);
+        self.cert = Some(pkcs12.cert);
         Ok(())
     }
 
@@ -140,8 +142,8 @@ impl ClientBuilder {
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
-        if let Some(cert) = self.cert.cloned() {
-            builder.cert(cert);
+        if let Some(cert) = self.cert.as_ref() {
+            builder.cert(cert.clone());
         }
         let cred = try!(builder.acquire(Direction::Outbound));
         match tls_stream::Builder::new().domain(domain).connect(cred, stream) {

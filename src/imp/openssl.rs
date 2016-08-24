@@ -7,8 +7,8 @@ use std::error;
 use self::openssl::crypto::pkey::PKey;
 use self::openssl::crypto::pkcs12;
 use self::openssl::error::ErrorStack;
-use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl, SSL_OP_NO_SSLV2,
-                         SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION, MidHandshakeSslStream};
+use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl,
+                         MidHandshakeSslStream};
 use self::openssl::x509::X509;
 use self::openssl_verify::verify_callback;
 

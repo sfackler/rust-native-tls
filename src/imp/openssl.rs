@@ -48,22 +48,13 @@ impl From<ErrorStack> for Error {
     }
 }
 
-pub struct Pkcs12 {
-    cert: X509,
-    pkey: PKey,
-    chain: Vec<X509>,
-}
+pub struct Pkcs12(pkcs12::ParsedPkcs12);
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
         let pkcs12 = try!(pkcs12::Pkcs12::from_der(buf));
         let parsed = try!(pkcs12.parse(pass));
-
-        Ok(Pkcs12 {
-            cert: parsed.cert,
-            pkey: parsed.pkey,
-            chain: parsed.chain,
-        })
+        Ok(Pkcs12(parsed))
     }
 }
 
@@ -135,10 +126,10 @@ impl ClientBuilder {
 
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
         // FIXME clear chain certs to clean up if called multiple times
-        try!(self.ctx.set_certificate(&pkcs12.cert));
-        try!(self.ctx.set_private_key(&pkcs12.pkey));
+        try!(self.ctx.set_certificate(&pkcs12.0.cert));
+        try!(self.ctx.set_private_key(&pkcs12.0.pkey));
         try!(self.ctx.check_private_key());
-        for cert in &pkcs12.chain {
+        for cert in &pkcs12.0.chain {
             try!(self.ctx.add_extra_chain_cert(&cert));
         }
         Ok(())
@@ -184,10 +175,10 @@ pub struct ServerBuilder(SslContext);
 impl ServerBuilder {
     pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
         let mut ctx = try!(ctx());
-        try!(ctx.set_certificate(&pkcs12.cert));
-        try!(ctx.set_private_key(&pkcs12.pkey));
+        try!(ctx.set_certificate(&pkcs12.0.cert));
+        try!(ctx.set_private_key(&pkcs12.0.pkey));
         try!(ctx.check_private_key());
-        for cert in &pkcs12.chain {
+        for cert in &pkcs12.0.chain {
             try!(ctx.add_extra_chain_cert(&cert));
         }
         Ok(ServerBuilder(ctx))

@@ -119,12 +119,19 @@ impl<S> From<io::Error> for HandshakeError<S> {
     }
 }
 
-pub struct ClientBuilder;
+pub struct ClientBuilder {
+    cert: Option<CertContext>,
+}
 
 impl ClientBuilder {
 	pub fn new() -> Result<ClientBuilder, Error> {
         Ok(ClientBuilder)
 	}
+
+    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
+        self.cert = Some(pkcs12);
+        Ok(())
+    }
 
     pub fn handshake<S>(&self,
                         domain: &str,
@@ -132,7 +139,11 @@ impl ClientBuilder {
                         -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let cred = try!(SchannelCred::builder().acquire(Direction::Outbound));
+        let mut builder = SchannelCred::builder();
+        if let Some(cert) = self.cert.cloned() {
+            builder.cert(cert);
+        }
+        let cred = try!(builder.acquire(Direction::Outbound));
         match tls_stream::Builder::new().domain(domain).connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

@@ -21,7 +21,7 @@ openssl = "0.8.2"
 openssl-verify = "0.2"
 
 [dev-dependencies]
-openssl = "0.8"
+openssl = "0.8.2"
 openssl-verify = "0.2"
 
 [replace]

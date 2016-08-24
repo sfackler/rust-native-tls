@@ -132,11 +132,20 @@ impl<S> MidHandshakeTlsStream<S>
     }
 }
 
-pub struct ClientBuilder(());
+pub struct ClientBuilder {
+    pkcs12: Option<Pkcs12>,
+}
 
 impl ClientBuilder {
     pub fn new() -> Result<ClientBuilder, Error> {
-        Ok(ClientBuilder(()))
+        Ok(ClientBuilder {
+            pkcs12: None,
+        })
+    }
+
+    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
+        self.pkcs12 = Some(pkcs12);
+        Ok(())
     }
 
     pub fn handshake<S>(&self,
@@ -147,6 +156,9 @@ impl ClientBuilder {
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
         try!(ctx.set_peer_domain_name(domain));
+        if let Some(pkcs12) = self.pkcs12.as_ref() {
+            try!(ctx.set_certificate(&pkcs12.identity, &pkcs12.chain));
+        }
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

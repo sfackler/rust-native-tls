@@ -62,7 +62,7 @@ impl Pkcs12 {
         Ok(Pkcs12 {
             cert: parsed.cert,
             pkey: parsed.pkey,
-            chain: parsed.chain.into_iter().collect(),
+            chain: parsed.chain,
         })
     }
 }
@@ -131,6 +131,17 @@ pub struct ClientBuilder(SslContext);
 impl ClientBuilder {
     pub fn new() -> Result<ClientBuilder, Error> {
         ctx().map(ClientBuilder)
+    }
+
+    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
+        // FIXME clear chain certs to clean up if called multiple times
+        try!(self.ctx.set_certificate(&pkcs12.cert));
+        try!(self.ctx.set_private_key(&pkcs12.pkey));
+        try!(self.ctx.check_private_key());
+        for cert in &pkcs12.chain {
+            try!(self.ctx.add_extra_chain_cert(&cert));
+        }
+        Ok(())
     }
 
     pub fn handshake<S>(&self,

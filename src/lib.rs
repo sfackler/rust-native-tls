@@ -242,6 +242,12 @@ impl ClientBuilder {
         }
     }
 
+    /// Sets the identity to be used for client certificate authentication.
+    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<&mut ClientBuilder> {
+        try!(self.0.identity(pkcs12.0));
+        Ok(self)
+    }
+
     /// Initiates a TLS handshake.
     ///
     /// The provided domain will be used for both SNI and certificate hostname

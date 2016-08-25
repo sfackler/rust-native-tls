@@ -126,11 +126,11 @@ impl ClientBuilder {
 
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
         // FIXME clear chain certs to clean up if called multiple times
-        try!(self.ctx.set_certificate(&pkcs12.0.cert));
-        try!(self.ctx.set_private_key(&pkcs12.0.pkey));
-        try!(self.ctx.check_private_key());
+        try!(self.0.set_certificate(&pkcs12.0.cert));
+        try!(self.0.set_private_key(&pkcs12.0.pkey));
+        try!(self.0.check_private_key());
         for cert in &pkcs12.0.chain {
-            try!(self.ctx.add_extra_chain_cert(&cert));
+            try!(self.0.add_extra_chain_cert(&cert));
         }
         Ok(())
     }

@@ -13,7 +13,5 @@ matrix:
     - OPENSSL_LIB_DIR=/usr/local/opt/openssl/lib
 env:
 - RUST_BACKTRACE=1
-before_install:
-- test TRAVIS_OS_NAME != "osx" || (brew update && brew install openssl)
 script:
 - cargo test

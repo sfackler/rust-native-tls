@@ -1,8 +1,50 @@
 //! An abstraction over platform-specific TLS implementations.
 //!
-//! Specifically, this crate uses SChannel on Windows (via the `schannel` crate), Secure Transport
-//! on OSX (via the `security-framework` crate), and OpenSSL (via the `openssl` crate) on all other
-//! platforms.
+//! Many applications require TLS/SSL communication in one form or another as
+//! part of their implementation, but finding a library for this isn't always
+//! trivial! The purpose of this crate is to provide a seamless integration
+//! experience on all platforms with a cross-platform API that deals with all
+//! the underlying details for you.
+//!
+//! ```toml
+//! # Cargo.toml
+//! [dependencies]
+//! native-tls = { git = "https://github.com/sfackler/rust-native-tls" }
+//! ```
+//!
+//! # How is this implemented?
+//!
+//! This crate uses SChannel on Windows (via the `schannel` crate), Secure
+//! Transport on OSX (via the `security-framework` crate), and OpenSSL (via the
+//! `openssl` crate) on all other platforms. Future futures may also enable
+//! other TLS frameworks as well, but these initial libraries are likely to
+//! remain as the defaults.
+//!
+//! If you know you're on a particular platform then you can use the
+//! platform-specific extension traits in this crate to configure the underlying
+//! details of that platform. For example OpenSSL may have more options for
+//! configuration than Secure Transport. By default, though, the API of this
+//! crate works across all platforms.
+//!
+//! Note that this crate also strives to be secure-by-default. For example when
+//! using OpenSSL it will configure validation callbacks to ensure that
+//! hostnames match certificates, use strong ciphers, etc. This implies that
+//! this crate is *not* just a thin abstraction around the underlying libraries,
+//! but also an implementation that strives to strike reasonable defaults.
+//!
+//! # Supported features
+//!
+//! This crate supports the following features out of the box:
+//!
+//! * TLS/SSL client communication
+//! * TLS/SSL server communication
+//! * PKCS#12 encoded server identities
+//! * Secure-by-default for client and server
+//!     * Includes hostname verification for clients
+//! * Supports asynchronous I/O for both the server and the client
+//!
+//! Each implementation may support more features which can be accessed through
+//! the extension traits in the `backend` module.
 //!
 //! # Examples
 //!
@@ -170,6 +212,12 @@ impl<S> MidHandshakeTlsStream<S>
     }
 
     /// Restarts the handshake process.
+    ///
+    /// If the handshake completes successfully then the negotiated stream is
+    /// returned. If there is a problem, however, then an error is returned.
+    /// Note that the error may not be fatal. For example if the underlying
+    /// stream is an asynchronous one then `HandshakeError::Interrupted` may
+    /// just mean to wait for more I/O to happen later.
     pub fn handshake(self) -> result::Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
             Ok(s) => Ok(TlsStream(s)),
@@ -186,6 +234,10 @@ pub enum HandshakeError<S> {
 
     /// A stream interrupted midway through the handshake process due to a
     /// `WouldBlock` error.
+    ///
+    /// Note that this is not a fatal error and it should be safe to call
+    /// `handshake` at a later time once the stream is ready to perform I/O
+    /// again.
     Interrupted(MidHandshakeTlsStream<S>),
 }
 
@@ -231,10 +283,33 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
 }
 
 /// A builder for client-side TLS connections.
+///
+/// # Examples
+///
+/// ```rust
+/// use native_tls::ClientBuilder;
+/// use std::io::{Read, Write};
+/// use std::net::TcpStream;
+///
+/// let stream = TcpStream::connect("google.com:443").unwrap();
+/// let mut stream = ClientBuilder::new()
+///                     .unwrap()
+///                     .handshake("google.com", stream)
+///                     .unwrap();
+/// stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+/// let mut res = vec![];
+/// stream.read_to_end(&mut res).unwrap();
+/// println!("{}", String::from_utf8_lossy(&res));
+/// ```
 pub struct ClientBuilder(imp::ClientBuilder);
 
 impl ClientBuilder {
     /// Creates a new builder with default settings.
+    ///
+    /// This builder is primarily used with the `handshake` method to negotiate
+    /// a connection with a remote server. If successful, the builder returned
+    /// may be pre-configured depending on the backend, and it's ready to
+    /// establish a secure connection to a server.
     pub fn new() -> Result<ClientBuilder> {
         match imp::ClientBuilder::new() {
             Ok(builder) => Ok(ClientBuilder(builder)),
@@ -271,10 +346,50 @@ impl ClientBuilder {
 }
 
 /// A builder for server-side TLS connections.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use native_tls::{Pkcs12, ServerBuilder, TlsStream};
+/// use std::fs::File;
+/// use std::io::{Read};
+/// use std::net::{TcpListener, TcpStream};
+/// use std::sync::Arc;
+/// use std::thread;
+///
+/// let mut file = File::open("identity.pfx").unwrap();
+/// let mut pkcs12 = vec![];
+/// file.read_to_end(&mut pkcs12).unwrap();
+/// let pkcs12 = Pkcs12::from_der(&pkcs12, "hunter2").unwrap();
+///
+/// let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
+/// let builder = Arc::new(ServerBuilder::new(pkcs12).unwrap());
+///
+/// fn handle_client(stream: TlsStream<TcpStream>) {
+///     // ...
+/// }
+///
+/// for stream in listener.incoming() {
+///     match stream {
+///         Ok(stream) => {
+///             let builder = builder.clone();
+///             thread::spawn(move || {
+///                 let stream = builder.handshake(stream).unwrap();
+///                 handle_client(stream);
+///             });
+///         }
+///         Err(e) => { /* connection failed */ }
+///     }
+/// }
+/// ```
 pub struct ServerBuilder(imp::ServerBuilder);
 
 impl ServerBuilder {
     /// Creates a new builder with default settings.
+    ///
+    /// This builder is created with a key/certificate pair in the `pkcs12`
+    /// archived passed in. The returned builder will use that key/certificate
+    /// to send to clients which it connects to.
     pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder> {
         match imp::ServerBuilder::new(pkcs12.0) {
             Ok(builder) => Ok(ServerBuilder(builder)),
@@ -318,7 +433,8 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         self.0.get_mut()
     }
 
-    /// Returns the number of bytes that can be read without resulting in any network calls.
+    /// Returns the number of bytes that can be read without resulting in any
+    /// network calls.
     pub fn buffered_read_size(&self) -> Result<usize> {
         Ok(try!(self.0.buffered_read_size()))
     }

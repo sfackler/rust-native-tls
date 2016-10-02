@@ -38,7 +38,7 @@
 //!
 //! * TLS/SSL client communication
 //! * TLS/SSL server communication
-//! * PKCS#12 management used to create servers
+//! * PKCS#12 encoded server identities
 //! * Secure-by-default for client and server
 //!     * Includes hostname verification for clients
 //! * Supports asynchronous I/O for both the server and the client

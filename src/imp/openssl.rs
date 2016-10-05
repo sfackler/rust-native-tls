@@ -112,6 +112,18 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
 fn ctx() -> Result<SslContext, Error> {
     let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
     try!(ctx.set_default_verify_paths());
+
+    // options to enable and cipher list lifted from libcurl
+    let mut opts = ssl::SSL_OP_ALL;
+    opts |= ssl::SSL_OP_NO_TICKET;
+    opts |= ssl::SSL_OP_NO_COMPRESSION;
+    opts &= !ssl::SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG;
+    opts &= !ssl::SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS;
+    opts |= ssl::SSL_OP_NO_SSLV2;
+    opts |= ssl::SSL_OP_NO_SSLV3;
+    ctx.set_options(opts);
+    let ciphers = "ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH";
+    try!(ctx.set_cipher_list(ciphers));
     Ok(ctx)
 }
 

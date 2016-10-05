@@ -7,6 +7,7 @@ use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType};
+use self::security_framework::secure_transport::SslProtocol;
 use self::security_framework::os::macos::keychain;
 use self::tempdir::TempDir;
 use std::fmt;
@@ -156,6 +157,11 @@ impl ClientBuilder {
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
         try!(ctx.set_peer_domain_name(domain));
+
+        // Disable all protocols and then selectively re-enable as we can. This
+        // is similar to what curl does on pre-10.8 builds.
+        try!(ctx.set_protocol_version_enabled(SslProtocol::All, false));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::Tls1, true));
         if let Some(pkcs12) = self.pkcs12.as_ref() {
             try!(ctx.set_certificate(&pkcs12.identity, &pkcs12.chain));
         }

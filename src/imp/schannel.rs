@@ -5,7 +5,7 @@ use std::fmt;
 use std::error;
 use self::schannel::cert_store::PfxImportOptions;
 use self::schannel::cert_context::CertContext;
-use self::schannel::schannel_cred::{Direction, SchannelCred};
+use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
 use self::schannel::tls_stream;
 
 pub struct Error(io::Error);
@@ -142,6 +142,12 @@ impl ClientBuilder {
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
+        let protocols = [
+            Protocol::Tls10,
+            Protocol::Tls11,
+            Protocol::Tls12,
+        ];
+        builder.enabled_protocols(&protocols);
         if let Some(cert) = self.cert.as_ref() {
             builder.cert(cert.clone());
         }

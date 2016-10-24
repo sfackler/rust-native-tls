@@ -4,10 +4,9 @@ extern crate openssl_verify;
 use std::io;
 use std::fmt;
 use std::error;
-use self::openssl::crypto::pkcs12;
+use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
-use self::openssl::ssl::{self, SslContext, SslMethod, SSL_VERIFY_PEER, IntoSsl,
-                         MidHandshakeSslStream};
+use self::openssl::ssl::{self, SslContext, SslMethod, Ssl, SSL_VERIFY_PEER, MidHandshakeSslStream};
 use self::openssl_verify::verify_callback;
 
 pub struct Error(ssl::Error);
@@ -95,7 +94,7 @@ pub enum HandshakeError<S> {
 impl<S> From<ssl::HandshakeError<S>> for HandshakeError<S> {
     fn from(e: ssl::HandshakeError<S>) -> HandshakeError<S> {
         match e {
-            ssl::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e)),
+            ssl::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e.into_error())),
             ssl::HandshakeError::Interrupted(s) => {
                 HandshakeError::Interrupted(MidHandshakeTlsStream(s))
             }
@@ -110,7 +109,7 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
 }
 
 fn ctx() -> Result<SslContext, Error> {
-    let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
+    let mut ctx = try!(SslContext::new(SslMethod::tls()));
     try!(ctx.set_default_verify_paths());
 
     // options to enable and cipher list lifted from libcurl
@@ -122,8 +121,7 @@ fn ctx() -> Result<SslContext, Error> {
     opts |= ssl::SSL_OP_NO_SSLV2;
     opts |= ssl::SSL_OP_NO_SSLV3;
     ctx.set_options(opts);
-    let ciphers = "ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH";
-    try!(ctx.set_cipher_list(ciphers));
+    try!(ctx.set_cipher_list("ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH"));
     Ok(ctx)
 }
 
@@ -139,8 +137,8 @@ impl ClientBuilder {
         try!(self.0.set_certificate(&pkcs12.0.cert));
         try!(self.0.set_private_key(&pkcs12.0.pkey));
         try!(self.0.check_private_key());
-        for cert in &pkcs12.0.chain {
-            try!(self.0.add_extra_chain_cert(&cert));
+        for cert in pkcs12.0.chain {
+            try!(self.0.add_extra_chain_cert(cert));
         }
         Ok(())
     }
@@ -151,12 +149,12 @@ impl ClientBuilder {
                         -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let mut ssl = try!(self.0.into_ssl());
+        let mut ssl = try!(Ssl::new(&self.0));
         try!(ssl.set_hostname(domain));
         let domain = domain.to_owned();
         ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 
-        let s = try!(ssl::SslStream::connect(ssl, stream));
+        let s = try!(ssl.connect(stream));
         Ok(TlsStream(s))
     }
 }
@@ -188,8 +186,8 @@ impl ServerBuilder {
         try!(ctx.set_certificate(&pkcs12.0.cert));
         try!(ctx.set_private_key(&pkcs12.0.pkey));
         try!(ctx.check_private_key());
-        for cert in &pkcs12.0.chain {
-            try!(ctx.add_extra_chain_cert(&cert));
+        for cert in pkcs12.0.chain {
+            try!(ctx.add_extra_chain_cert(cert));
         }
         Ok(ServerBuilder(ctx))
     }
@@ -197,7 +195,8 @@ impl ServerBuilder {
     pub fn handshake<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let s = try!(ssl::SslStream::accept(&self.0, stream));
+        let ssl = try!(Ssl::new(&self.0));
+        let s = try!(ssl.accept(stream));
         Ok(TlsStream(s))
     }
 }

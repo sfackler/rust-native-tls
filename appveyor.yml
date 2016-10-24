@@ -1,9 +1,7 @@
 environment:
   RUST_VERSION: 1.9.0
   TARGET: x86_64-pc-windows-msvc
-  OPENSSL_INCLUDE_DIR: C:\OpenSSL\include
-  OPENSSL_LIB_DIR: C:\OpenSSL\lib
-  OPENSSL_LIBS: ssleay32:libeay32
+  OPENSSL_DIR: C:\OpenSSL
 install:
   - ps: Start-FileDownload "http://slproweb.com/download/Win64OpenSSL-1_0_2j.exe"
   - Win64OpenSSL-1_0_2j.exe /SILENT /VERYSILENT /SP- /DIR="C:\OpenSSL"

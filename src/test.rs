@@ -1,4 +1,4 @@
-use openssl::ssl::{SslContext, SslMethod, SslStream, SSL_VERIFY_PEER};
+use openssl::ssl::{SslContext, SslMethod, Ssl, SSL_VERIFY_PEER};
 use openssl_verify;
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
@@ -49,10 +49,10 @@ fn server() {
     });
 
     let socket = TcpStream::connect(("localhost", port)).unwrap();
-    let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+    let mut ctx = SslContext::new(SslMethod::tls()).unwrap();
     ctx.set_CA_file("test/root-ca.pem").unwrap();
     ctx.set_verify_callback(SSL_VERIFY_PEER, |c, p| openssl_verify::verify_callback("foobar.com", c, p));
-    let mut socket = SslStream::connect(&ctx, socket).unwrap();
+    let mut socket = Ssl::new(&ctx).unwrap().connect(socket).unwrap();
     socket.write_all(b"hello").unwrap();
     let mut buf = vec![];
     socket.read_to_end(&mut buf).unwrap();

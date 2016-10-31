@@ -32,16 +32,16 @@ An example client looks like:
 ```rust
 extern crate native_tls;
 
-use native_tls::ClientBuilder;
+use native_tls::TlsConnector;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
 fn main() {
+    let connector = TlsConnector::builder().unwrap().build().unwrap();
+
     let stream = TcpStream::connect("google.com:443").unwrap();
-    let mut stream = ClientBuilder::new()
-                        .unwrap()
-                        .handshake("google.com", stream)
-                        .unwrap();
+    let mut stream = connector.connect("google.com", stream).unwrap();
+
     stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
     let mut res = vec![];
     stream.read_to_end(&mut res).unwrap();
@@ -54,7 +54,7 @@ To accept connections as a server from remote clients:
 ```rust,no_run
 extern crate native_tls;
 
-use native_tls::{Pkcs12, ServerBuilder, TlsStream};
+use native_tls::{Pkcs12, TlsAcceptor, TlsStream};
 use std::fs::File;
 use std::io::{Read};
 use std::net::{TcpListener, TcpStream};
@@ -67,8 +67,10 @@ fn main() {
     file.read_to_end(&mut pkcs12).unwrap();
     let pkcs12 = Pkcs12::from_der(&pkcs12, "hunter2").unwrap();
 
+    let acceptor = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+    let acceptor = Arc::new(acceptor);
+
     let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-    let builder = Arc::new(ServerBuilder::new(pkcs12).unwrap());
 
     fn handle_client(stream: TlsStream<TcpStream>) {
         // ...
@@ -77,9 +79,9 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                let builder = builder.clone();
+                let acceptor = acceptor.clone();
                 thread::spawn(move || {
-                    let stream = builder.handshake(stream).unwrap();
+                    let stream = acceptor.accept(stream).unwrap();
                     handle_client(stream);
                 });
             }

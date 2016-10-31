@@ -119,26 +119,34 @@ impl<S> From<io::Error> for HandshakeError<S> {
     }
 }
 
-pub struct ClientBuilder {
-    cert: Option<CertContext>,
-}
+pub struct TlsConnectorBuilder(TlsConnector);
 
-impl ClientBuilder {
-	pub fn new() -> Result<ClientBuilder, Error> {
-        Ok(ClientBuilder {
-            cert: None,
-        })
-	}
-
+impl TlsConnectorBuilder {
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        self.cert = Some(pkcs12.cert);
+        self.0.cert = Some(pkcs12.cert);
         Ok(())
     }
 
-    pub fn handshake<S>(&self,
-                        domain: &str,
-                        stream: S)
-                        -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn build(self) -> Result<TlsConnector, Error> {
+        Ok(self.0)
+    }
+}
+
+pub struct TlsConnector {
+    cert: Option<CertContext>,
+}
+
+impl TlsConnector {
+    pub fn builder() -> Result<TlsConnectorBuilder, Error> {
+        Ok(TlsConnectorBuilder(TlsConnector {
+            cert: None,
+        }))
+    }
+
+    pub fn connect<S>(&self,
+                      domain: &str,
+                      stream: S)
+                      -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
@@ -159,18 +167,26 @@ impl ClientBuilder {
     }
 }
 
-pub struct ServerBuilder {
+pub struct TlsAcceptorBuilder(TlsAcceptor);
+
+impl TlsAcceptorBuilder {
+    pub fn build(self) -> Result<TlsAcceptor, Error> {
+        Ok(self.0)
+    }
+}
+
+pub struct TlsAcceptor {
     cert: CertContext,
 }
 
-impl ServerBuilder {
-    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
-        Ok(ServerBuilder {
+impl TlsAcceptor {
+    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+        Ok(TlsAcceptorBuilder(TlsAcceptor {
             cert: pkcs12.cert,
-        })
+        }))
     }
 
-    pub fn handshake<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();

@@ -1,13 +1,12 @@
 extern crate openssl;
-extern crate openssl_verify;
 
 use std::io;
 use std::fmt;
 use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
-use self::openssl::ssl::{self, SslContext, SslMethod, Ssl, SSL_VERIFY_PEER, MidHandshakeSslStream};
-use self::openssl_verify::verify_callback;
+use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
+                         SslAcceptor, MidHandshakeSslStream};
 
 pub struct Error(ssl::Error);
 
@@ -94,6 +93,9 @@ pub enum HandshakeError<S> {
 impl<S> From<ssl::HandshakeError<S>> for HandshakeError<S> {
     fn from(e: ssl::HandshakeError<S>) -> HandshakeError<S> {
         match e {
+            ssl::HandshakeError::SetupFailure(e) => {
+                HandshakeError::Failure(Error(ssl::Error::Ssl(e)))
+            }
             ssl::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e.into_error())),
             ssl::HandshakeError::Interrupted(s) => {
                 HandshakeError::Interrupted(MidHandshakeTlsStream(s))
@@ -108,114 +110,101 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
     }
 }
 
-fn ctx() -> Result<SslContext, Error> {
-    let mut ctx = try!(SslContext::new(SslMethod::tls()));
-    try!(ctx.set_default_verify_paths());
+pub struct TlsConnectorBuilder(SslConnectorBuilder);
 
-    // options to enable and cipher list lifted from libcurl
-    let mut opts = ssl::SSL_OP_ALL;
-    opts |= ssl::SSL_OP_NO_TICKET;
-    opts |= ssl::SSL_OP_NO_COMPRESSION;
-    opts &= !ssl::SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG;
-    opts &= !ssl::SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS;
-    opts |= ssl::SSL_OP_NO_SSLV2;
-    opts |= ssl::SSL_OP_NO_SSLV3;
-    ctx.set_options(opts);
-    try!(ctx.set_cipher_list("ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH"));
-    Ok(ctx)
-}
-
-pub struct ClientBuilder(SslContext);
-
-impl ClientBuilder {
-    pub fn new() -> Result<ClientBuilder, Error> {
-        ctx().map(ClientBuilder)
-    }
-
+impl TlsConnectorBuilder {
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
+        let ctx = self.0.context_mut();
         // FIXME clear chain certs to clean up if called multiple times
-        try!(self.0.set_certificate(&pkcs12.0.cert));
-        try!(self.0.set_private_key(&pkcs12.0.pkey));
-        try!(self.0.check_private_key());
-        for cert in pkcs12.0.chain {
-            try!(self.0.add_extra_chain_cert(cert));
-        }
-        Ok(())
-    }
-
-    pub fn handshake<S>(&self,
-                        domain: &str,
-                        stream: S)
-                        -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
-    {
-        let mut ssl = try!(Ssl::new(&self.0));
-        try!(ssl.set_hostname(domain));
-        let domain = domain.to_owned();
-        ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
-
-        let s = try!(ssl.connect(stream));
-        Ok(TlsStream(s))
-    }
-}
-
-/// OpenSSL-specific extensions to `ClientBuilder`.
-pub trait ClientBuilderExt {
-    /// Returns a shared reference to the inner `SslContext`.
-    fn context(&self) -> &SslContext;
-
-    /// Returns a mutable reference to the inner `SslContext`.
-    fn context_mut(&mut self) -> &mut SslContext;
-}
-
-impl ClientBuilderExt for ::ClientBuilder {
-    fn context(&self) -> &SslContext {
-        &(self.0).0
-    }
-
-    fn context_mut(&mut self) -> &mut SslContext {
-        &mut (self.0).0
-    }
-}
-
-pub struct ServerBuilder(SslContext);
-
-impl ServerBuilder {
-    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
-        let mut ctx = try!(ctx());
         try!(ctx.set_certificate(&pkcs12.0.cert));
         try!(ctx.set_private_key(&pkcs12.0.pkey));
         try!(ctx.check_private_key());
         for cert in pkcs12.0.chain {
             try!(ctx.add_extra_chain_cert(cert));
         }
-        Ok(ServerBuilder(ctx))
+        Ok(())
     }
 
-    pub fn handshake<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn build(self) -> Result<TlsConnector, Error> {
+        Ok(TlsConnector(self.0.build()))
+    }
+}
+
+pub struct TlsConnector(SslConnector);
+
+impl TlsConnector {
+    pub fn builder() -> Result<TlsConnectorBuilder, Error> {
+        let builder = try!(SslConnectorBuilder::new(SslMethod::tls()));
+        Ok(TlsConnectorBuilder(builder))
+    }
+
+    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let ssl = try!(Ssl::new(&self.0));
-        let s = try!(ssl.accept(stream));
+        let s = try!(self.0.connect(domain, stream));
         Ok(TlsStream(s))
     }
 }
 
-/// OpenSSL-specific extensions to `ServerBuilder`.
-pub trait ServerBuilderExt {
-    /// Returns a shared reference to the inner `SslContext`.
-    fn context(&self) -> &SslContext;
+/// OpenSSL-specific extensions to `TlsConnectorBuilder`.
+pub trait TlsConnectorBuilderExt {
+    /// Returns a shared reference to the inner `SslConnectorBuilder`.
+    fn builder(&self) -> &SslConnectorBuilder;
 
-    /// Returns a mutable reference to the inner `SslContext`.
-    fn context_mut(&mut self) -> &mut SslContext;
+    /// Returns a mutable reference to the inner `SslConnectorBuilder`.
+    fn builder_mut(&mut self) -> &mut SslConnectorBuilder;
 }
 
-impl ServerBuilderExt for ::ServerBuilder {
-    fn context(&self) -> &SslContext {
+impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
+    fn builder(&self) -> &SslConnectorBuilder {
         &(self.0).0
     }
 
-    fn context_mut(&mut self) -> &mut SslContext {
+    fn builder_mut(&mut self) -> &mut SslConnectorBuilder {
+        &mut (self.0).0
+    }
+}
+
+pub struct TlsAcceptorBuilder(SslAcceptorBuilder);
+
+impl TlsAcceptorBuilder {
+    pub fn build(self) -> Result<TlsAcceptor, Error> {
+        Ok(TlsAcceptor(self.0.build()))
+    }
+}
+
+pub struct TlsAcceptor(SslAcceptor);
+
+impl TlsAcceptor {
+    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(
+            SslMethod::tls(), &pkcs12.0.pkey, &pkcs12.0.cert, &pkcs12.0.chain));
+        Ok(TlsAcceptorBuilder(builder))
+    }
+
+    pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        let s = try!(self.0.accept(stream));
+        Ok(TlsStream(s))
+    }
+}
+
+/// OpenSSL-specific extensions to `TlsAcceptorBuilder`.
+pub trait TlsAcceptorBuilderExt {
+    /// Returns a shared reference to the inner `SslAcceptorBuilder`.
+    fn builder(&self) -> &SslAcceptorBuilder;
+
+    /// Returns a mutable reference to the inner `SslAcceptorBuilder`.
+    fn builder_mut(&mut self) -> &mut SslAcceptorBuilder;
+}
+
+impl TlsAcceptorBuilderExt for ::TlsAcceptorBuilder {
+    fn builder(&self) -> &SslAcceptorBuilder {
+        &(self.0).0
+    }
+
+    fn builder_mut(&mut self) -> &mut SslAcceptorBuilder {
         &mut (self.0).0
     }
 }

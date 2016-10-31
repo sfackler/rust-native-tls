@@ -51,15 +51,15 @@
 //! To connect as a client to a remote server:
 //!
 //! ```rust
-//! use native_tls::ClientBuilder;
+//! use native_tls::TlsConnector;
 //! use std::io::{Read, Write};
 //! use std::net::TcpStream;
 //!
+//! let connector = TlsConnector::builder().unwrap().build().unwrap();
+//!
 //! let stream = TcpStream::connect("google.com:443").unwrap();
-//! let mut stream = ClientBuilder::new()
-//!                     .unwrap()
-//!                     .handshake("google.com", stream)
-//!                     .unwrap();
+//! let mut stream = connector.connect("google.com", stream).unwrap();
+//!
 //! stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
 //! let mut res = vec![];
 //! stream.read_to_end(&mut res).unwrap();
@@ -69,7 +69,7 @@
 //! To accept connections as a server from remote clients:
 //!
 //! ```rust,no_run
-//! use native_tls::{Pkcs12, ServerBuilder, TlsStream};
+//! use native_tls::{Pkcs12, TlsAcceptor, TlsStream};
 //! use std::fs::File;
 //! use std::io::{Read};
 //! use std::net::{TcpListener, TcpStream};
@@ -82,7 +82,8 @@
 //! let pkcs12 = Pkcs12::from_der(&pkcs12, "hunter2").unwrap();
 //!
 //! let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-//! let builder = Arc::new(ServerBuilder::new(pkcs12).unwrap());
+//! let acceptor = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+//! let acceptor = Arc::new(acceptor);
 //!
 //! fn handle_client(stream: TlsStream<TcpStream>) {
 //!     // ...
@@ -91,9 +92,9 @@
 //! for stream in listener.incoming() {
 //!     match stream {
 //!         Ok(stream) => {
-//!             let builder = builder.clone();
+//!             let acceptor = acceptor.clone();
 //!             thread::spawn(move || {
-//!                 let stream = builder.handshake(stream).unwrap();
+//!                 let stream = acceptor.accept(stream).unwrap();
 //!                 handle_client(stream);
 //!             });
 //!         }
@@ -106,8 +107,6 @@
 
 #[cfg(test)]
 extern crate openssl;
-#[cfg(test)]
-extern crate openssl_verify;
 
 use std::any::Any;
 use std::error;
@@ -282,45 +281,49 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
     }
 }
 
+/// A builder for `TlsConnector`s.
+pub struct TlsConnectorBuilder(imp::TlsConnectorBuilder);
+
+impl TlsConnectorBuilder {
+    /// Sets the identity to be used for client certificate authentication.
+    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<&mut TlsConnectorBuilder> {
+        try!(self.0.identity(pkcs12.0));
+        Ok(self)
+    }
+
+    /// Consumes the builder, returning a `TlsConnector`.
+    pub fn build(self) -> Result<TlsConnector> {
+        let connector = try!(self.0.build());
+        Ok(TlsConnector(connector))
+    }
+}
+
 /// A builder for client-side TLS connections.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use native_tls::ClientBuilder;
+/// use native_tls::TlsConnector;
 /// use std::io::{Read, Write};
 /// use std::net::TcpStream;
 ///
+/// let connector = TlsConnector::builder().unwrap().build().unwrap();
+///
 /// let stream = TcpStream::connect("google.com:443").unwrap();
-/// let mut stream = ClientBuilder::new()
-///                     .unwrap()
-///                     .handshake("google.com", stream)
-///                     .unwrap();
+/// let mut stream = connector.connect("google.com", stream).unwrap();
+///
 /// stream.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
 /// let mut res = vec![];
 /// stream.read_to_end(&mut res).unwrap();
 /// println!("{}", String::from_utf8_lossy(&res));
 /// ```
-pub struct ClientBuilder(imp::ClientBuilder);
+pub struct TlsConnector(imp::TlsConnector);
 
-impl ClientBuilder {
-    /// Creates a new builder with default settings.
-    ///
-    /// This builder is primarily used with the `handshake` method to negotiate
-    /// a connection with a remote server. If successful, the builder returned
-    /// may be pre-configured depending on the backend, and it's ready to
-    /// establish a secure connection to a server.
-    pub fn new() -> Result<ClientBuilder> {
-        match imp::ClientBuilder::new() {
-            Ok(builder) => Ok(ClientBuilder(builder)),
-            Err(err) => Err(Error(err)),
-        }
-    }
-
-    /// Sets the identity to be used for client certificate authentication.
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<&mut ClientBuilder> {
-        try!(self.0.identity(pkcs12.0));
-        Ok(self)
+impl TlsConnector {
+    /// Returns a new builder for a `TlsConnector`.
+    pub fn builder() -> Result<TlsConnectorBuilder> {
+        let builder = try!(imp::TlsConnector::builder());
+        Ok(TlsConnectorBuilder(builder))
     }
 
     /// Initiates a TLS handshake.
@@ -332,16 +335,25 @@ impl ClientBuilder {
     /// the handshake, a `HandshakeError::Interrupted` error will be returned
     /// which can be used to restart the handshake when the socket is ready
     /// again.
-    pub fn handshake<S>(&self,
-                        domain: &str,
-                        stream: S)
-                        -> result::Result<TlsStream<S>, HandshakeError<S>>
+    pub fn connect<S>(&self,
+                      domain: &str,
+                      stream: S)
+                      -> result::Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        match self.0.handshake(domain, stream) {
-            Ok(s) => Ok(TlsStream(s)),
-            Err(e) => Err(e.into()),
-        }
+        let s = try!(self.0.connect(domain, stream));
+        Ok(TlsStream(s))
+    }
+}
+
+/// A builder for `TlsAcceptor`s.
+pub struct TlsAcceptorBuilder(imp::TlsAcceptorBuilder);
+
+impl TlsAcceptorBuilder {
+    /// Consumes the builder, returning a `TlsAcceptor`.
+    pub fn build(self) -> Result<TlsAcceptor> {
+        let acceptor = try!(self.0.build());
+        Ok(TlsAcceptor(acceptor))
     }
 }
 
@@ -350,7 +362,7 @@ impl ClientBuilder {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use native_tls::{Pkcs12, ServerBuilder, TlsStream};
+/// use native_tls::{Pkcs12, TlsAcceptor, TlsStream};
 /// use std::fs::File;
 /// use std::io::{Read};
 /// use std::net::{TcpListener, TcpStream};
@@ -363,7 +375,8 @@ impl ClientBuilder {
 /// let pkcs12 = Pkcs12::from_der(&pkcs12, "hunter2").unwrap();
 ///
 /// let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-/// let builder = Arc::new(ServerBuilder::new(pkcs12).unwrap());
+/// let acceptor = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+/// let acceptor = Arc::new(acceptor);
 ///
 /// fn handle_client(stream: TlsStream<TcpStream>) {
 ///     // ...
@@ -372,9 +385,9 @@ impl ClientBuilder {
 /// for stream in listener.incoming() {
 ///     match stream {
 ///         Ok(stream) => {
-///             let builder = builder.clone();
+///             let acceptor = acceptor.clone();
 ///             thread::spawn(move || {
-///                 let stream = builder.handshake(stream).unwrap();
+///                 let stream = acceptor.accept(stream).unwrap();
 ///                 handle_client(stream);
 ///             });
 ///         }
@@ -382,19 +395,17 @@ impl ClientBuilder {
 ///     }
 /// }
 /// ```
-pub struct ServerBuilder(imp::ServerBuilder);
+pub struct TlsAcceptor(imp::TlsAcceptor);
 
-impl ServerBuilder {
-    /// Creates a new builder with default settings.
+impl TlsAcceptor {
+    /// Returns a new builder for a `TlsAcceptor`.
     ///
     /// This builder is created with a key/certificate pair in the `pkcs12`
     /// archived passed in. The returned builder will use that key/certificate
     /// to send to clients which it connects to.
-    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder> {
-        match imp::ServerBuilder::new(pkcs12.0) {
-            Ok(builder) => Ok(ServerBuilder(builder)),
-            Err(err) => Err(Error(err)),
-        }
+    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder> {
+        let builder = try!(imp::TlsAcceptor::builder(pkcs12.0));
+        Ok(TlsAcceptorBuilder(builder))
     }
 
     /// Initiates a TLS handshake.
@@ -403,10 +414,10 @@ impl ServerBuilder {
     /// the handshake, a `HandshakeError::Interrupted` error will be returned
     /// which can be used to restart the handshake when the socket is ready
     /// again.
-    pub fn handshake<S>(&self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
+    pub fn accept<S>(&self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        match self.0.handshake(stream) {
+        match self.0.accept(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }
@@ -463,10 +474,16 @@ fn _check_kinds() {
     fn is_send<T: Send>() {}
     is_sync::<Error>();
     is_send::<Error>();
-    is_sync::<ClientBuilder>();
-    is_send::<ClientBuilder>();
-    is_sync::<ServerBuilder>();
-    is_send::<ServerBuilder>();
+    is_sync::<TlsConnectorBuilder>();
+    is_send::<TlsConnectorBuilder>();
+    is_sync::<TlsConnector>();
+    is_send::<TlsConnector>();
+    is_sync::<TlsAcceptorBuilder>();
+    is_send::<TlsAcceptorBuilder>();
+    is_sync::<TlsAcceptor>();
+    is_send::<TlsAcceptor>();
     is_sync::<TlsStream<TcpStream>>();
     is_send::<TlsStream<TcpStream>>();
+    is_sync::<MidHandshakeTlsStream<TcpStream>>();
+    is_send::<MidHandshakeTlsStream<TcpStream>>();
 }

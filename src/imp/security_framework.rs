@@ -133,26 +133,34 @@ impl<S> MidHandshakeTlsStream<S>
     }
 }
 
-pub struct ClientBuilder {
-    pkcs12: Option<Pkcs12>,
-}
+pub struct TlsConnectorBuilder(TlsConnector);
 
-impl ClientBuilder {
-    pub fn new() -> Result<ClientBuilder, Error> {
-        Ok(ClientBuilder {
-            pkcs12: None,
-        })
-    }
-
+impl TlsConnectorBuilder {
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        self.pkcs12 = Some(pkcs12);
+        self.0.pkcs12 = Some(pkcs12);
         Ok(())
     }
 
-    pub fn handshake<S>(&self,
-                        domain: &str,
-                        stream: S)
-                        -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn build(self) -> Result<TlsConnector, Error> {
+        Ok(self.0)
+    }
+}
+
+pub struct TlsConnector {
+    pkcs12: Option<Pkcs12>,
+}
+
+impl TlsConnector {
+    pub fn builder() -> Result<TlsConnectorBuilder, Error> {
+        Ok(TlsConnectorBuilder(TlsConnector {
+            pkcs12: None,
+        }))
+    }
+
+    pub fn connect<S>(&self,
+                      domain: &str,
+                      stream: S)
+                      -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
@@ -172,18 +180,26 @@ impl ClientBuilder {
     }
 }
 
-pub struct ServerBuilder {
+pub struct TlsAcceptorBuilder(TlsAcceptor);
+
+impl TlsAcceptorBuilder {
+    pub fn build(self) -> Result<TlsAcceptor, Error> {
+        Ok(self.0)
+    }
+}
+
+pub struct TlsAcceptor {
     pkcs12: Pkcs12,
 }
 
-impl ServerBuilder {
-    pub fn new(pkcs12: Pkcs12) -> Result<ServerBuilder, Error> {
-        Ok(ServerBuilder {
+impl TlsAcceptor {
+    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+        Ok(TlsAcceptorBuilder(TlsAcceptor {
             pkcs12: pkcs12,
-        })
+        }))
     }
 
-    pub fn handshake<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));

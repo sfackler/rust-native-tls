@@ -114,7 +114,7 @@ pub struct TlsConnectorBuilder(SslConnectorBuilder);
 
 impl TlsConnectorBuilder {
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        let ctx = self.0.context_mut();
+        let ctx = self.0.builder_mut();
         // FIXME clear chain certs to clean up if called multiple times
         try!(ctx.set_certificate(&pkcs12.0.cert));
         try!(ctx.set_private_key(&pkcs12.0.pkey));

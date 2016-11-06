@@ -49,7 +49,7 @@ fn server() {
 
     let socket = TcpStream::connect(("localhost", port)).unwrap();
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.context_mut().set_ca_file("test/root-ca.pem").unwrap();
+    builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
     let connector = builder.build();
     let mut socket = connector.connect("foobar.com", socket).unwrap();
     socket.write_all(b"hello").unwrap();

@@ -14,13 +14,10 @@ security-framework-sys = "0.1.9"
 tempdir = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = "0.1"
+schannel = "0.1.1"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
 openssl = "0.9"
 
 [dev-dependencies]
 openssl = "0.9"
-
-[replace]
-"schannel:0.1.0" = { git = "https://github.com/steffengy/schannel-rs" }

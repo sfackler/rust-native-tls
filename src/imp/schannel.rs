@@ -190,6 +190,12 @@ impl TlsAcceptor {
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
+        let protocols = [
+            Protocol::Tls10,
+            Protocol::Tls11,
+            Protocol::Tls12,
+        ];
+        builder.enabled_protocols(&protocols);
         builder.cert(self.cert.clone());
         // FIXME we're probably missing the certificate chain?
         let cred = try!(builder.acquire(Direction::Inbound));

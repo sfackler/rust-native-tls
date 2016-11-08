@@ -9,7 +9,7 @@
 //! ```toml
 //! # Cargo.toml
 //! [dependencies]
-//! native-tls = { git = "https://github.com/sfackler/rust-native-tls" }
+//! native-tls = "0.1"
 //! ```
 //!
 //! # How is this implemented?

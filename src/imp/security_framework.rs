@@ -204,6 +204,10 @@ impl TlsAcceptor {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
+        // Disable all protocols and then selectively re-enable as we can. This
+        // is similar to what curl does on pre-10.8 builds.
+        try!(ctx.set_protocol_version_enabled(SslProtocol::All, false));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::Tls1, true));
         try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

@@ -33,7 +33,7 @@ fn server() {
     let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
     let builder = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
 
-    let listener = TcpListener::bind("0.0.0.0:15410").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();
 
     thread::spawn(move || {

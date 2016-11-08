@@ -52,6 +52,7 @@ fn server() {
     builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
     let connector = builder.build();
     let mut socket = connector.connect("foobar.com", socket).unwrap();
+    println!("{}", socket.ssl().current_cipher().unwrap().description());
     assert_eq!(socket.ssl().version(), "TLSv1.2");
     socket.write_all(b"hello").unwrap();
     let mut buf = vec![];

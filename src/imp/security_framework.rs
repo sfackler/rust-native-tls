@@ -9,6 +9,7 @@ use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType};
 use self::security_framework::secure_transport::SslProtocol;
 use self::security_framework::os::macos::keychain;
+use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
@@ -54,7 +55,7 @@ impl Pkcs12 {
         let dir = match TempDir::new("native_tls") {
             Ok(dir) => dir,
             // Gotta throw away the real error :(
-            Err(_) => return Err(Error(base::Error::from(security_framework_sys::base::errSecIO))),
+            Err(_) => return Err(Error(base::Error::from(errSecIO))),
         };
 
         let keychain = try!(keychain::CreateOptions::new()

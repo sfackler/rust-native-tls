@@ -33,7 +33,7 @@ fn server() {
     let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
     let builder = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
 
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:15410").unwrap();
     let port = listener.local_addr().unwrap().port();
 
     thread::spawn(move || {
@@ -52,6 +52,7 @@ fn server() {
     builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
     let connector = builder.build();
     let mut socket = connector.connect("foobar.com", socket).unwrap();
+    assert_eq!(socket.ssl().version(), "TLSv1.2");
     socket.write_all(b"hello").unwrap();
     let mut buf = vec![];
     socket.read_to_end(&mut buf).unwrap();

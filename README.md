@@ -19,11 +19,8 @@ the [`openssl`] crate) on all other platforms.
 ```toml
 # Cargo.toml
 [dependencies]
-native-tls = { git = "https://github.com/sfackler/rust-native-tls" }
+native-tls = "0.1"
 ```
-
-> **Note**: right now this crate is not published on crates.io, but it plans to
->           do so soon!
 
 ## Usage
 

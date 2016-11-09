@@ -165,7 +165,8 @@ impl TlsConnector {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
-        try!(ctx.set_protocol_version_min(SslProtocol::Tls1));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl2, false));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl3, false));
         try!(ctx.set_peer_domain_name(domain));
         if let Some(pkcs12) = self.pkcs12.as_ref() {
             try!(ctx.set_certificate(&pkcs12.identity, &pkcs12.chain));
@@ -200,7 +201,8 @@ impl TlsAcceptor {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
-        try!(ctx.set_protocol_version_min(SslProtocol::Tls1));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl2, false));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl3, false));
         try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

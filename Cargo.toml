@@ -9,7 +9,7 @@ documentation = "https://sfackler.github.io/rust-native-tls/doc/v0.1.0/native_tl
 readme = "README.md"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-security-framework = { version = "0.1.9", features = ["OSX_10_8"] }
+security-framework = "0.1.9"
 security-framework-sys = "0.1.9"
 tempdir = "0.3"
 

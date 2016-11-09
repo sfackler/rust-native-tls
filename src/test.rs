@@ -53,7 +53,6 @@ fn server() {
     let connector = builder.build();
     let mut socket = connector.connect("foobar.com", socket).unwrap();
     println!("{}", socket.ssl().current_cipher().unwrap().description());
-    assert_eq!(socket.ssl().version(), "TLSv1.2");
     socket.write_all(b"hello").unwrap();
     let mut buf = vec![];
     socket.read_to_end(&mut buf).unwrap();

@@ -313,7 +313,7 @@ impl TlsConnectorBuilder {
 
     /// Sets the protocols which the connector will support.
     ///
-    /// The protocols supported by default is currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
+    /// The protocols supported by default are currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
     /// is subject to change.
     pub fn supported_protocols(&mut self,
                                protocols: &[Protocol])
@@ -383,7 +383,7 @@ pub struct TlsAcceptorBuilder(imp::TlsAcceptorBuilder);
 impl TlsAcceptorBuilder {
     /// Sets the protocols which the acceptor will support.
     ///
-    /// The protocols supported by default is currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
+    /// The protocols supported by default are currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
     /// is subject to change.
     pub fn supported_protocols(&mut self,
                                protocols: &[Protocol])

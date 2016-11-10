@@ -281,6 +281,26 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
     }
 }
 
+/// SSL/TLS protocol versions.
+#[derive(Debug, Copy, Clone)]
+pub enum Protocol {
+    /// The SSL 3.0 protocol.
+    ///
+    /// # Warning
+    ///
+    /// SSL 3.0 has severe security flaws, and should not be used unless absolutely necessary. If
+    /// you are not sure if you need to enable this protocol, you should not.
+    Sslv3,
+    /// The TLS 1.0 protocol.
+    Tlsv10,
+    /// The TLS 1.1 protocol.
+    Tlsv11,
+    /// The TLS 1.2 protocol.
+    Tlsv12,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
 /// A builder for `TlsConnector`s.
 pub struct TlsConnectorBuilder(imp::TlsConnectorBuilder);
 
@@ -288,6 +308,17 @@ impl TlsConnectorBuilder {
     /// Sets the identity to be used for client certificate authentication.
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<&mut TlsConnectorBuilder> {
         try!(self.0.identity(pkcs12.0));
+        Ok(self)
+    }
+
+    /// Sets the protocols which the connector will support.
+    ///
+    /// The protocols supported by default is currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
+    /// is subject to change.
+    pub fn supported_protocols(&mut self,
+                               protocols: &[Protocol])
+                               -> Result<&mut TlsConnectorBuilder> {
+        try!(self.0.supported_protocols(protocols));
         Ok(self)
     }
 
@@ -350,6 +381,17 @@ impl TlsConnector {
 pub struct TlsAcceptorBuilder(imp::TlsAcceptorBuilder);
 
 impl TlsAcceptorBuilder {
+    /// Sets the protocols which the acceptor will support.
+    ///
+    /// The protocols supported by default is currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
+    /// is subject to change.
+    pub fn supported_protocols(&mut self,
+                               protocols: &[Protocol])
+                               -> Result<&mut TlsAcceptorBuilder> {
+        try!(self.0.supported_protocols(protocols));
+        Ok(self)
+    }
+
     /// Consumes the builder, returning a `TlsAcceptor`.
     pub fn build(self) -> Result<TlsAcceptor> {
         let acceptor = try!(self.0.build());

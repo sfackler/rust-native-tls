@@ -6,7 +6,29 @@ use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
-                         SslAcceptor, MidHandshakeSslStream};
+                         SslAcceptor, MidHandshakeSslStream, SslOption, SslContextBuilder};
+
+use Protocol;
+
+// This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
+const SSL_OP_NO_SSL_MASK: SslOption = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 |
+    ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2 | ssl::SSL_OP_NO_TLSV1_2;
+
+fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
+    let mut options = ctx.clear_options(SslOption::all());
+    options |= SSL_OP_NO_SSL_MASK;
+    for protocol in protocols {
+        let op = match *protocol {
+            Protocol::Sslv3 => ssl::SSL_OP_NO_SSLV3,
+            Protocol::Tlsv10 => ssl::SSL_OP_NO_TLSV1,
+            Protocol::Tlsv11 => ssl::SSL_OP_NO_TLSV1_1,
+            Protocol::Tlsv12 => ssl::SSL_OP_NO_TLSV1_2,
+            Protocol::__NonExhaustive => unreachable!(),
+        };
+        options &= !op;
+    }
+    ctx.set_options(options);
+}
 
 pub struct Error(ssl::Error);
 
@@ -125,6 +147,11 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
+        supported_protocols(protocols, self.0.builder_mut());
+        Ok(())
+    }
+
     pub fn build(self) -> Result<TlsConnector, Error> {
         Ok(TlsConnector(self.0.build()))
     }
@@ -168,6 +195,11 @@ impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
 pub struct TlsAcceptorBuilder(SslAcceptorBuilder);
 
 impl TlsAcceptorBuilder {
+    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
+        supported_protocols(protocols, self.0.builder_mut());
+        Ok(())
+    }
+
     pub fn build(self) -> Result<TlsAcceptor, Error> {
         Ok(TlsAcceptor(self.0.build()))
     }

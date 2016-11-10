@@ -15,6 +15,33 @@ use std::fmt;
 use std::io;
 use std::error;
 
+use Protocol;
+
+fn convert_protocols(protocols: &[Protocol]) -> Vec<SslProtocol> {
+    protocols.iter()
+        .map(|p| {
+            match *p {
+                Protocol::Sslv3 => SslProtocol::Ssl3,
+                Protocol::Tlsv10 => SslProtocol::Tls1,
+                Protocol::Tlsv11 => SslProtocol::Tls11,
+                Protocol::Tlsv12 => SslProtocol::Tls12,
+                Protocol::__NonExhaustive => unreachable!(),
+            }
+        })
+        .collect()
+}
+
+// FIXME A bandaid until the next security-framework release happens
+fn clone_protocol(protocol: &SslProtocol) -> SslProtocol {
+    match *protocol {
+        SslProtocol::Ssl3 => SslProtocol::Ssl3,
+        SslProtocol::Tls1 => SslProtocol::Tls1,
+        SslProtocol::Tls11 => SslProtocol::Tls11,
+        SslProtocol::Tls12 => SslProtocol::Tls12,
+        _ => unreachable!(),
+    }
+}
+
 pub struct Error(base::Error);
 
 impl error::Error for Error {
@@ -142,6 +169,11 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
+        self.0.protocols = convert_protocols(protocols);
+        Ok(())
+    }
+
     pub fn build(self) -> Result<TlsConnector, Error> {
         Ok(self.0)
     }
@@ -149,12 +181,14 @@ impl TlsConnectorBuilder {
 
 pub struct TlsConnector {
     pkcs12: Option<Pkcs12>,
+    protocols: Vec<SslProtocol>,
 }
 
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
             pkcs12: None,
+            protocols: vec![SslProtocol::Tls1, SslProtocol::Tls11, SslProtocol::Tls12],
         }))
     }
 
@@ -165,8 +199,10 @@ impl TlsConnector {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
-        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl2, false));
-        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl3, false));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::All, false));
+        for protocol in &self.protocols {
+            try!(ctx.set_protocol_version_enabled(clone_protocol(protocol), true));
+        }
         try!(ctx.set_peer_domain_name(domain));
         if let Some(pkcs12) = self.pkcs12.as_ref() {
             try!(ctx.set_certificate(&pkcs12.identity, &pkcs12.chain));
@@ -181,6 +217,11 @@ impl TlsConnector {
 pub struct TlsAcceptorBuilder(TlsAcceptor);
 
 impl TlsAcceptorBuilder {
+    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
+        self.0.protocols = convert_protocols(protocols);
+        Ok(())
+    }
+
     pub fn build(self) -> Result<TlsAcceptor, Error> {
         Ok(self.0)
     }
@@ -188,12 +229,14 @@ impl TlsAcceptorBuilder {
 
 pub struct TlsAcceptor {
     pkcs12: Pkcs12,
+    protocols: Vec<SslProtocol>,
 }
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
             pkcs12: pkcs12,
+            protocols: vec![SslProtocol::Tls1, SslProtocol::Tls11, SslProtocol::Tls12],
         }))
     }
 
@@ -201,8 +244,10 @@ impl TlsAcceptor {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
-        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl2, false));
-        try!(ctx.set_protocol_version_enabled(SslProtocol::Ssl3, false));
+        try!(ctx.set_protocol_version_enabled(SslProtocol::All, false));
+        for protocol in &self.protocols {
+            try!(ctx.set_protocol_version_enabled(clone_protocol(protocol), true));
+        }
         try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

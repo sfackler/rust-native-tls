@@ -8,6 +8,20 @@ use self::schannel::cert_context::CertContext;
 use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
 use self::schannel::tls_stream;
 
+fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
+    protocols.iter()
+        .map(|p| {
+            match *p {
+                ::Protocol::Sslv3 => Protocol::Ssl3,
+                ::Protocol::Tlsv10 => Protocol::Tls10,
+                ::Protocol::Tlsv11 => Protocol::Tls11,
+                ::Protocol::Tlsv12 => Protocol::Tls12,
+                ::Protocol::__NonExhaustive => unreachable!(),
+            }
+        })
+        .collect()
+}
+
 pub struct Error(io::Error);
 
 impl error::Error for Error {
@@ -127,6 +141,11 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
+        self.0.protocols = convert_protocols(protocols);
+        Ok(())
+    }
+
     pub fn build(self) -> Result<TlsConnector, Error> {
         Ok(self.0)
     }
@@ -134,12 +153,14 @@ impl TlsConnectorBuilder {
 
 pub struct TlsConnector {
     cert: Option<CertContext>,
+    protocols: Vec<Protocol>,
 }
 
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
             cert: None,
+            protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
         }))
     }
 
@@ -150,12 +171,7 @@ impl TlsConnector {
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
-        let protocols = [
-            Protocol::Tls10,
-            Protocol::Tls11,
-            Protocol::Tls12,
-        ];
-        builder.enabled_protocols(&protocols);
+        builder.enabled_protocols(&self.protocols);
         if let Some(cert) = self.cert.as_ref() {
             builder.cert(cert.clone());
         }
@@ -170,6 +186,11 @@ impl TlsConnector {
 pub struct TlsAcceptorBuilder(TlsAcceptor);
 
 impl TlsAcceptorBuilder {
+    pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
+        self.0.protocols = convert_protocols(protocols);
+        Ok(())
+    }
+
     pub fn build(self) -> Result<TlsAcceptor, Error> {
         Ok(self.0)
     }
@@ -177,12 +198,14 @@ impl TlsAcceptorBuilder {
 
 pub struct TlsAcceptor {
     cert: CertContext,
+    protocols: Vec<Protocol>,
 }
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
             cert: pkcs12.cert,
+            protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
         }))
     }
 
@@ -190,12 +213,7 @@ impl TlsAcceptor {
         where S: io::Read + io::Write
     {
         let mut builder = SchannelCred::builder();
-        let protocols = [
-            Protocol::Tls10,
-            Protocol::Tls11,
-            Protocol::Tls12,
-        ];
-        builder.enabled_protocols(&protocols);
+        builder.enabled_protocols(&self.protocols);
         builder.cert(self.cert.clone());
         // FIXME we're probably missing the certificate chain?
         let cred = try!(builder.acquire(Direction::Inbound));

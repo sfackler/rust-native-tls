@@ -491,6 +491,12 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn buffered_read_size(&self) -> Result<usize> {
         Ok(try!(self.0.buffered_read_size()))
     }
+
+    /// Shuts down the TLS session.
+    pub fn shutdown(&mut self) -> io::Result<()> {
+        try!(self.0.shutdown());
+        Ok(())
+    }
 }
 
 impl<S: io::Read + io::Write> io::Read for TlsStream<S> {

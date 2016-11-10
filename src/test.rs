@@ -70,7 +70,7 @@ fn server_tls12_only() {
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();
 
-    thread::spawn(move || {
+    let j = thread::spawn(move || {
         let socket = listener.accept().unwrap().0;
         let mut socket = builder.accept(socket).unwrap();
 
@@ -79,6 +79,7 @@ fn server_tls12_only() {
         assert_eq!(&buf, b"hello");
 
         socket.write_all(b"world").unwrap();
+        socket.shutdown().unwrap();
     });
 
     let socket = TcpStream::connect(("localhost", port)).unwrap();
@@ -93,6 +94,9 @@ fn server_tls12_only() {
     let mut buf = vec![];
     socket.read_to_end(&mut buf).unwrap();
     assert_eq!(buf, b"world");
+    socket.shutdown().unwrap();
+
+    j.join().unwrap();
 }
 
 #[test]
@@ -106,7 +110,7 @@ fn server_no_shared_protocol() {
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let port = listener.local_addr().unwrap().port();
 
-    thread::spawn(move || {
+    let j = thread::spawn(move || {
         let socket = listener.accept().unwrap().0;
         assert!(builder.accept(socket).is_err());
     });
@@ -118,4 +122,6 @@ fn server_no_shared_protocol() {
     builder.builder_mut().set_options(options);
     let connector = builder.build();
     assert!(connector.connect("foobar.com", socket).is_err());
+
+    j.join().unwrap();
 }

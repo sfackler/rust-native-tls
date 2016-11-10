@@ -6,7 +6,8 @@ use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
-                         SslAcceptor, MidHandshakeSslStream, SslOption, SslContextBuilder};
+                         SslAcceptor, MidHandshakeSslStream, SslOption, SslContextBuilder,
+                         ShutdownResult};
 
 use Protocol;
 
@@ -252,6 +253,22 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
 impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
         Ok(self.0.ssl().pending())
+    }
+
+    pub fn shutdown(&mut self) -> io::Result<()> {
+        loop {
+            match self.0.shutdown() {
+                Ok(ShutdownResult::Sent) => {},
+                Ok(ShutdownResult::Received) => break,
+                Err(Error::ZeroReturn) => break,
+                Err(Error::Stream(e)) => return Err(e),
+                Err(Error::WantRead(e)) => return Err(e),
+                Err(Error::WantWrite(e)) => return Err(e),
+                Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+            }
+        }
+
+        Ok(())
     }
 
     pub fn get_ref(&self) -> &S {

@@ -237,6 +237,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(self.0.get_buf().len())
     }
 
+    pub fn shutdown(&mut self) -> io::Result<()> {
+        try!(self.0.shutdown());
+        Ok(())
+    }
+
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }

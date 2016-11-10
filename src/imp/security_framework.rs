@@ -276,6 +276,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
         Ok(try!(self.0.context().buffered_read_size()))
     }
+
+    pub fn shutdown(&mut self) -> io::Result<()> {
+        try!(self.0.close());
+        Ok(())
+    }
 }
 
 impl<S: io::Read + io::Write> io::Read for TlsStream<S> {

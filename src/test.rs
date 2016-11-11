@@ -5,15 +5,25 @@ use std::thread;
 
 use super::*;
 
+macro_rules! p {
+    ($e:expr) => {
+        match $e {
+            Ok(r) => r,
+            Err(e) => panic!("{:?}", e),
+        }
+    }
+}
+
 #[test]
 fn connect_google() {
-    let builder = TlsConnector::builder().unwrap().build().unwrap();
-    let s = TcpStream::connect("google.com:443").unwrap();
-    let mut socket = builder.connect("google.com", s).unwrap();
+    let builder = p!(TlsConnector::builder());
+    let builder = p!(builder.build());
+    let s = p!(TcpStream::connect("google.com:443"));
+    let mut socket = p!(builder.connect("google.com", s));
 
-    socket.write_all(b"GET / HTTP/1.0\r\n\r\n").unwrap();
+    p!(socket.write_all(b"GET / HTTP/1.0\r\n\r\n"));
     let mut result = vec![];
-    socket.read_to_end(&mut result).unwrap();
+    p!(socket.read_to_end(&mut result));
 
     println!("{}", String::from_utf8_lossy(&result));
     assert!(result.starts_with(b"HTTP/1.0"));
@@ -22,136 +32,141 @@ fn connect_google() {
 
 #[test]
 fn connect_bad_hostname() {
-    let builder = TlsConnector::builder().unwrap().build().unwrap();
-    let s = TcpStream::connect("wrong.host.badssl.com:443").unwrap();
+    let builder = p!(TlsConnector::builder());
+    let builder = p!(builder.build());
+    let s = p!(TcpStream::connect("wrong.host.badssl.com:443"));
     assert!(builder.connect("wrong.host.badssl.com", s).is_err());
 }
 
 #[test]
 fn server() {
     let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
-    let builder = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let builder = p!(TlsAcceptor::builder(pkcs12));
+    let builder = p!(builder.build());
 
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let listener = p!(TcpListener::bind("0.0.0.0:0"));
+    let port = p!(listener.local_addr()).port();
 
-    thread::spawn(move || {
-        let socket = listener.accept().unwrap().0;
-        let mut socket = builder.accept(socket).unwrap();
+    let j = thread::spawn(move || {
+        let socket = p!(listener.accept()).0;
+        let mut socket = p!(builder.accept(socket));
 
         let mut buf = [0; 5];
-        socket.read_exact(&mut buf).unwrap();
+        p!(socket.read_exact(&mut buf));
         assert_eq!(&buf, b"hello");
 
-        socket.write_all(b"world").unwrap();
+        p!(socket.write_all(b"world"));
     });
 
-    let socket = TcpStream::connect(("localhost", port)).unwrap();
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
+    let socket = p!(TcpStream::connect(("localhost", port)));
+    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
+    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
     let connector = builder.build();
-    let mut socket = connector.connect("foobar.com", socket).unwrap();
+    let mut socket = p!(connector.connect("foobar.com", socket));
     println!("{}", socket.ssl().current_cipher().unwrap().description());
-    socket.write_all(b"hello").unwrap();
+    p!(socket.write_all(b"hello"));
     let mut buf = vec![];
-    socket.read_to_end(&mut buf).unwrap();
+    p!(socket.read_to_end(&mut buf));
     assert_eq!(buf, b"world");
+
+    p!(j.join());
 }
 
 #[test]
 fn server_tls11_only() {
     let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
-    let mut builder = TlsAcceptor::builder(pkcs12).unwrap();
-    builder.supported_protocols(&[Protocol::Tlsv11]).unwrap();
-    let builder = builder.build().unwrap();
+    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let mut builder = p!(TlsAcceptor::builder(pkcs12));
+    p!(builder.supported_protocols(&[Protocol::Tlsv11]));
+    let builder = p!(builder.build());
 
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let listener = p!(TcpListener::bind("0.0.0.0:0"));
+    let port = p!(listener.local_addr()).port();
 
     let j = thread::spawn(move || {
-        let socket = listener.accept().unwrap().0;
-        let mut socket = builder.accept(socket).unwrap();
+        let socket = p!(listener.accept()).0;
+        let mut socket = p!(builder.accept(socket));
 
         let mut buf = [0; 5];
-        socket.read_exact(&mut buf).unwrap();
+        p!(socket.read_exact(&mut buf));
         assert_eq!(&buf, b"hello");
 
-        socket.write_all(b"world").unwrap();
+        p!(socket.write_all(b"world"));
     });
 
-    let socket = TcpStream::connect(("localhost", port)).unwrap();
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
+    let socket = p!(TcpStream::connect(("localhost", port)));
+    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
+    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
     let options = ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2;
     builder.builder_mut().set_options(options);
     let connector = builder.build();
-    let mut socket = connector.connect("foobar.com", socket).unwrap();
+    let mut socket = p!(connector.connect("foobar.com", socket));
     println!("{}", socket.ssl().current_cipher().unwrap().description());
-    socket.write_all(b"hello").unwrap();
+    p!(socket.write_all(b"hello"));
     let mut buf = vec![];
-    socket.read_to_end(&mut buf).unwrap();
+    p!(socket.read_to_end(&mut buf));
     assert_eq!(buf, b"world");
 
-    j.join().unwrap();
+    p!(j.join());
 }
 
 #[test]
 fn server_no_shared_protocol() {
     let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
-    let mut builder = TlsAcceptor::builder(pkcs12).unwrap();
-    builder.supported_protocols(&[Protocol::Tlsv11]).unwrap();
-    let builder = builder.build().unwrap();
+    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let mut builder = p!(TlsAcceptor::builder(pkcs12));
+    p!(builder.supported_protocols(&[Protocol::Tlsv11]));
+    let builder = p!(builder.build());
 
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let listener = p!(TcpListener::bind("0.0.0.0:0"));
+    let port = p!(listener.local_addr()).port();
 
     let j = thread::spawn(move || {
-        let socket = listener.accept().unwrap().0;
+        let socket = p!(listener.accept()).0;
         assert!(builder.accept(socket).is_err());
     });
 
-    let socket = TcpStream::connect(("localhost", port)).unwrap();
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
+    let socket = p!(TcpStream::connect(("localhost", port)));
+    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
+    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
     let options = ssl::SSL_OP_NO_TLSV1_1;
     builder.builder_mut().set_options(options);
     let connector = builder.build();
     assert!(connector.connect("foobar.com", socket).is_err());
 
-    j.join().unwrap();
+    p!(j.join());
 }
 
 #[test]
 fn shutdown() {
     let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
-    let builder = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let builder = p!(TlsAcceptor::builder(pkcs12));
+    let builder = p!(builder.build());
 
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let listener = p!(TcpListener::bind("0.0.0.0:0"));
+    let port = p!(listener.local_addr()).port();
 
     let j = thread::spawn(move || {
-        let socket = listener.accept().unwrap().0;
-        let mut socket = builder.accept(socket).unwrap();
+        let socket = p!(listener.accept()).0;
+        let mut socket = p!(builder.accept(socket));
 
         let mut buf = [0; 5];
-        socket.read_exact(&mut buf).unwrap();
+        p!(socket.read_exact(&mut buf));
         assert_eq!(&buf, b"hello");
 
-        assert_eq!(socket.read(&mut buf).unwrap(), 0);
+        assert_eq!(p!(socket.read(&mut buf)), 0);
     });
 
-    let socket = TcpStream::connect(("localhost", port)).unwrap();
-    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
-    builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
+    let socket = p!(TcpStream::connect(("localhost", port)));
+    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
+    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
     let connector = builder.build();
-    let mut socket = connector.connect("foobar.com", socket).unwrap();
+    let mut socket = p!(connector.connect("foobar.com", socket));
     println!("{}", socket.ssl().current_cipher().unwrap().description());
-    socket.write_all(b"hello").unwrap();
-    socket.shutdown().unwrap();
+    p!(socket.write_all(b"hello"));
+    p!(socket.shutdown());
 
-    j.join().unwrap();
+    p!(j.join());
 }

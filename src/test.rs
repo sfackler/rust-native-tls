@@ -79,7 +79,6 @@ fn server_tls11_only() {
         assert_eq!(&buf, b"hello");
 
         socket.write_all(b"world").unwrap();
-        socket.shutdown().unwrap();
     });
 
     let socket = TcpStream::connect(("localhost", port)).unwrap();
@@ -94,7 +93,6 @@ fn server_tls11_only() {
     let mut buf = vec![];
     socket.read_to_end(&mut buf).unwrap();
     assert_eq!(buf, b"world");
-    socket.shutdown().unwrap();
 
     j.join().unwrap();
 }
@@ -122,6 +120,38 @@ fn server_no_shared_protocol() {
     builder.builder_mut().set_options(options);
     let connector = builder.build();
     assert!(connector.connect("foobar.com", socket).is_err());
+
+    j.join().unwrap();
+}
+
+#[test]
+fn shutdown() {
+    let buf = include_bytes!("../test/identity.p12");
+    let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
+    let builder = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+
+    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    let j = thread::spawn(move || {
+        let socket = listener.accept().unwrap().0;
+        let mut socket = builder.accept(socket).unwrap();
+
+        let mut buf = [0; 5];
+        socket.read_exact(&mut buf).unwrap();
+        assert_eq!(&buf, b"hello");
+
+        assert_eq!(socket.read(&mut buf).unwrap(), 0);
+    });
+
+    let socket = TcpStream::connect(("localhost", port)).unwrap();
+    let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
+    builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
+    let connector = builder.build();
+    let mut socket = connector.connect("foobar.com", socket).unwrap();
+    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    socket.write_all(b"hello").unwrap();
+    socket.shutdown().unwrap();
 
     j.join().unwrap();
 }

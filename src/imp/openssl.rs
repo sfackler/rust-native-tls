@@ -11,13 +11,13 @@ use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, Ssl
 
 use Protocol;
 
-// This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
-const SSL_OP_NO_SSL_MASK: SslOption = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 |
-    ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2 | ssl::SSL_OP_NO_TLSV1_2;
-
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
+    // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
+    let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 |
+        ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2 | ssl::SSL_OP_NO_TLSV1_2;
+
     let mut options = ctx.clear_options(SslOption::all());
-    options |= SSL_OP_NO_SSL_MASK;
+    options |= ssl_op_no_ssl_mask;
     for protocol in protocols {
         let op = match *protocol {
             Protocol::Sslv3 => ssl::SSL_OP_NO_SSLV3,
@@ -260,10 +260,10 @@ impl<S: io::Read + io::Write> TlsStream<S> {
             match self.0.shutdown() {
                 Ok(ShutdownResult::Sent) => {},
                 Ok(ShutdownResult::Received) => break,
-                Err(Error::ZeroReturn) => break,
-                Err(Error::Stream(e)) => return Err(e),
-                Err(Error::WantRead(e)) => return Err(e),
-                Err(Error::WantWrite(e)) => return Err(e),
+                Err(ssl::Error::ZeroReturn) => break,
+                Err(ssl::Error::Stream(e)) => return Err(e),
+                Err(ssl::Error::WantRead(e)) => return Err(e),
+                Err(ssl::Error::WantWrite(e)) => return Err(e),
                 Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
             }
         }

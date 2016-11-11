@@ -60,11 +60,11 @@ fn server() {
 }
 
 #[test]
-fn server_tls12_only() {
+fn server_tls11_only() {
     let buf = include_bytes!("../test/identity.p12");
     let pkcs12 = Pkcs12::from_der(buf, "mypass").unwrap();
     let mut builder = TlsAcceptor::builder(pkcs12).unwrap();
-    builder.supported_protocols(&[Protocol::Tlsv12]).unwrap();
+    builder.supported_protocols(&[Protocol::Tlsv11]).unwrap();
     let builder = builder.build().unwrap();
 
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
@@ -85,7 +85,7 @@ fn server_tls12_only() {
     let socket = TcpStream::connect(("localhost", port)).unwrap();
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
     builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
-    let options = ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_1;
+    let options = ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2;
     builder.builder_mut().set_options(options);
     let connector = builder.build();
     let mut socket = connector.connect("foobar.com", socket).unwrap();

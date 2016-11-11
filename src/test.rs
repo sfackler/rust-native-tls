@@ -116,7 +116,7 @@ fn server_no_shared_protocol() {
     let socket = TcpStream::connect(("localhost", port)).unwrap();
     let mut builder = SslConnectorBuilder::new(SslMethod::tls()).unwrap();
     builder.builder_mut().set_ca_file("test/root-ca.pem").unwrap();
-    let options = ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_1;
+    let options = ssl::SSL_OP_NO_TLSV1_1;
     builder.builder_mut().set_options(options);
     let connector = builder.build();
     assert!(connector.connect("foobar.com", socket).is_err());

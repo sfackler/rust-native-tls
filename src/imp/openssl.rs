@@ -16,7 +16,8 @@ fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
     let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 |
         ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2 | ssl::SSL_OP_NO_TLSV1_2;
 
-    let mut options = ctx.clear_options(SslOption::all());
+    let mut options = ctx.options();
+    ctx.clear_options(SslOption::all());
     options |= ssl_op_no_ssl_mask;
     for protocol in protocols {
         let op = match *protocol {

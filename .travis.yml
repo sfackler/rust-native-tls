@@ -9,7 +9,7 @@ matrix:
   - os: osx
     rust: 1.9.0
 env:
-- RUST_BACKTRACE=1
+- RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 script:
 - cargo test
 - rustdoc --test README.md -L target/debug/deps -L target/debug

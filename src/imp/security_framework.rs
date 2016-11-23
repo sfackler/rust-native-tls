@@ -72,6 +72,7 @@ impl From<base::Error> for Error {
     }
 }
 
+#[derive(Clone)]
 pub struct Pkcs12 {
     identity: SecIdentity,
     chain: Vec<SecCertificate>,

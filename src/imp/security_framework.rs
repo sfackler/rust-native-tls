@@ -83,12 +83,12 @@ impl Pkcs12 {
 
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(imported_identity.identity.certificate()).to_der();
-        
+
         Ok(Pkcs12 {
             identity: imported_identity.identity,
             chain: imported_identity.cert_chain
-                .into_iter()		
-                .filter(|c| c.to_der() != identity_cert)		
+                .into_iter()
+                .filter(|c| c.to_der() != identity_cert)
                 .collect(),
         })
     }
@@ -217,6 +217,21 @@ impl TlsConnector {
                       -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
+        self.connect_inner(Some(domain), stream)
+    }
+
+    pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        self.connect_inner(None, stream)
+    }
+
+    fn connect_inner<S>(&self,
+                   domain: Option<&str>,
+                   stream: S)
+                   -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
         let mut builder = ClientBuilder::new();
         let (min, max) = protocol_min_max(&self.protocols);
         builder.protocol_min(min);
@@ -227,7 +242,12 @@ impl TlsConnector {
         if let Some(anchors) = self.anchor_certificates.as_ref() {
             builder.anchor_certificates(anchors);
         }
-        match builder.handshake2(domain, stream) {
+
+        let r = match domain {
+            Some(domain) => builder.handshake2(domain, stream),
+            None => builder.danger_handshake_without_providing_domain_for_certificate_validation_and_server_name_indication(stream),
+        };
+        match r {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }

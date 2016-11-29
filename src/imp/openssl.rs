@@ -173,6 +173,13 @@ impl TlsConnector {
         let s = try!(self.0.connect(domain, stream));
         Ok(TlsStream(s))
     }
+
+    pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        let s = try!(self.0.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(stream));
+        Ok(TlsStream(s))
+    }
 }
 
 /// OpenSSL-specific extensions to `TlsConnectorBuilder`.

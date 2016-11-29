@@ -102,7 +102,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://sfackler.github.io/rust-native-tls/doc/v0.1.0")]
+#![doc(html_root_url="https://docs.rs/native-tls/0.1.0")]
 #![warn(missing_docs)]
 
 #[cfg(test)]

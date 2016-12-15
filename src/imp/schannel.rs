@@ -285,3 +285,15 @@ impl<S> TlsStreamExt<S> for ::TlsStream<S> {
         &mut (self.0).0
     }
 }
+
+/// SChannel-specific extensions to `Error`
+pub trait ErrorExt {
+    /// Extract the underlying SChannel error for inspection.
+    fn schannel_error(&self) -> &io::Error;
+}
+
+impl ErrorExt for ::Error {
+    fn schannel_error(&self) -> &io::Error {
+        &(self.0).0
+    }
+}

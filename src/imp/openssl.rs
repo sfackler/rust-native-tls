@@ -315,3 +315,15 @@ impl<S> TlsStreamExt<S> for ::TlsStream<S> {
         &mut (self.0).0
     }
 }
+
+/// OpenSSL-specific extensions to `Error`
+pub trait ErrorExt {
+    /// Extract the underlying OpenSSL error for inspection.
+    fn openssl_error(&self) -> &ssl::Error;
+}
+
+impl ErrorExt for ::Error {
+    fn openssl_error(&self) -> &ssl::Error {
+        &(self.0).0
+    }
+}

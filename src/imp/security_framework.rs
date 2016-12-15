@@ -7,7 +7,7 @@ use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
-                                                 SslProtocol};
+                                                 SslProtocol, ClientBuilder};
 use self::security_framework::os::macos::keychain;
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
@@ -17,29 +17,28 @@ use std::error;
 
 use Protocol;
 
-fn convert_protocols(protocols: &[Protocol]) -> Vec<SslProtocol> {
-    protocols.iter()
-        .map(|p| {
-            match *p {
-                Protocol::Sslv3 => SslProtocol::Ssl3,
-                Protocol::Tlsv10 => SslProtocol::Tls1,
-                Protocol::Tlsv11 => SslProtocol::Tls11,
-                Protocol::Tlsv12 => SslProtocol::Tls12,
-                Protocol::__NonExhaustive => unreachable!(),
-            }
-        })
-        .collect()
+fn convert_protocol(protocol: Protocol) -> SslProtocol {
+    match protocol {
+        Protocol::Sslv3 => SslProtocol::Ssl3,
+        Protocol::Tlsv10 => SslProtocol::Tls1,
+        Protocol::Tlsv11 => SslProtocol::Tls11,
+        Protocol::Tlsv12 => SslProtocol::Tls12,
+        Protocol::__NonExhaustive => unreachable!(),
+    }
 }
 
-// FIXME A bandaid until the next security-framework release happens
-fn clone_protocol(protocol: &SslProtocol) -> SslProtocol {
-    match *protocol {
-        SslProtocol::Ssl3 => SslProtocol::Ssl3,
-        SslProtocol::Tls1 => SslProtocol::Tls1,
-        SslProtocol::Tls11 => SslProtocol::Tls11,
-        SslProtocol::Tls12 => SslProtocol::Tls12,
-        _ => unreachable!(),
+fn protocol_min_max(protocols: &[Protocol]) -> (SslProtocol, SslProtocol) {
+    let mut min = Protocol::Tlsv12;
+    let mut max = Protocol::Sslv3;
+    for protocol in protocols {
+        if (*protocol as usize) < (min as usize) {
+            min = *protocol;
+        }
+        if (*protocol as usize) > (max as usize) {
+            max = *protocol;
+        }
     }
+    (convert_protocol(min), convert_protocol(max))
 }
 
 pub struct Error(base::Error);
@@ -120,7 +119,18 @@ impl<S> From<secure_transport::HandshakeError<S>> for HandshakeError<S> {
         match e {
             secure_transport::HandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
             secure_transport::HandshakeError::Interrupted(s) => {
-                HandshakeError::Interrupted(MidHandshakeTlsStream(s))
+                HandshakeError::Interrupted(MidHandshakeTlsStream::Server(s))
+            }
+        }
+    }
+}
+
+impl<S> From<secure_transport::ClientHandshakeError<S>> for HandshakeError<S> {
+    fn from(e: secure_transport::ClientHandshakeError<S>) -> HandshakeError<S> {
+        match e {
+            secure_transport::ClientHandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
+            secure_transport::ClientHandshakeError::Interrupted(s) => {
+                HandshakeError::Interrupted(MidHandshakeTlsStream::Client(s))
             }
         }
     }
@@ -132,13 +142,19 @@ impl<S> From<base::Error> for HandshakeError<S> {
     }
 }
 
-pub struct MidHandshakeTlsStream<S>(secure_transport::MidHandshakeSslStream<S>);
+pub enum MidHandshakeTlsStream<S> {
+    Server(secure_transport::MidHandshakeSslStream<S>),
+    Client(secure_transport::MidHandshakeClientBuilder<S>),
+}
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
     where S: fmt::Debug
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, fmt)
+        match *self {
+            MidHandshakeTlsStream::Server(ref s) => s.fmt(fmt),
+            MidHandshakeTlsStream::Client(ref s) => s.fmt(fmt),
+        }
     }
 }
 
@@ -146,17 +162,33 @@ impl<S> MidHandshakeTlsStream<S>
     where S: io::Read + io::Write
 {
     pub fn get_ref(&self) -> &S {
-        self.0.get_ref()
+        match *self {
+            MidHandshakeTlsStream::Server(ref s) => s.get_ref(),
+            MidHandshakeTlsStream::Client(ref s) => s.get_ref(),
+        }
     }
 
     pub fn get_mut(&mut self) -> &mut S {
-        self.0.get_mut()
+        match *self {
+            MidHandshakeTlsStream::Server(ref mut s) => s.get_mut(),
+            MidHandshakeTlsStream::Client(ref mut s) => s.get_mut(),
+        }
     }
 
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
-        match self.0.handshake() {
-            Ok(s) => Ok(TlsStream(s)),
-            Err(e) => Err(e.into()),
+        match self {
+            MidHandshakeTlsStream::Server(s) => {
+                match s.handshake() {
+                    Ok(s) => Ok(TlsStream(s)),
+                    Err(e) => Err(e.into()),
+                }
+            }
+            MidHandshakeTlsStream::Client(s) => {
+                match s.handshake() {
+                    Ok(s) => Ok(TlsStream(s)),
+                    Err(e) => Err(e.into()),
+                }
+            }
         }
     }
 }
@@ -170,7 +202,7 @@ impl TlsConnectorBuilder {
     }
 
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        self.0.protocols = convert_protocols(protocols);
+        self.0.protocols = protocols.to_vec();
         Ok(())
     }
 
@@ -181,14 +213,16 @@ impl TlsConnectorBuilder {
 
 pub struct TlsConnector {
     pkcs12: Option<Pkcs12>,
-    protocols: Vec<SslProtocol>,
+    protocols: Vec<Protocol>,
+    anchor_certificates: Option<Vec<SecCertificate>>,
 }
 
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
             pkcs12: None,
-            protocols: vec![SslProtocol::Tls1, SslProtocol::Tls11, SslProtocol::Tls12],
+            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+            anchor_certificates: None,
         }))
     }
 
@@ -198,16 +232,17 @@ impl TlsConnector {
                       -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
-        let mut ctx = try!(SslContext::new(ProtocolSide::Client, ConnectionType::Stream));
-        try!(ctx.set_protocol_version_enabled(SslProtocol::All, false));
-        for protocol in &self.protocols {
-            try!(ctx.set_protocol_version_enabled(clone_protocol(protocol), true));
-        }
-        try!(ctx.set_peer_domain_name(domain));
+        let mut builder = ClientBuilder::new();
+        let (min, max) = protocol_min_max(&self.protocols);
+        builder.protocol_min(min);
+        builder.protocol_max(max);
         if let Some(pkcs12) = self.pkcs12.as_ref() {
-            try!(ctx.set_certificate(&pkcs12.identity, &pkcs12.chain));
+            builder.identity(&pkcs12.identity, &pkcs12.chain);
         }
-        match ctx.handshake(stream) {
+        if let Some(anchors) = self.anchor_certificates.as_ref() {
+            builder.anchor_certificates(anchors);
+        }
+        match builder.handshake2(domain, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }
@@ -218,7 +253,7 @@ pub struct TlsAcceptorBuilder(TlsAcceptor);
 
 impl TlsAcceptorBuilder {
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        self.0.protocols = convert_protocols(protocols);
+        self.0.protocols = protocols.to_vec();
         Ok(())
     }
 
@@ -229,14 +264,14 @@ impl TlsAcceptorBuilder {
 
 pub struct TlsAcceptor {
     pkcs12: Pkcs12,
-    protocols: Vec<SslProtocol>,
+    protocols: Vec<Protocol>,
 }
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
             pkcs12: pkcs12,
-            protocols: vec![SslProtocol::Tls1, SslProtocol::Tls11, SslProtocol::Tls12],
+            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
         }))
     }
 
@@ -244,10 +279,10 @@ impl TlsAcceptor {
         where S: io::Read + io::Write
     {
         let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
-        try!(ctx.set_protocol_version_enabled(SslProtocol::All, false));
-        for protocol in &self.protocols {
-            try!(ctx.set_protocol_version_enabled(clone_protocol(protocol), true));
-        }
+
+        let (min, max) = protocol_min_max(&self.protocols);
+        try!(ctx.set_protocol_version_min(min));
+        try!(ctx.set_protocol_version_max(max));
         try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
@@ -315,5 +350,31 @@ impl<S> TlsStreamExt<S> for ::TlsStream<S> {
 
     fn raw_stream_mut(&mut self) -> &mut secure_transport::SslStream<S> {
         &mut (self.0).0
+    }
+}
+
+/// Security Framework-specific extensions to `TlsConnectorBuilder`.
+pub trait TlsConnectorBuilderExt {
+    /// Specifies the set of additional root certificates to trust when
+    /// verifying the server's certificate.
+    fn anchor_certificates(&mut self, certs: &[SecCertificate]) -> &mut Self;
+}
+
+impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
+    fn anchor_certificates(&mut self, certs: &[SecCertificate]) -> &mut Self {
+        (self.0).0.anchor_certificates = Some(certs.to_owned());
+        self
+    }
+}
+
+/// Security Framework-specific extensions to `Error`
+pub trait ErrorExt {
+    /// Extract the underlying Security Framework error for inspection.
+    fn security_framework_error(&self) -> &base::Error;
+}
+
+impl ErrorExt for ::Error {
+    fn security_framework_error(&self) -> &base::Error {
+        &(self.0).0
     }
 }

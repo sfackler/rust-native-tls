@@ -9,8 +9,8 @@ documentation = "https://docs.rs/native-tls/0.1.0/native_tls"
 readme = "README.md"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-security-framework = { version = "0.1.9", features = ["OSX_10_8"] }
-security-framework-sys = "0.1.9"
+security-framework = { version = "0.1.10", features = ["OSX_10_8"] }
+security-framework-sys = "0.1.10"
 tempdir = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]

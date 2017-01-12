@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/sfackler/rust-native-tls.svg?branch=master)](https://travis-ci.org/sfackler/rust-native-tls)
 
-[Documentation](https://docs.rs/native-tls/0.1.0/native_tls)
+[Documentation](https://docs.rs/native-tls)
 
 An abstraction over platform-specific TLS implementations.
 

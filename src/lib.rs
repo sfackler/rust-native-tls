@@ -102,7 +102,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://docs.rs/native-tls/0.1.0")]
+#![doc(html_root_url="https://docs.rs/native-tls/0.1.1")]
 #![warn(missing_docs)]
 
 #[cfg(test)]

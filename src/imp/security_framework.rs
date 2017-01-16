@@ -1,6 +1,5 @@
 extern crate security_framework;
 extern crate security_framework_sys;
-extern crate tempdir;
 
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
@@ -8,9 +7,6 @@ use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
-use self::security_framework::os::macos::keychain;
-use self::security_framework_sys::base::errSecIO;
-use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
 use std::error;
@@ -78,34 +74,22 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let dir = match TempDir::new("native_tls") {
-            Ok(dir) => dir,
-            // Gotta throw away the real error :(
-            Err(_) => return Err(Error(base::Error::from(errSecIO))),
-        };
+        let mut options = Pkcs12ImportOptions::new();
+        options.passphrase(pass);
 
-        let keychain = try!(keychain::CreateOptions::new()
-            .password(pass) // FIXME maybe generate a secure random password here?
-            .create(dir.path().join("keychain")));
+        let mut imported_identities = try!(options.import(buf));
+        imported_identities.truncate(1);
+        let imported_identity = imported_identities.pop().unwrap();
 
-        let mut import = try!(Pkcs12ImportOptions::new()
-            .passphrase(pass)
-            .keychain(keychain)
-            .import(buf));
-        let import = import.pop().unwrap();
-
-        // The identity's cert shows up in the chain, so filter it out to avoid sending twice
-        // FIXME should probably use CFEquals here
-        let identity_cert = try!(import.identity.certificate()).to_der();
-
-        Ok(Pkcs12 {
-            identity: import.identity,
-            // FIXME possibly use the chain from the trust result instead?
-            chain: import.cert_chain
-                .into_iter()
-                .filter(|c| c.to_der() != identity_cert)
-                .collect(),
-        })
+        // FIXME: Compare the certificates for equality using CFEqual
+        let identity_cert = try!(imported_identity.identity.certificate()).to_der();
+        
+        Ok(Pkcs12{
+            identity: imported_identity.identity,
+            chain: imported_identity.cert_chain
+                .into_iter()		
+                .filter(|c| c.to_der() != identity_cert)		
+                .collect(),})
     }
 }
 

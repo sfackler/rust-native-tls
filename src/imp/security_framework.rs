@@ -80,8 +80,16 @@ impl Pkcs12 {
         let mut imported_identities = options.import(buf)?;
         imported_identities.truncate(1);
         let imported_identity = imported_identities.pop().unwrap();
+
+        // FIXME: Compare the certificates for equality using CFEqual
+        let identity_cert = imported_identity.identity.certificate()?.to_der();
         
-        Ok(Pkcs12{identity: imported_identity.identity, chain: imported_identity.cert_chain})
+        Ok(Pkcs12{
+            identity: imported_identity.identity,
+            chain: imported_identity.cert_chain
+                .into_iter()		
+                .filter(|c| c.to_der() != identity_cert)		
+                .collect(),})
     }
 }
 

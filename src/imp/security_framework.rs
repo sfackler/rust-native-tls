@@ -84,12 +84,13 @@ impl Pkcs12 {
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(imported_identity.identity.certificate()).to_der();
         
-        Ok(Pkcs12{
+        Ok(Pkcs12 {
             identity: imported_identity.identity,
             chain: imported_identity.cert_chain
                 .into_iter()		
                 .filter(|c| c.to_der() != identity_cert)		
-                .collect(),})
+                .collect(),
+        })
     }
 }
 

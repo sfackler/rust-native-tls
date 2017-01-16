@@ -77,12 +77,12 @@ impl Pkcs12 {
         let mut options = Pkcs12ImportOptions::new();
         options.passphrase(pass);
 
-        let mut imported_identities = options.import(buf)?;
+        let mut imported_identities = try!(options.import(buf));
         imported_identities.truncate(1);
         let imported_identity = imported_identities.pop().unwrap();
 
         // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = imported_identity.identity.certificate()?.to_der();
+        let identity_cert = try!(imported_identity.identity.certificate()).to_der();
         
         Ok(Pkcs12{
             identity: imported_identity.identity,

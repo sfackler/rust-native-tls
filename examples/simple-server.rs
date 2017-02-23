@@ -18,7 +18,7 @@ fn main() {
 
     let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
 
-    fn handle_client(stream: TlsStream<TcpStream>) {
+    fn handle_client(_stream: TlsStream<TcpStream>) {
         // ...
     }
 
@@ -31,7 +31,7 @@ fn main() {
                     handle_client(stream);
                 });
             }
-            Err(e) => { /* connection failed */ }
+            Err(_e) => { /* connection failed */ }
         }
     }
 }

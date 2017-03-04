@@ -278,6 +278,7 @@ fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder, client_cert: X50
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder, client_cert: X509) {
     use openssl::ssl::{SSL_VERIFY_FAIL_IF_NO_PEER_CERT, SSL_VERIFY_PEER};
+    use openssl::x509::store::X509StoreBuilder;
     use imp::TlsAcceptorBuilderExt;
 
     let mut ssl_conn_builder = connect_builder.builder_mut();

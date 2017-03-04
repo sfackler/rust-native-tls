@@ -15,8 +15,17 @@ security-framework-sys = "0.1.10"
 [target.'cfg(target_os = "windows")'.dependencies]
 schannel = "0.1.1"
 
-[target.'cfg(not(any(target_os = "windows", target_os = "macos")))'.dependencies]
+[target.'cfg(not(any(target_os = "windows", target_os = "macos", nonnative_tls)))'.dependencies]
 openssl = "0.9"
+
+[target.'cfg(all(not(any(target_os = "macos", target_os = "windows")), nonnative_tls))'.dependencies]
+rustls = "0.5"
+webpki-roots = "0.7.0"
 
 [dev-dependencies]
 openssl = { version = "0.9", features = ["v102", "v110"] }
+
+# additional, on top of openssl above
+[target.'cfg(nonnative_tls)'.dev-dependencies]
+rustls = "0.5"
+webpki-roots = "0.7.0"

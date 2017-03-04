@@ -123,8 +123,11 @@ mod imp;
 #[cfg(target_os = "windows")]
 #[path = "imp/schannel.rs"]
 mod imp;
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows", nonnative_tls)))]
 #[path = "imp/openssl.rs"]
+mod imp;
+#[cfg(all(not(any(target_os = "macos", target_os = "windows")), nonnative_tls))]
+#[path = "imp/rustls.rs"]
 mod imp;
 
 #[cfg(test)]

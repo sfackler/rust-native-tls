@@ -288,8 +288,7 @@ fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder, client_cert: X50
     ssl_ctx_builder.set_verify(verify);
 
     let mut store = X509StoreBuilder::new().unwrap();
-    let root_ca = X509::from_der(&root_cert_der_copy).unwrap();
-    store.add_cert(root_ca).unwrap();
+    store.add_cert(client_cert).unwrap();
     ssl_ctx_builder.set_verify_cert_store(store.build()).unwrap();
 }
 

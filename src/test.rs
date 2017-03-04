@@ -2,6 +2,8 @@
 extern crate security_framework;
 
 use openssl::ssl::{self, SslMethod, SslConnectorBuilder};
+use openssl::pkcs12::Pkcs12 as OpenSSLPkcs12;
+use openssl::x509::X509;
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
@@ -176,9 +178,9 @@ fn shutdown() {
 
 #[test]
 fn client_auth_no_verify() {
-    let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-    let builder = p!(TlsAcceptor::builder(pkcs12));
+    let server_id_bytes = include_bytes!("../test/identity.p12");
+    let server_id = p!(Pkcs12::from_der(server_id_bytes, "mypass"));
+    let builder = p!(TlsAcceptor::builder(server_id));
     let builder = p!(builder.build());
 
     let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -213,10 +215,13 @@ fn client_auth_no_verify() {
 
 #[test]
 fn client_auth() {
-    let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-    let mut builder = p!(TlsAcceptor::builder(pkcs12));
-    add_client_auth_ca(&mut builder);
+    let server_id_bytes = include_bytes!("../test/identity.p12");
+    let server_id = p!(Pkcs12::from_der(server_id_bytes, "mypass"));
+    let mut builder = p!(TlsAcceptor::builder(server_id));
+
+    let (client_id, client_cert) = cert("client");
+
+    add_client_auth_ca(&mut builder, client_cert);
     let builder = p!(builder.build());
 
     let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -233,12 +238,12 @@ fn client_auth() {
         p!(socket.write_all(b"world"));
     });
 
-    let buf = include_bytes!("../test/identity.p12");
-    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let buf = p!(client_id.to_der());
+    let pkcs12 = p!(Pkcs12::from_der(&buf, "mypass"));
     let mut connect_builder = p!(TlsConnector::builder());
 
     p!(connect_builder.identity(pkcs12));
-    //configure_ca(&mut connect_builder);
+    configure_ca(&mut connect_builder);
 
     let connector = p!(connect_builder.build());
     let s = p!(TcpStream::connect(("localhost", port)));
@@ -253,25 +258,25 @@ fn client_auth() {
 }
 
 #[cfg(target_os = "macos")]
-fn add_client_auth_ca(accept_builder: &mut TlsAcceptorBuilder) {
+fn add_client_auth_ca(accept_builder: &mut TlsAcceptorBuilder, client_cert: X509) {
     use self::security_framework::certificate::SecCertificate;
     use self::security_framework::secure_transport::SslAuthenticate;
     use imp::TlsAcceptorBuilderExt;
 
-    let buf = include_bytes!("../test/root-ca.der");
-    let ca = p!(SecCertificate::from_der(buf));
+    let buf = p!(client_cert.to_der());
+    let ca = p!(SecCertificate::from_der(&buf));
 
     p!(accept_builder.client_auth(SslAuthenticate::Always));
     p!(accept_builder.additional_cas(vec![ca]));
 }
 
 #[cfg(target_os = "windows")]
-fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder) {
+fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder, client_cert: X509) {
     unimplemented!()
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder) {
+fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder, client_cert: X509) {
     use openssl::ssl::{SSL_VERIFY_FAIL_IF_NO_PEER_CERT, SSL_VERIFY_PEER};
     use imp::TlsAcceptorBuilderExt;
 
@@ -280,8 +285,11 @@ fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder) {
     let verify = SSL_VERIFY_FAIL_IF_NO_PEER_CERT | SSL_VERIFY_PEER;
 
     ssl_ctx_builder.set_verify(verify);
-    p!(ssl_ctx_builder.set_ca_file("test/root-ca.pem"));
 
+    let mut store = X509StoreBuilder::new().unwrap();
+    let root_ca = X509::from_der(&root_cert_der_copy).unwrap();
+    store.add_cert(root_ca).unwrap();
+    ssl_ctx_builder.set_verify_cert_store(store.build()).unwrap();
 }
 
 #[cfg(target_os = "macos")]
@@ -308,4 +316,52 @@ fn configure_ca(connect_builder: &mut TlsConnectorBuilder) {
     let mut ssl_ctx_builder = ssl_conn_builder.builder_mut();
 
     p!(ssl_ctx_builder.set_ca_file("test/root-ca.pem"));
+}
+
+fn cert(subject_name: &str) -> (OpenSSLPkcs12, X509) {
+    use openssl::rsa::Rsa;
+    use openssl::pkey::PKey;
+    use openssl::x509::*;
+    use openssl::x509::extension::*;
+    use openssl::nid;
+    use openssl::asn1::*;
+    use openssl::hash::*;
+
+    let rsa = Rsa::generate(2048).unwrap();
+    let pkey = PKey::from_rsa(rsa).unwrap();
+
+    let mut x509_name = X509NameBuilder::new().unwrap();
+    x509_name.append_entry_by_nid(nid::COMMONNAME, subject_name).unwrap();
+    let x509_name = x509_name.build();
+
+    let mut x509_build = X509::builder().unwrap();
+    x509_build.set_not_before(&Asn1Time::days_from_now(0).unwrap()).unwrap();
+    x509_build.set_not_after(&Asn1Time::days_from_now(256).unwrap()).unwrap();
+    x509_build.set_issuer_name(&x509_name).unwrap();
+    x509_build.set_subject_name(&x509_name).unwrap();
+    x509_build.set_pubkey(&pkey).unwrap();
+
+    let basic_constraints = BasicConstraints::new().critical().ca().build().unwrap();
+    x509_build.append_extension(basic_constraints).unwrap();
+
+    let ext_key_usage = ExtendedKeyUsage::new()
+        .server_auth()
+        .client_auth()
+        .build()
+        .unwrap();
+    x509_build.append_extension(ext_key_usage).unwrap();
+
+    let subject_alternative_name = SubjectAlternativeName::new()
+        .dns(subject_name)
+        .build(&x509_build.x509v3_context(None, None))
+        .unwrap();
+    x509_build.append_extension(subject_alternative_name).unwrap();
+
+    x509_build.sign(&pkey, MessageDigest::sha256()).unwrap();
+    let cert = x509_build.build();
+
+    let pkcs12_builder = OpenSSLPkcs12::builder();
+    let pkcs12 = pkcs12_builder.build("mypass", subject_name, &pkey, &cert).unwrap();
+
+    (pkcs12, cert)
 }

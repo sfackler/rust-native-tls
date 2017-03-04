@@ -80,7 +80,7 @@ impl Pkcs12 {
 
         let mut imported_identities = try!(options.import(buf));
         imported_identities.truncate(1);
-        let imported_identity = imported_identities.pop().unwrap();
+        let imported_identity = imported_identities.pop().expect("need an identity");
 
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(imported_identity.identity.certificate()).to_der();

@@ -22,6 +22,8 @@ openssl = "0.9"
 openssl = { version = "0.9", features = ["v102", "v110"] }
 
 [replace]
+"openssl:0.9.7" = { git = "https://github.com/sfackler/rust-openssl.git", features = ["v102", "v110"] }
+"openssl-sys:0.9.7" = { git = "https://github.com/sfackler/rust-openssl.git", features = ["v102", "v110"] }
 #"security-framework:0.1.10" = { path = "../rust-security-framework/security-framework" }
 "security-framework:0.1.10" = { git = "https://github.com/sfackler/rust-security-framework.git" }
 #"security-framework-sys:0.1.10" = { path = "../rust-security-framework/security-framework-sys" }

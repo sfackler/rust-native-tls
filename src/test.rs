@@ -279,7 +279,7 @@ fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder) {
     let mut ssl_ctx_builder = ssl_conn_builder.builder_mut();
     let verify = SSL_VERIFY_FAIL_IF_NO_PEER_CERT | SSL_VERIFY_PEER;
 
-    p!(ssl_ctx_builder.set_verify(verify));
+    ssl_ctx_builder.set_verify(verify);
     p!(ssl_ctx_builder.set_ca_file("test/root-ca.pem"));
 
 }

@@ -275,7 +275,7 @@ impl TlsAcceptor {
             try!(ctx.set_client_side_authenticate(client_auth))
         };
         if !self.additional_cas.is_empty() {
-            try!(ctx.add_certificate_authorities(&self.additional_cas));
+            try!(ctx.set_certificate_authorities(&self.additional_cas));
         }
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

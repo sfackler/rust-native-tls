@@ -265,6 +265,25 @@ fn add_client_auth_ca(accept_builder: &mut TlsAcceptorBuilder) {
     p!(accept_builder.additional_cas(vec![ca]));
 }
 
+#[cfg(target_os = "windows")]
+fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder) {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn add_client_auth_ca(connect_builder: &mut TlsAcceptorBuilder) {
+    use openssl::ssl::{SSL_VERIFY_FAIL_IF_NO_PEER_CERT, SSL_VERIFY_PEER};
+    use imp::TlsAcceptorBuilderExt;
+
+    let mut ssl_conn_builder = connect_builder.builder_mut();
+    let mut ssl_ctx_builder = ssl_conn_builder.builder_mut();
+    let verify = SSL_VERIFY_FAIL_IF_NO_PEER_CERT | SSL_VERIFY_PEER;
+
+    p!(ssl_ctx_builder.set_verify(verify));
+    p!(ssl_ctx_builder.set_ca_file("test/root-ca.pem"));
+
+}
+
 #[cfg(target_os = "macos")]
 fn configure_ca(connect_builder: &mut TlsConnectorBuilder) {
     use imp::TlsConnectorBuilderExt;

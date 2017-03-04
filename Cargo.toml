@@ -20,3 +20,9 @@ openssl = "0.9"
 
 [dev-dependencies]
 openssl = { version = "0.9", features = ["v102", "v110"] }
+
+[replace]
+#"security-framework:0.1.10" = { path = "../rust-security-framework/security-framework" }
+"security-framework:0.1.10" = { git = "https://github.com/sfackler/rust-security-framework.git" }
+#"security-framework-sys:0.1.10" = { path = "../rust-security-framework/security-framework-sys" }
+"security-framework-sys:0.1.10" = { git = "https://github.com/sfackler/rust-security-framework.git" }

@@ -1,4 +1,9 @@
+#[cfg(target_os = "macos")]
+extern crate security_framework;
+
 use openssl::ssl::{self, SslMethod, SslConnectorBuilder};
+use openssl::pkcs12::Pkcs12 as OpenSSLPkcs12;
+use openssl::x509::X509;
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
@@ -169,4 +174,66 @@ fn shutdown() {
     p!(socket.shutdown());
 
     p!(j.join());
+}
+
+#[test]
+fn load_pkcs12() {
+    let (pkcs12, _) = cert("test");
+
+    let buf = p!(pkcs12.to_der());
+    p!(Pkcs12::from_der(&buf, "mypass"));
+}
+
+fn cert(subject_name: &str) -> (OpenSSLPkcs12, X509) {
+    use openssl::rsa::Rsa;
+    use openssl::pkey::PKey;
+    use openssl::x509::*;
+    use openssl::x509::extension::*;
+    use openssl::nid;
+    use openssl::asn1::*;
+    use openssl::hash::*;
+    use openssl::bn::*;
+
+    let rsa = Rsa::generate(2048).unwrap();
+    let pkey = PKey::from_rsa(rsa).unwrap();
+
+    let mut x509_name = X509NameBuilder::new().unwrap();
+    x509_name.append_entry_by_nid(nid::COMMONNAME, subject_name).unwrap();
+    let x509_name = x509_name.build();
+
+    let mut serial: BigNum = BigNum::new().unwrap();
+    serial.pseudo_rand(32, MSB_MAYBE_ZERO, false).unwrap();
+    let serial = serial.to_asn1_integer().unwrap();
+
+    let mut x509_build = X509::builder().unwrap();
+    x509_build.set_not_before(&Asn1Time::days_from_now(0).unwrap()).unwrap();
+    x509_build.set_not_after(&Asn1Time::days_from_now(256).unwrap()).unwrap();
+    x509_build.set_issuer_name(&x509_name).unwrap();
+    x509_build.set_subject_name(&x509_name).unwrap();
+    x509_build.set_pubkey(&pkey).unwrap();
+    x509_build.set_serial_number(&serial).unwrap();
+
+    let basic_constraints = BasicConstraints::new().critical().ca().build().unwrap();
+    x509_build.append_extension(basic_constraints).unwrap();
+
+    let ext_key_usage = ExtendedKeyUsage::new()
+        .server_auth()
+        .client_auth()
+        .build()
+        .unwrap();
+    x509_build.append_extension(ext_key_usage).unwrap();
+
+    let subject_alternative_name = SubjectAlternativeName::new()
+        .dns(subject_name)
+        .build(&x509_build.x509v3_context(None, None))
+        .unwrap();
+    x509_build.append_extension(subject_alternative_name).unwrap();
+
+    x509_build.sign(&pkey, MessageDigest::sha256()).unwrap();
+    let cert = x509_build.build();
+
+    let pkcs12_builder = OpenSSLPkcs12::builder();
+    let pkcs12 = pkcs12_builder.build("mypass", subject_name, &pkey, &cert).unwrap();
+
+    (pkcs12, cert)
 }

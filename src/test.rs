@@ -316,7 +316,7 @@ fn configure_ca(connect_builder: &mut TlsConnectorBuilder, cert: X509) {
 fn configure_ca(connect_builder: &mut TlsConnectorBuilder, cert: X509) {
     use openssl::ssl::{SSL_VERIFY_FAIL_IF_NO_PEER_CERT, SSL_VERIFY_PEER};
     use openssl::x509::store::X509StoreBuilder;
-    use imp::TlsAcceptorBuilderExt;
+    use imp::TlsConnectorBuilderExt;
 
     let mut ssl_conn_builder = connect_builder.builder_mut();
     let mut ssl_ctx_builder = ssl_conn_builder.builder_mut();

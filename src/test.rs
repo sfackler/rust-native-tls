@@ -205,7 +205,12 @@ fn dynamic_auth() {
 
     let connector = p!(connect_builder.build());
     let s = p!(TcpStream::connect(("localhost", port)));
-    let mut socket = p!(connector.connect(server_name, s));
+    let socket = connector.connect(server_name, s);
+
+    let mut socket = match socket {
+        Err(HandshakeError::Interrupted(mid_handshake)) => p!(mid_handshake.handshake()), 
+        r @ _ => p!(r),
+    };
 
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
@@ -251,7 +256,12 @@ fn client_auth() {
 
     let connector = p!(connect_builder.build());
     let s = p!(TcpStream::connect(("localhost", port)));
-    let mut socket = p!(connector.connect(server_name, s));
+    let socket = connector.connect(server_name, s);
+
+    let mut socket = match socket {
+        Err(HandshakeError::Interrupted(mid_handshake)) => p!(mid_handshake.handshake()), 
+        r @ _ => p!(r),
+    };
 
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
@@ -381,9 +391,6 @@ fn cert(subject_name: &str) -> (OpenSSLPkcs12, X509) {
         .build(&x509_build.x509v3_context(None, None))
         .unwrap();
     x509_build.append_extension(subject_alternative_name).unwrap();
-
-    let basic_constraints = BasicConstraints::new().critical().ca().build().unwrap();
-    x509_build.append_extension(basic_constraints).unwrap();
 
     x509_build.sign(&pkey, MessageDigest::sha256()).unwrap();
     let cert = x509_build.build();

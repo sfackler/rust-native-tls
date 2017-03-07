@@ -238,7 +238,12 @@ fn client_auth() {
 
     let j = thread::spawn(move || {
         let socket = p!(listener.accept()).0;
-        let mut socket = p!(tls_acceptor.accept(socket));
+        let socket = tls_acceptor.accept(socket);
+
+        let mut socket = match socket {
+            Err(HandshakeError::Interrupted(mid_handshake)) => p!(mid_handshake.handshake()), 
+            r @ _ => p!(r),
+        };
 
         let mut buf = [0; 5];
         p!(socket.read_exact(&mut buf));

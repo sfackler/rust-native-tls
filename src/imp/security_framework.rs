@@ -272,10 +272,11 @@ impl TlsAcceptor {
         try!(ctx.set_protocol_version_max(max));
         try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
         if let Some(client_auth) = self.client_auth {
+            try!(ctx.set_break_on_client_auth(true));
             try!(ctx.set_client_side_authenticate(client_auth))
         };
         if !self.additional_cas.is_empty() {
-            try!(ctx.set_certificate_authorities(&self.additional_cas));
+            try!(ctx.add_certificate_authorities(&self.additional_cas));
         }
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

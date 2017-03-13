@@ -1,10 +1,11 @@
 environment:
-  RUST_VERSION: 1.9.0
+  RUST_VERSION: 1.13.0
+  OPENSSL_VERSION: 1_0_2k
   TARGET: x86_64-pc-windows-msvc
   OPENSSL_DIR: C:\OpenSSL
 install:
-  - ps: Start-FileDownload "http://slproweb.com/download/Win64OpenSSL-1_0_2j.exe"
-  - Win64OpenSSL-1_0_2j.exe /SILENT /VERYSILENT /SP- /DIR="C:\OpenSSL"
+  - ps: Start-FileDownload "http://slproweb.com/download/Win64OpenSSL-${env:OPENSSL_VERSION}.exe"
+  - Win64OpenSSL-%OPENSSL_VERSION%.exe /SILENT /VERYSILENT /SP- /DIR="C:\OpenSSL"
   - ps: Start-FileDownload "https://static.rust-lang.org/dist/rust-${env:RUST_VERSION}-${env:TARGET}.exe"
   - rust-%RUST_VERSION%-%TARGET%.exe /VERYSILENT /NORESTART /DIR="C:\Program Files\Rust"
   - SET PATH=%PATH%;C:\Program Files\Rust\bin

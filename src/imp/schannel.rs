@@ -170,13 +170,32 @@ impl TlsConnector {
                       -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
+        self._connect(Some(domain), stream)
+    }
+
+    pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        self._connect(None, stream)
+    }
+
+    fn _connect<S>(&self,
+                   domain: Option<&str>,
+                   stream: S)
+                   -> Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
         let mut builder = SchannelCred::builder();
         builder.enabled_protocols(&self.protocols);
         if let Some(cert) = self.cert.as_ref() {
             builder.cert(cert.clone());
         }
         let cred = try!(builder.acquire(Direction::Outbound));
-        match tls_stream::Builder::new().domain(domain).connect(cred, stream) {
+        let mut builder = tls_stream::Builder::new();
+        if let Some(domain) = domain {
+            builder.domain(domain);
+        }
+        match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }

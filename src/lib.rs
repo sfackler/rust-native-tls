@@ -375,6 +375,21 @@ impl TlsConnector {
         let s = try!(self.0.connect(domain, stream));
         Ok(TlsStream(s))
     }
+
+    /// Like `connect`, but does not validate the server's domain name against its certificate.
+    ///
+    /// # Warning
+    ///
+    /// You should think very carefully before you use this method. If hostname verification is not
+    /// used, *any* valid certificate for *any* site will be trusted for use from any other. This
+    /// introduces a significant vulnerability to man-in-the-middle attacks.
+    pub fn danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication<S>(
+            &self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
+    {
+        let s = try!(self.0.connect_no_domain(stream));
+        Ok(TlsStream(s))
+    }
 }
 
 /// A builder for `TlsAcceptor`s.

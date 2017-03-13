@@ -34,8 +34,16 @@ fn connect_google() {
 fn connect_bad_hostname() {
     let builder = p!(TlsConnector::builder());
     let builder = p!(builder.build());
-    let s = p!(TcpStream::connect("wrong.host.badssl.com:443"));
-    assert!(builder.connect("wrong.host.badssl.com", s).is_err());
+    let s = p!(TcpStream::connect("google.com:443"));
+    assert!(builder.connect("goggle.com", s).is_err());
+}
+
+#[test]
+fn connect_bad_hostname_ignored() {
+    let builder = p!(TlsConnector::builder());
+    let builder = p!(builder.build());
+    let s = p!(TcpStream::connect("google.com:443"));
+    builder.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(s).unwrap();
 }
 
 #[test]

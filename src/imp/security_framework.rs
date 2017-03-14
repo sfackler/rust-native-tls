@@ -6,7 +6,8 @@ use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
-                                                 SslProtocol, ClientBuilder};
+                                                 SslAuthenticate, SslProtocol, ClientBuilder};
+use imp::security_framework::os::macos::secure_transport::SslContextExt;
 use std::fmt;
 use std::io;
 use std::error;
@@ -79,7 +80,7 @@ impl Pkcs12 {
 
         let mut imported_identities = try!(options.import(buf));
         imported_identities.truncate(1);
-        let imported_identity = imported_identities.pop().unwrap();
+        let imported_identity = imported_identities.pop().expect("need an identity");
 
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(imported_identity.identity.certificate()).to_der();
@@ -178,6 +179,19 @@ impl<S> MidHandshakeTlsStream<S>
     }
 }
 
+pub trait MidHandshakeTlsStreamExt {
+    fn context(&self) -> &SslContext;
+}
+
+impl<S> MidHandshakeTlsStreamExt for ::MidHandshakeTlsStream<S> {
+    fn context(&self) -> &SslContext {
+        match self.0 {
+            MidHandshakeTlsStream::Server(ref s) => return s.context(),
+            MidHandshakeTlsStream::Client(_) => panic!("not available for client"),
+        }
+    }
+}
+
 pub struct TlsConnectorBuilder(TlsConnector);
 
 impl TlsConnectorBuilder {
@@ -211,10 +225,7 @@ impl TlsConnector {
         }))
     }
 
-    pub fn connect<S>(&self,
-                      domain: &str,
-                      stream: S)
-                      -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         self.connect_inner(Some(domain), stream)
@@ -270,6 +281,8 @@ impl TlsAcceptorBuilder {
 pub struct TlsAcceptor {
     pkcs12: Pkcs12,
     protocols: Vec<Protocol>,
+    client_auth: Option<SslAuthenticate>,
+    additional_cas: Vec<SecCertificate>,
 }
 
 impl TlsAcceptor {
@@ -277,6 +290,8 @@ impl TlsAcceptor {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
             pkcs12: pkcs12,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+            client_auth: None,
+            additional_cas: vec![],
         }))
     }
 
@@ -289,10 +304,40 @@ impl TlsAcceptor {
         try!(ctx.set_protocol_version_min(min));
         try!(ctx.set_protocol_version_max(max));
         try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
+        if let Some(client_auth) = self.client_auth {
+            try!(ctx.set_break_on_client_auth(true));
+            try!(ctx.set_client_side_authenticate(client_auth))
+        };
+        if !self.additional_cas.is_empty() {
+            try!(ctx.add_certificate_authorities(&self.additional_cas));
+        }
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }
+    }
+}
+
+/// OpenSSL-specific extensions to `TlsConnectorBuilder`.
+pub trait TlsAcceptorBuilderExt {
+    /// Specifies the authenication requirement for ClientAuth type connections.
+    fn client_auth(&mut self, auth: SslAuthenticate) -> Result<(), Error>;
+
+    /// Appends these additional certificates to the acceptors list of CAs.
+    ///
+    /// This is useful for associating CAs to verify client_auth connections.
+    fn additional_cas(&mut self, cas: Vec<SecCertificate>) -> Result<(), Error>;
+}
+
+impl TlsAcceptorBuilderExt for ::TlsAcceptorBuilder {
+    fn client_auth(&mut self, auth: SslAuthenticate) -> Result<(), Error> {
+        (self.0).0.client_auth = Some(auth);
+        Ok(())
+    }
+
+    fn additional_cas(&mut self, cas: Vec<SecCertificate>) -> Result<(), Error> {
+        (self.0).0.additional_cas = cas;
+        Ok(())
     }
 }
 

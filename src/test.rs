@@ -69,7 +69,11 @@ fn server() {
     p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
     let connector = builder.build();
     let mut socket = p!(connector.connect("foobar.com", socket));
-    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    println!("{}",
+             socket.ssl()
+                 .current_cipher()
+                 .unwrap()
+                 .description());
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
     p!(socket.read_to_end(&mut buf));
@@ -107,7 +111,11 @@ fn server_tls11_only() {
     builder.builder_mut().set_options(options);
     let connector = builder.build();
     let mut socket = p!(connector.connect("foobar.com", socket));
-    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    println!("{}",
+             socket.ssl()
+                 .current_cipher()
+                 .unwrap()
+                 .description());
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
     p!(socket.read_to_end(&mut buf));
@@ -128,9 +136,9 @@ fn server_no_shared_protocol() {
     let port = p!(listener.local_addr()).port();
 
     let j = thread::spawn(move || {
-        let socket = p!(listener.accept()).0;
-        assert!(builder.accept(socket).is_err());
-    });
+                              let socket = p!(listener.accept()).0;
+                              assert!(builder.accept(socket).is_err());
+                          });
 
     let socket = p!(TcpStream::connect(("localhost", port)));
     let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
@@ -169,7 +177,11 @@ fn shutdown() {
     p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
     let connector = builder.build();
     let mut socket = p!(connector.connect("foobar.com", socket));
-    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    println!("{}",
+             socket.ssl()
+                 .current_cipher()
+                 .unwrap()
+                 .description());
     p!(socket.write_all(b"hello"));
     p!(socket.shutdown());
 
@@ -222,6 +234,15 @@ fn dynamic_auth() {
 
 #[test]
 fn client_auth() {
+    use self::security_framework::certificate::SecCertificate;
+    use self::security_framework::secure_transport::SslAuthenticate;
+    use self::security_framework::policy::SecPolicy;
+    use self::security_framework::trust::SecTrust;
+    use imp::TlsAcceptorBuilderExt;
+    use self::security_framework::secure_transport::ProtocolSide;
+    use imp::MidHandshakeTlsStreamExt;
+    use self::security_framework::trust::TrustResult;
+
     let server_name = "server.example.com";
     let (server_id, server_cert) = cert(server_name);
     let server_id_bytes = server_id.to_der().unwrap();
@@ -229,6 +250,7 @@ fn client_auth() {
     let mut tls_builder = p!(TlsAcceptor::builder(server_id));
 
     let (client_id, client_cert) = cert("client.example.com");
+    let buf = p!(client_cert.to_der());
 
     add_client_auth_ca(&mut tls_builder, client_cert);
     let tls_acceptor = p!(tls_builder.build());
@@ -241,8 +263,18 @@ fn client_auth() {
         let socket = tls_acceptor.accept(socket);
 
         let mut socket = match socket {
-            Err(HandshakeError::Interrupted(mid_handshake)) => p!(mid_handshake.handshake()), 
-            r @ _ => p!(r),
+            Ok(_) => panic!("unexpected success"),
+            Err(HandshakeError::Interrupted(mid_handshake)) => {
+                let ca = p!(SecCertificate::from_der(&buf));
+
+                let mut trust = p!(mid_handshake.context().peer_trust());
+                p!(trust.set_anchor_certificates(&vec![ca]));
+                p!(trust.set_trust_anchor_certificates_only(true));
+
+                if !p!(trust.evaluate()).success() { panic!("Certificate failed evaluation") };
+                p!(mid_handshake.handshake())
+            } 
+            Err(_) => panic!("failed"),
         };
 
         let mut buf = [0; 5];
@@ -285,8 +317,9 @@ fn add_client_auth_ca(accept_builder: &mut TlsAcceptorBuilder, client_cert: X509
     let buf = p!(client_cert.to_der());
     let ca = p!(SecCertificate::from_der(&buf));
 
-    p!(accept_builder.client_auth(SslAuthenticate::Try));
-    p!(accept_builder.additional_cas(vec![ca]));
+    p!(accept_builder.client_auth(SslAuthenticate::Always));
+
+    //p!(accept_builder.additional_cas(vec![ca]));
 }
 
 #[cfg(target_os = "windows")]
@@ -380,9 +413,8 @@ fn cert(subject_name: &str) -> (OpenSSLPkcs12, X509) {
         .unwrap();
     x509_build.append_extension(ext_key_usage).unwrap();
 
-    let subject_key_identifier = SubjectKeyIdentifier::new()
-        .build(&x509_build.x509v3_context(None, None))
-        .unwrap();
+    let subject_key_identifier =
+        SubjectKeyIdentifier::new().build(&x509_build.x509v3_context(None, None)).unwrap();
     x509_build.append_extension(subject_key_identifier).unwrap();
 
     let authority_key_identifier = AuthorityKeyIdentifier::new()

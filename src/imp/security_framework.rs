@@ -179,6 +179,19 @@ impl<S> MidHandshakeTlsStream<S>
     }
 }
 
+pub trait MidHandshakeTlsStreamExt {
+    fn context(&self) -> &SslContext;
+}
+
+impl<S> MidHandshakeTlsStreamExt for ::MidHandshakeTlsStream<S> {
+    fn context(&self) -> &SslContext {
+        match self.0 {
+            MidHandshakeTlsStream::Server(ref s) => return s.context(),
+            MidHandshakeTlsStream::Client(_) => panic!("not available for client"),
+        }
+    }
+}
+
 pub struct TlsConnectorBuilder(TlsConnector);
 
 impl TlsConnectorBuilder {

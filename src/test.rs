@@ -1,4 +1,3 @@
-use openssl::ssl::{self, SslMethod, SslConnectorBuilder};
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
@@ -35,7 +34,7 @@ fn connect_bad_hostname() {
     let builder = p!(TlsConnector::builder());
     let builder = p!(builder.build());
     let s = p!(TcpStream::connect("google.com:443"));
-    assert!(builder.connect("goggle.com", s).is_err());
+    builder.connect("goggle.com", s).unwrap_err();
 }
 
 #[test]
@@ -67,12 +66,15 @@ fn server() {
         p!(socket.write_all(b"world"));
     });
 
+    let root_ca = include_bytes!("../test/root-ca.der");
+    let root_ca = Certificate::from_der(root_ca).unwrap();
+
     let socket = p!(TcpStream::connect(("localhost", port)));
-    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
-    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
-    let connector = builder.build();
-    let mut socket = p!(connector.connect("foobar.com", socket));
-    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    let mut builder = p!(TlsConnector::builder());
+    p!(builder.add_root_certificate(root_ca));
+    let builder = p!(builder.build());
+    let mut socket = p!(builder.connect("foobar.com", socket));
+
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
     p!(socket.read_to_end(&mut buf));
@@ -103,14 +105,16 @@ fn server_tls11_only() {
         p!(socket.write_all(b"world"));
     });
 
+    let root_ca = include_bytes!("../test/root-ca.der");
+    let root_ca = Certificate::from_der(root_ca).unwrap();
+
     let socket = p!(TcpStream::connect(("localhost", port)));
-    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
-    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
-    let options = ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2;
-    builder.builder_mut().set_options(options);
-    let connector = builder.build();
-    let mut socket = p!(connector.connect("foobar.com", socket));
-    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    let mut builder = p!(TlsConnector::builder());
+    p!(builder.add_root_certificate(root_ca));
+    p!(builder.supported_protocols(&[Protocol::Tlsv11]));
+    let builder = p!(builder.build());
+    let mut socket = p!(builder.connect("foobar.com", socket));
+
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
     p!(socket.read_to_end(&mut buf));
@@ -124,7 +128,7 @@ fn server_no_shared_protocol() {
     let buf = include_bytes!("../test/identity.p12");
     let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
     let mut builder = p!(TlsAcceptor::builder(pkcs12));
-    p!(builder.supported_protocols(&[Protocol::Tlsv11]));
+    p!(builder.supported_protocols(&[Protocol::Tlsv12]));
     let builder = p!(builder.build());
 
     let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -135,13 +139,40 @@ fn server_no_shared_protocol() {
         assert!(builder.accept(socket).is_err());
     });
 
+    let root_ca = include_bytes!("../test/root-ca.der");
+    let root_ca = Certificate::from_der(root_ca).unwrap();
+
     let socket = p!(TcpStream::connect(("localhost", port)));
-    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
-    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
-    let options = ssl::SSL_OP_NO_TLSV1_1;
-    builder.builder_mut().set_options(options);
-    let connector = builder.build();
-    assert!(connector.connect("foobar.com", socket).is_err());
+    let mut builder = p!(TlsConnector::builder());
+    p!(builder.add_root_certificate(root_ca));
+    p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11]));
+    let builder = p!(builder.build());
+    assert!(builder.connect("foobar.com", socket).is_err());
+
+    p!(j.join());
+}
+
+#[test]
+fn server_untrusted() {
+    let buf = include_bytes!("../test/identity.p12");
+    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let builder = p!(TlsAcceptor::builder(pkcs12));
+    let builder = p!(builder.build());
+
+    let listener = p!(TcpListener::bind("0.0.0.0:0"));
+    let port = p!(listener.local_addr()).port();
+
+    let j = thread::spawn(move || {
+        let socket = p!(listener.accept()).0;
+        // FIXME should assert error
+        // https://github.com/steffengy/schannel-rs/issues/20
+        let _ = builder.accept(socket);
+    });
+
+    let socket = p!(TcpStream::connect(("localhost", port)));
+    let builder = p!(TlsConnector::builder());
+    let builder = p!(builder.build());
+    builder.connect("foobar.com", socket).unwrap_err();
 
     p!(j.join());
 }
@@ -165,14 +196,18 @@ fn shutdown() {
         assert_eq!(&buf, b"hello");
 
         assert_eq!(p!(socket.read(&mut buf)), 0);
+        p!(socket.shutdown());
     });
 
+    let root_ca = include_bytes!("../test/root-ca.der");
+    let root_ca = Certificate::from_der(root_ca).unwrap();
+
     let socket = p!(TcpStream::connect(("localhost", port)));
-    let mut builder = p!(SslConnectorBuilder::new(SslMethod::tls()));
-    p!(builder.builder_mut().set_ca_file("test/root-ca.pem"));
-    let connector = builder.build();
-    let mut socket = p!(connector.connect("foobar.com", socket));
-    println!("{}", socket.ssl().current_cipher().unwrap().description());
+    let mut builder = p!(TlsConnector::builder());
+    p!(builder.add_root_certificate(root_ca));
+    let builder = p!(builder.build());
+    let mut socket = p!(builder.connect("foobar.com", socket));
+
     p!(socket.write_all(b"hello"));
     p!(socket.shutdown());
 

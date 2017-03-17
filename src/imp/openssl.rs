@@ -8,17 +8,17 @@ use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
                          SslAcceptor, MidHandshakeSslStream, SslOption, SslContextBuilder,
                          ShutdownResult};
+use self::openssl::x509::X509;
 
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
     // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
     let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 |
-        ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_2 | ssl::SSL_OP_NO_TLSV1_2;
+        ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_1 | ssl::SSL_OP_NO_TLSV1_2;
 
-    let mut options = ctx.options();
-    ctx.clear_options(SslOption::all());
-    options |= ssl_op_no_ssl_mask;
+    ctx.clear_options(ssl_op_no_ssl_mask);
+    let mut options = ssl_op_no_ssl_mask;
     for protocol in protocols {
         let op = match *protocol {
             Protocol::Sslv3 => ssl::SSL_OP_NO_SSLV3,
@@ -75,6 +75,15 @@ impl Pkcs12 {
         let pkcs12 = try!(pkcs12::Pkcs12::from_der(buf));
         let parsed = try!(pkcs12.parse(pass));
         Ok(Pkcs12(parsed))
+    }
+}
+
+pub struct Certificate(X509);
+
+impl Certificate {
+    pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
+        let cert = try!(X509::from_der(buf));
+        Ok(Certificate(cert))
     }
 }
 
@@ -146,6 +155,11 @@ impl TlsConnectorBuilder {
         for cert in pkcs12.0.chain {
             try!(ctx.add_extra_chain_cert(cert));
         }
+        Ok(())
+    }
+
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
+        try!(self.0.builder_mut().cert_store_mut().add_cert(cert.0));
         Ok(())
     }
 

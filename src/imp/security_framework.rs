@@ -94,6 +94,15 @@ impl Pkcs12 {
     }
 }
 
+pub struct Certificate(SecCertificate);
+
+impl Certificate {
+    pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
+        let cert = try!(SecCertificate::from_der(buf));
+        Ok(Certificate(cert))
+    }
+}
+
 pub enum HandshakeError<S> {
     Interrupted(MidHandshakeTlsStream<S>),
     Failure(Error),
@@ -186,6 +195,11 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
+        self.0.roots.push(cert.0);
+        Ok(())
+    }
+
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
         self.0.protocols = protocols.to_vec();
         Ok(())
@@ -199,7 +213,7 @@ impl TlsConnectorBuilder {
 pub struct TlsConnector {
     pkcs12: Option<Pkcs12>,
     protocols: Vec<Protocol>,
-    anchor_certificates: Option<Vec<SecCertificate>>,
+    roots: Vec<SecCertificate>,
 }
 
 impl TlsConnector {
@@ -207,7 +221,7 @@ impl TlsConnector {
         Ok(TlsConnectorBuilder(TlsConnector {
             pkcs12: None,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
-            anchor_certificates: None,
+            roots: vec![],
         }))
     }
 
@@ -239,9 +253,7 @@ impl TlsConnector {
         if let Some(pkcs12) = self.pkcs12.as_ref() {
             builder.identity(&pkcs12.identity, &pkcs12.chain);
         }
-        if let Some(anchors) = self.anchor_certificates.as_ref() {
-            builder.anchor_certificates(anchors);
-        }
+        builder.anchor_certificates(&self.roots);
 
         let r = match domain {
             Some(domain) => builder.handshake2(domain, stream),
@@ -360,14 +372,14 @@ impl<S> TlsStreamExt<S> for ::TlsStream<S> {
 
 /// Security Framework-specific extensions to `TlsConnectorBuilder`.
 pub trait TlsConnectorBuilderExt {
-    /// Specifies the set of additional root certificates to trust when
-    /// verifying the server's certificate.
+    /// Deprecated
+    #[deprecated(since = "0.1.2", note = "use add_root_certificate")]
     fn anchor_certificates(&mut self, certs: &[SecCertificate]) -> &mut Self;
 }
 
 impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
     fn anchor_certificates(&mut self, certs: &[SecCertificate]) -> &mut Self {
-        (self.0).0.anchor_certificates = Some(certs.to_owned());
+        (self.0).0.roots = certs.to_owned();
         self
     }
 }

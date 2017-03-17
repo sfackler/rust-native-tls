@@ -105,9 +105,6 @@
 #![doc(html_root_url="https://docs.rs/native-tls/0.1.1")]
 #![warn(missing_docs)]
 
-#[cfg(test)]
-extern crate openssl;
-
 use std::any::Any;
 use std::error;
 use std::error::Error as StdError;
@@ -183,6 +180,17 @@ impl Pkcs12 {
     pub fn from_der(der: &[u8], password: &str) -> Result<Pkcs12> {
         let pkcs12 = try!(imp::Pkcs12::from_der(der, password));
         Ok(Pkcs12(pkcs12))
+    }
+}
+
+/// An X509 certificate.
+pub struct Certificate(imp::Certificate);
+
+impl Certificate {
+    /// Parses a DER-formatted X509 certificate.
+    pub fn from_der(der: &[u8]) -> Result<Certificate> {
+        let cert = try!(imp::Certificate::from_der(der));
+        Ok(Certificate(cert))
     }
 }
 
@@ -319,6 +327,15 @@ impl TlsConnectorBuilder {
                                protocols: &[Protocol])
                                -> Result<&mut TlsConnectorBuilder> {
         try!(self.0.supported_protocols(protocols));
+        Ok(self)
+    }
+
+    /// Adds a certificate to the set of roots that the connector will trust.
+    ///
+    /// The connector will use the system's trust root by default. This method can be used to add
+    /// to that set when communicating with servers not trusted by the system.
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<&mut TlsConnectorBuilder> {
+        try!(self.0.add_root_certificate(cert.0));
         Ok(self)
     }
 

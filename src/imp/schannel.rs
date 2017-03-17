@@ -3,7 +3,7 @@ extern crate schannel;
 use std::io;
 use std::fmt;
 use std::error;
-use self::schannel::cert_store::PfxImportOptions;
+use self::schannel::cert_store::{PfxImportOptions, Memory, CertStore, CertAdd};
 use self::schannel::cert_context::CertContext;
 use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
 use self::schannel::tls_stream;
@@ -83,6 +83,15 @@ impl Pkcs12 {
     }
 }
 
+pub struct Certificate(CertContext);
+
+impl Certificate {
+    pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
+        let cert = try!(CertContext::new(buf));
+        Ok(Certificate(cert))
+    }
+}
+
 pub struct MidHandshakeTlsStream<S>(tls_stream::MidHandshakeTlsStream<S>);
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
@@ -141,6 +150,11 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
+        try!(self.0.roots.add_cert(&cert.0, CertAdd::ReplaceExisting));
+        Ok(())
+    }
+
     pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
         self.0.protocols = convert_protocols(protocols);
         Ok(())
@@ -153,6 +167,7 @@ impl TlsConnectorBuilder {
 
 pub struct TlsConnector {
     cert: Option<CertContext>,
+    roots: CertStore,
     protocols: Vec<Protocol>,
 }
 
@@ -160,6 +175,7 @@ impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
             cert: None,
+            roots: try!(Memory::new()).into_store(),
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
         }))
     }
@@ -195,6 +211,7 @@ impl TlsConnector {
         if let Some(domain) = domain {
             builder.domain(domain);
         }
+        builder.cert_store(self.roots.clone());
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

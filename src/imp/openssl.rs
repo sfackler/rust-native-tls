@@ -6,8 +6,7 @@ use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
-                         SslAcceptor, MidHandshakeSslStream, SslOption, SslContextBuilder,
-                         ShutdownResult};
+                         SslAcceptor, MidHandshakeSslStream, SslContextBuilder, ShutdownResult};
 use self::openssl::x509::X509;
 
 use Protocol;

@@ -1,5 +1,6 @@
 extern crate security_framework;
 extern crate security_framework_sys;
+extern crate tempdir;
 
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
@@ -7,6 +8,9 @@ use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
+use self::security_framework::os::macos::keychain::{self, KeychainSettings};
+use self::security_framework_sys::base::errSecIO;
+use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
 use std::error;
@@ -74,19 +78,29 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let mut options = Pkcs12ImportOptions::new();
-        options.passphrase(pass);
+        let dir = match TempDir::new("native-tls") {
+            Ok(dir) => dir,
+            Err(_) => return Err(Error(base::Error::from(errSecIO))),
+        };
 
-        let mut imported_identities = try!(options.import(buf));
-        imported_identities.truncate(1);
-        let imported_identity = imported_identities.pop().unwrap();
+        let mut keychain = try!(keychain::CreateOptions::new()
+            .password(pass)
+            .create(dir.path().join("tmp.keychain")));
+        // disable lock on sleep and timeouts
+        try!(keychain.set_settings(&KeychainSettings::new()));
+
+        let mut imports = try!(Pkcs12ImportOptions::new()
+            .passphrase(pass)
+            .keychain(keychain)
+            .import(buf));
+        let import = imports.pop().unwrap();
 
         // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = try!(imported_identity.identity.certificate()).to_der();
+        let identity_cert = try!(import.identity.certificate()).to_der();
 
         Ok(Pkcs12 {
-            identity: imported_identity.identity,
-            chain: imported_identity.cert_chain
+            identity: import.identity,
+            chain: import.cert_chain
                 .into_iter()
                 .filter(|c| c.to_der() != identity_cert)
                 .collect(),

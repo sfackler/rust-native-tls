@@ -13,8 +13,9 @@ use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
     // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
-    let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 |
-        ssl::SSL_OP_NO_TLSV1 | ssl::SSL_OP_NO_TLSV1_1 | ssl::SSL_OP_NO_TLSV1_2;
+    let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 |
+                             ssl::SSL_OP_NO_TLSV1_1 |
+                             ssl::SSL_OP_NO_TLSV1_2;
 
     ctx.clear_options(ssl_op_no_ssl_mask);
     let mut options = ssl_op_no_ssl_mask;
@@ -158,7 +159,10 @@ impl TlsConnectorBuilder {
     }
 
     pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        try!(self.0.builder_mut().cert_store_mut().add_cert(cert.0));
+        try!(self.0
+                 .builder_mut()
+                 .cert_store_mut()
+                 .add_cert(cert.0));
         Ok(())
     }
 
@@ -231,8 +235,10 @@ pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
-        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(
-            SslMethod::tls(), &pkcs12.0.pkey, &pkcs12.0.cert, &pkcs12.0.chain));
+        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(SslMethod::tls(),
+                                                                    &pkcs12.0.pkey,
+                                                                    &pkcs12.0.cert,
+                                                                    &pkcs12.0.chain));
         Ok(TlsAcceptorBuilder(builder))
     }
 
@@ -277,19 +283,14 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {
-        loop {
-            match self.0.shutdown() {
-                Ok(ShutdownResult::Sent) => {},
-                Ok(ShutdownResult::Received) => break,
-                Err(ssl::Error::ZeroReturn) => break,
-                Err(ssl::Error::Stream(e)) => return Err(e),
-                Err(ssl::Error::WantRead(e)) => return Err(e),
-                Err(ssl::Error::WantWrite(e)) => return Err(e),
-                Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
-            }
+        match self.0.shutdown() {
+            Ok(_) |
+            Err(ssl::Error::ZeroReturn) => Ok(()),
+            Err(ssl::Error::Stream(e)) |
+            Err(ssl::Error::WantRead(e)) |
+            Err(ssl::Error::WantWrite(e)) => Err(e),
+            Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
         }
-
-        Ok(())
     }
 
     pub fn get_ref(&self) -> &S {

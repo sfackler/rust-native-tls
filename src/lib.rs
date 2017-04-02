@@ -102,7 +102,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://docs.rs/native-tls/0.1.1")]
+#![doc(html_root_url="https://docs.rs/native-tls/0.1.2")]
 #![warn(missing_docs)]
 
 use std::any::Any;

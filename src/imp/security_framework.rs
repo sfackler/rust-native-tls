@@ -224,6 +224,7 @@ impl TlsConnectorBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsConnector {
     pkcs12: Option<Pkcs12>,
     protocols: Vec<Protocol>,
@@ -293,6 +294,7 @@ impl TlsAcceptorBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsAcceptor {
     pkcs12: Pkcs12,
     protocols: Vec<Protocol>,

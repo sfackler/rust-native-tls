@@ -176,6 +176,7 @@ impl TlsConnectorBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsConnector(SslConnector);
 
 impl TlsConnector {
@@ -231,6 +232,7 @@ impl TlsAcceptorBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {

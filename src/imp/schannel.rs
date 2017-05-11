@@ -9,6 +9,8 @@ use self::schannel::cert_context::CertContext;
 use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
 use self::schannel::tls_stream;
 
+use Algorithm;
+
 fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
     protocols
         .iter()
@@ -170,6 +172,18 @@ impl TlsConnectorBuilder {
 
     pub fn build(self) -> Result<TlsConnector, Error> {
         Ok(self.0)
+    }
+
+    pub fn disable_built_in_certs(&mut self) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    pub fn whitelist_algorithms(&mut self, algos: &[Algorithm]) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    pub fn blacklist_algorithms(&mut self, algos: &[Algorithm]) -> Result<(), Error> {
+        unimplemented!()
     }
 }
 

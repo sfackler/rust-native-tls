@@ -9,6 +9,7 @@ use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, Ssl
                          SslAcceptor, MidHandshakeSslStream, SslContextBuilder};
 use self::openssl::x509::X509;
 
+use Algorithm;
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
@@ -172,6 +173,18 @@ impl TlsConnectorBuilder {
 
     pub fn build(self) -> Result<TlsConnector, Error> {
         Ok(TlsConnector(self.0.build()))
+    }
+
+    pub fn disable_built_in_certs(&mut self) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    pub fn whitelist_algorithms(&mut self, algos: &[Algorithm]) -> Result<(), Error> {
+        unimplemented!()
+    }
+
+    pub fn blacklist_algorithms(&mut self, algos: &[Algorithm]) -> Result<(), Error> {
+        unimplemented!()
     }
 }
 

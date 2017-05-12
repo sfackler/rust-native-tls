@@ -365,6 +365,7 @@ impl TlsConnectorBuilder {
 /// stream.read_to_end(&mut res).unwrap();
 /// println!("{}", String::from_utf8_lossy(&res));
 /// ```
+#[derive(Clone)]
 pub struct TlsConnector(imp::TlsConnector);
 
 impl TlsConnector {
@@ -469,6 +470,7 @@ impl TlsAcceptorBuilder {
 ///     }
 /// }
 /// ```
+#[derive(Clone)]
 pub struct TlsAcceptor(imp::TlsAcceptor);
 
 impl TlsAcceptor {

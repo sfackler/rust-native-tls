@@ -165,6 +165,7 @@ impl TlsConnectorBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,
@@ -232,6 +233,7 @@ impl TlsAcceptorBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsAcceptor {
     cert: CertContext,
     protocols: Vec<Protocol>,

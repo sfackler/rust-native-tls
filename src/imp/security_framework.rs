@@ -83,15 +83,8 @@ impl Pkcs12 {
             Err(_) => return Err(Error(base::Error::from(errSecIO))),
         };
 
-        let mut keychain = try!(keychain::CreateOptions::new()
-            .password(pass)
-            .create(dir.path().join("tmp.keychain")));
-        // disable lock on sleep and timeouts
-        try!(keychain.set_settings(&KeychainSettings::new()));
-
         let mut imports = try!(Pkcs12ImportOptions::new()
             .passphrase(pass)
-            .keychain(keychain)
             .import(buf));
         let import = imports.pop().unwrap();
 

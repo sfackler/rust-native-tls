@@ -52,6 +52,7 @@ impl From<io::Error> for Error {
     }
 }
 
+#[derive(Clone)]
 pub struct Pkcs12 {
     cert: CertContext,
 }

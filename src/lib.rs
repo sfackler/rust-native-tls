@@ -162,6 +162,7 @@ impl From<imp::Error> for Error {
 }
 
 /// A PKCS #12 archive.
+#[derive(Clone)]
 pub struct Pkcs12(imp::Pkcs12);
 
 impl Pkcs12 {

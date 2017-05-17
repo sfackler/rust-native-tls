@@ -68,6 +68,7 @@ impl From<ErrorStack> for Error {
     }
 }
 
+#[derive(Clone)]
 pub struct Pkcs12(pkcs12::ParsedPkcs12);
 
 impl Pkcs12 {

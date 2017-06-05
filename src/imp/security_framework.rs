@@ -84,20 +84,26 @@ impl Pkcs12 {
         };
 
         let mut imports = try!(Pkcs12ImportOptions::new()
-            .passphrase(pass)
-            .import(buf));
+                                   .passphrase(pass)
+                                   .import_optional(buf));
         let import = imports.pop().unwrap();
 
+        let identity = import
+            .identity
+            .expect("Pkcs12 files must include an identity");
+
         // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = try!(import.identity.certificate()).to_der();
+        let identity_cert = try!(identity.certificate()).to_der();
 
         Ok(Pkcs12 {
-            identity: import.identity,
-            chain: import.cert_chain
-                .into_iter()
-                .filter(|c| c.to_der() != identity_cert)
-                .collect(),
-        })
+               identity: identity,
+               chain: import
+                   .cert_chain
+                   .unwrap_or(vec![])
+                   .into_iter()
+                   .filter(|c| c.to_der() != identity_cert)
+                   .collect(),
+           })
     }
 }
 
@@ -227,16 +233,15 @@ pub struct TlsConnector {
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
-            pkcs12: None,
-            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
-            roots: vec![],
-        }))
+                                   pkcs12: None,
+                                   protocols: vec![Protocol::Tlsv10,
+                                                   Protocol::Tlsv11,
+                                                   Protocol::Tlsv12],
+                                   roots: vec![],
+                               }))
     }
 
-    pub fn connect<S>(&self,
-                      domain: &str,
-                      stream: S)
-                      -> Result<TlsStream<S>, HandshakeError<S>>
+    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         self.connect_inner(Some(domain), stream)
@@ -249,9 +254,9 @@ impl TlsConnector {
     }
 
     fn connect_inner<S>(&self,
-                   domain: Option<&str>,
-                   stream: S)
-                   -> Result<TlsStream<S>, HandshakeError<S>>
+                        domain: Option<&str>,
+                        stream: S)
+                        -> Result<TlsStream<S>, HandshakeError<S>>
         where S: io::Read + io::Write
     {
         let mut builder = ClientBuilder::new();
@@ -296,9 +301,11 @@ pub struct TlsAcceptor {
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
-            pkcs12: pkcs12,
-            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
-        }))
+                                  pkcs12: pkcs12,
+                                  protocols: vec![Protocol::Tlsv10,
+                                                  Protocol::Tlsv11,
+                                                  Protocol::Tlsv12],
+                              }))
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

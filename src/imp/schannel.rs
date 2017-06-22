@@ -313,18 +313,17 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 }
 
 // SChannel-specific verification callback for validating failed certificate checks
-pub trait TlsConnectorBuilderCallbackExt {
+pub trait TlsConnectorBuilderExt {
     /// Callback function that determines whether certificate validation failures that occur when establishing connections
     /// should be overridden. The closure should return Ok if the validation failure is to be overridden.
-    fn callback<F>(&mut self, callback: F) ->  Result<(), Error> 
+    fn verify_callback<F>(&mut self, callback: F) 
         where F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync;
 }
 
-impl TlsConnectorBuilderCallbackExt for ::TlsConnectorBuilder {
-    fn callback<F>(&mut self, callback: F) ->  Result<(), Error>
+impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
+    fn verify_callback<F>(&mut self, callback: F)
         where F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync {
             (self.0).0.callback = Some(Arc::new(callback));
-            Ok(())
     }
 }
 

@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
-use imp::TlsConnectorBuilderCallbackExt;
+use imp::TlsConnectorBuilderExt;
 
 use super::*;
 
@@ -198,10 +198,10 @@ fn schannel_verify_callback() {
 
     let socket = p!(TcpStream::connect(("localhost", port)));
     let mut builder = p!(TlsConnector::builder());
-    p!(builder.callback(|validation_result| {
+    builder.verify_callback(|validation_result| {
                                         assert!(validation_result.result().is_err());
                                         Ok(())
-                                    }));
+                                    });
     let builder = p!(builder.build());
     builder.connect("foobar.com", socket).unwrap();
 

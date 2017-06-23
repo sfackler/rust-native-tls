@@ -155,9 +155,9 @@ impl fmt::Debug for Error {
     }
 }
 
-impl From<imp::Error> for Error {
-    fn from(err: imp::Error) -> Error {
-        Error(err)
+impl<T: Into<imp::Error>> From<T> for Error {
+    fn from(err: T) -> Error {
+        Error(err.into())
     }
 }
 

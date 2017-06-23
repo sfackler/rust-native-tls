@@ -202,6 +202,9 @@ impl TlsConnector {
 
 /// OpenSSL-specific extensions to `TlsConnectorBuilder`.
 pub trait TlsConnectorBuilderExt {
+    /// Initialize `TlsAcceptorBuilderExt` from an `SslAcceptorBuilder`.
+    fn from_openssl(builder: SslConnectorBuilder) -> Self;
+
     /// Returns a shared reference to the inner `SslConnectorBuilder`.
     fn builder(&self) -> &SslConnectorBuilder;
 
@@ -210,6 +213,10 @@ pub trait TlsConnectorBuilderExt {
 }
 
 impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
+    fn from_openssl(builder: SslConnectorBuilder) -> ::TlsConnectorBuilder {
+        ::TlsConnectorBuilder(TlsConnectorBuilder(builder))
+    }
+
     fn builder(&self) -> &SslConnectorBuilder {
         &(self.0).0
     }
@@ -254,6 +261,9 @@ impl TlsAcceptor {
 
 /// OpenSSL-specific extensions to `TlsAcceptorBuilder`.
 pub trait TlsAcceptorBuilderExt {
+    /// Initialize `TlsAcceptorBuilderExt` from an `SslAcceptorBuilder`.
+    fn from_openssl(builder: SslAcceptorBuilder) -> Self;
+
     /// Returns a shared reference to the inner `SslAcceptorBuilder`.
     fn builder(&self) -> &SslAcceptorBuilder;
 
@@ -262,6 +272,10 @@ pub trait TlsAcceptorBuilderExt {
 }
 
 impl TlsAcceptorBuilderExt for ::TlsAcceptorBuilder {
+    fn from_openssl(builder: SslAcceptorBuilder) -> ::TlsAcceptorBuilder {
+        ::TlsAcceptorBuilder(TlsAcceptorBuilder(builder))
+    }
+
     fn builder(&self) -> &SslAcceptorBuilder {
         &(self.0).0
     }

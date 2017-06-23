@@ -84,16 +84,18 @@ impl Pkcs12 {
             Err(_) => return Err(Error(base::Error::from(errSecIO))),
         };
 
-        let mut keychain = try!(keychain::CreateOptions::new()
-            .password(pass)
-            .create(dir.path().join("tmp.keychain")));
+        let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
+            dir.path().join("tmp.keychain"),
+        ));
         // disable lock on sleep and timeouts
         try!(keychain.set_settings(&KeychainSettings::new()));
 
-        let mut imports = try!(Pkcs12ImportOptions::new()
-            .passphrase(pass)
-            .keychain(keychain)
-            .import(buf));
+        let mut imports = try!(
+            Pkcs12ImportOptions::new()
+                .passphrase(pass)
+                .keychain(keychain)
+                .import(buf)
+        );
         let import = imports.pop().unwrap();
 
         // FIXME: Compare the certificates for equality using CFEqual
@@ -101,7 +103,8 @@ impl Pkcs12 {
 
         Ok(Pkcs12 {
             identity: import.identity,
-            chain: import.cert_chain
+            chain: import
+                .cert_chain
                 .into_iter()
                 .filter(|c| c.to_der() != identity_cert)
                 .collect(),
@@ -157,7 +160,8 @@ pub enum MidHandshakeTlsStream<S> {
 }
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
-    where S: fmt::Debug
+where
+    S: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -168,7 +172,8 @@ impl<S> fmt::Debug for MidHandshakeTlsStream<S>
 }
 
 impl<S> MidHandshakeTlsStream<S>
-    where S: io::Read + io::Write
+where
+    S: io::Read + io::Write,
 {
     pub fn get_ref(&self) -> &S {
         match *self {
@@ -241,26 +246,27 @@ impl TlsConnector {
         }))
     }
 
-    pub fn connect<S>(&self,
-                      domain: &str,
-                      stream: S)
-                      -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
     {
         self.connect_inner(Some(domain), stream)
     }
 
     pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
         self.connect_inner(None, stream)
     }
 
-    fn connect_inner<S>(&self,
-                   domain: Option<&str>,
-                   stream: S)
-                   -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    fn connect_inner<S>(
+        &self,
+        domain: Option<&str>,
+        stream: S,
+    ) -> Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
     {
         let mut builder = ClientBuilder::new();
         let (min, max) = protocol_min_max(&self.protocols);
@@ -310,14 +316,21 @@ impl TlsAcceptor {
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
-        let mut ctx = try!(SslContext::new(ProtocolSide::Server, ConnectionType::Stream));
+        let mut ctx = try!(SslContext::new(
+            ProtocolSide::Server,
+            ConnectionType::Stream,
+        ));
 
         let (min, max) = protocol_min_max(&self.protocols);
         try!(ctx.set_protocol_version_min(min));
         try!(ctx.set_protocol_version_max(max));
-        try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain));
+        try!(ctx.set_certificate(
+            &self.pkcs12.identity,
+            &self.pkcs12.chain,
+        ));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

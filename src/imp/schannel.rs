@@ -10,15 +10,14 @@ use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
 use self::schannel::tls_stream;
 
 fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
-    protocols.iter()
-        .map(|p| {
-            match *p {
-                ::Protocol::Sslv3 => Protocol::Ssl3,
-                ::Protocol::Tlsv10 => Protocol::Tls10,
-                ::Protocol::Tlsv11 => Protocol::Tls11,
-                ::Protocol::Tlsv12 => Protocol::Tls12,
-                ::Protocol::__NonExhaustive => unreachable!(),
-            }
+    protocols
+        .iter()
+        .map(|p| match *p {
+            ::Protocol::Sslv3 => Protocol::Ssl3,
+            ::Protocol::Tlsv10 => Protocol::Tls10,
+            ::Protocol::Tlsv11 => Protocol::Tls11,
+            ::Protocol::Tlsv12 => Protocol::Tls12,
+            ::Protocol::__NonExhaustive => unreachable!(),
         })
         .collect()
 }
@@ -59,13 +58,16 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let mut store = try!(PfxImportOptions::new()
-            .password(pass)
-            .import(buf));
+        let mut store = try!(PfxImportOptions::new().password(pass).import(buf));
         let mut identity = None;
 
         for cert in store.certs() {
-            if cert.private_key().silent(true).compare_key(true).acquire().is_ok() {
+            if cert.private_key()
+                .silent(true)
+                .compare_key(true)
+                .acquire()
+                .is_ok()
+            {
                 identity = Some(cert);
             }
         }
@@ -73,14 +75,16 @@ impl Pkcs12 {
         let identity = match identity {
             Some(identity) => identity,
             None => {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          "No identity found in PKCS #12 archive").into());
-            },
+                return Err(
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "No identity found in PKCS #12 archive",
+                    ).into(),
+                );
+            }
         };
 
-        Ok(Pkcs12 {
-            cert: identity,
-        })
+        Ok(Pkcs12 { cert: identity })
     }
 }
 
@@ -96,14 +100,17 @@ impl Certificate {
 pub struct MidHandshakeTlsStream<S>(tls_stream::MidHandshakeTlsStream<S>);
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
-    where S: fmt::Debug {
+where
+    S: fmt::Debug,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }
 
 impl<S> MidHandshakeTlsStream<S>
-    where S: io::Read + io::Write
+where
+    S: io::Read + io::Write,
 {
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
@@ -184,26 +191,27 @@ impl TlsConnector {
         }))
     }
 
-    pub fn connect<S>(&self,
-                      domain: &str,
-                      stream: S)
-                      -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
     {
         self._connect(Some(domain), stream)
     }
 
     pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
         self._connect(None, stream)
     }
 
-    fn _connect<S>(&self,
-                   domain: Option<&str>,
-                   stream: S)
-                   -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    fn _connect<S>(
+        &self,
+        domain: Option<&str>,
+        stream: S,
+    ) -> Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
     {
         let mut builder = SchannelCred::builder();
         builder.enabled_protocols(&self.protocols);
@@ -255,7 +263,8 @@ impl TlsAcceptor {
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
         let mut builder = SchannelCred::builder();
         builder.enabled_protocols(&self.protocols);
@@ -312,18 +321,21 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     }
 }
 
-// SChannel-specific verification callback for validating failed certificate checks
+/// SChannel-specific extensions to `TlsConnectorBuilder`.
 pub trait TlsConnectorBuilderExt {
-    /// Callback function that determines whether certificate validation failures that occur when establishing connections
-    /// should be overridden. The closure should return Ok if the validation failure is to be overridden.
-    fn verify_callback<F>(&mut self, callback: F) 
-        where F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync;
+    /// Sets a callback function which decides if the server's certificate chain
+    /// is to be trusted.
+    fn verify_callback<F>(&mut self, callback: F)
+    where
+        F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync;
 }
 
 impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
     fn verify_callback<F>(&mut self, callback: F)
-        where F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync {
-            (self.0).0.callback = Some(Arc::new(callback));
+    where
+        F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync,
+    {
+        (self.0).0.callback = Some(Arc::new(callback));
     }
 }
 

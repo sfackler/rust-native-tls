@@ -14,8 +14,8 @@ use Protocol;
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
     // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
     let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 |
-                             ssl::SSL_OP_NO_TLSV1_1 |
-                             ssl::SSL_OP_NO_TLSV1_2;
+        ssl::SSL_OP_NO_TLSV1_1 |
+        ssl::SSL_OP_NO_TLSV1_2;
 
     ctx.clear_options(ssl_op_no_ssl_mask);
     let mut options = ssl_op_no_ssl_mask;
@@ -90,7 +90,8 @@ impl Certificate {
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
-    where S: fmt::Debug
+where
+    S: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
@@ -108,7 +109,8 @@ impl<S> MidHandshakeTlsStream<S> {
 }
 
 impl<S> MidHandshakeTlsStream<S>
-    where S: io::Read + io::Write
+where
+    S: io::Read + io::Write,
 {
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
@@ -159,10 +161,7 @@ impl TlsConnectorBuilder {
     }
 
     pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        try!(self.0
-                 .builder_mut()
-                 .cert_store_mut()
-                 .add_cert(cert.0));
+        try!(self.0.builder_mut().cert_store_mut().add_cert(cert.0));
         Ok(())
     }
 
@@ -186,14 +185,16 @@ impl TlsConnector {
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
         let s = try!(self.0.connect(domain, stream));
         Ok(TlsStream(s))
     }
 
     pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
         let s = try!(self.0.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(stream));
         Ok(TlsStream(s))
@@ -244,15 +245,18 @@ pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
-        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(SslMethod::tls(),
-                                                                    &pkcs12.0.pkey,
-                                                                    &pkcs12.0.cert,
-                                                                    &pkcs12.0.chain));
+        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(
+            SslMethod::tls(),
+            &pkcs12.0.pkey,
+            &pkcs12.0.cert,
+            &pkcs12.0.chain,
+        ));
         Ok(TlsAcceptorBuilder(builder))
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    where
+        S: io::Read + io::Write,
     {
         let s = try!(self.0.accept(stream));
         Ok(TlsStream(s))

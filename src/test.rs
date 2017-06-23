@@ -146,7 +146,13 @@ fn server_no_shared_protocol() {
     let socket = p!(TcpStream::connect(("localhost", port)));
     let mut builder = p!(TlsConnector::builder());
     p!(builder.add_root_certificate(root_ca));
-    p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11]));
+    p!(builder.supported_protocols(
+        &[
+            Protocol::Sslv3,
+            Protocol::Tlsv10,
+            Protocol::Tlsv11,
+        ],
+    ));
     let builder = p!(builder.build());
     assert!(builder.connect("foobar.com", socket).is_err());
 
@@ -199,9 +205,9 @@ fn schannel_verify_callback() {
     let socket = p!(TcpStream::connect(("localhost", port)));
     let mut builder = p!(TlsConnector::builder());
     builder.verify_callback(|validation_result| {
-                                        assert!(validation_result.result().is_err());
-                                        Ok(())
-                                    });
+        assert!(validation_result.result().is_err());
+        Ok(())
+    });
     let builder = p!(builder.build());
     builder.connect("foobar.com", socket).unwrap();
 

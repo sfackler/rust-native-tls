@@ -3,6 +3,7 @@ extern crate schannel;
 use std::io;
 use std::fmt;
 use std::error;
+use std::sync::Arc;
 use self::schannel::cert_store::{PfxImportOptions, Memory, CertStore, CertAdd};
 use self::schannel::cert_context::CertContext;
 use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
@@ -170,6 +171,7 @@ pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,
     protocols: Vec<Protocol>,
+    callback: Option<Arc<Fn(tls_stream::CertValidationResult) -> io::Result<()> + Sync + Send>>,
 }
 
 impl TlsConnector {
@@ -178,6 +180,7 @@ impl TlsConnector {
             cert: None,
             roots: try!(Memory::new()).into_store(),
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
+            callback: None,
         }))
     }
 
@@ -211,6 +214,10 @@ impl TlsConnector {
         let mut builder = tls_stream::Builder::new();
         if let Some(domain) = domain {
             builder.domain(domain);
+        }
+        if let Some(ref callback) = self.callback {
+            let callback = callback.clone();
+            builder.verify_callback(move |r| callback(r));
         }
         builder.cert_store(self.roots.clone());
         match builder.connect(cred, stream) {
@@ -302,6 +309,21 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
+    }
+}
+
+// SChannel-specific verification callback for validating failed certificate checks
+pub trait TlsConnectorBuilderExt {
+    /// Callback function that determines whether certificate validation failures that occur when establishing connections
+    /// should be overridden. The closure should return Ok if the validation failure is to be overridden.
+    fn verify_callback<F>(&mut self, callback: F) 
+        where F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync;
+}
+
+impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
+    fn verify_callback<F>(&mut self, callback: F)
+        where F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync {
+            (self.0).0.callback = Some(Arc::new(callback));
     }
 }
 

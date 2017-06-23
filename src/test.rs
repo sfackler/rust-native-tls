@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
+use imp::TlsConnectorBuilderExt;
 
 use super::*;
 
@@ -173,6 +174,36 @@ fn server_untrusted() {
     let builder = p!(TlsConnector::builder());
     let builder = p!(builder.build());
     builder.connect("foobar.com", socket).unwrap_err();
+
+    p!(j.join());
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn schannel_verify_callback() {
+    let buf = include_bytes!("../test/identity.p12");
+    let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+    let builder = p!(TlsAcceptor::builder(pkcs12));
+    let builder = p!(builder.build());
+
+    let listener = p!(TcpListener::bind("0.0.0.0:0"));
+    let port = p!(listener.local_addr()).port();
+
+    let j = thread::spawn(move || {
+        let socket = p!(listener.accept()).0;
+        // FIXME should assert error
+        // https://github.com/steffengy/schannel-rs/issues/20
+        let _ = builder.accept(socket);
+    });
+
+    let socket = p!(TcpStream::connect(("localhost", port)));
+    let mut builder = p!(TlsConnector::builder());
+    builder.verify_callback(|validation_result| {
+                                        assert!(validation_result.result().is_err());
+                                        Ok(())
+                                    });
+    let builder = p!(builder.build());
+    builder.connect("foobar.com", socket).unwrap();
 
     p!(j.join());
 }

@@ -5,9 +5,12 @@ extern crate tempdir;
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
-use self::security_framework::import_export::Pkcs12ImportOptions;
+use self::security_framework::keychain::SecKeychain;
+use self::security_framework::import_export::{Pkcs12ImportOptions};
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
+use self::security_framework::os::macos::identity::SecIdentityExt;
+use self::security_framework::os::macos::import_export::ImportOptions;
 use self::security_framework::os::macos::keychain::{self, KeychainSettings};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
@@ -71,6 +74,21 @@ impl From<base::Error> for Error {
     }
 }
 
+fn temp_keychain(pass: &str) -> Result<(SecKeychain, TempDir), Error> {
+    let dir = match TempDir::new("native-tls") {
+        Ok(dir) => dir,
+        Err(_) => return Err(Error(base::Error::from(errSecIO))),
+    };
+
+    let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
+        dir.path().join("tmp.keychain"),
+    ));
+    // disable lock on sleep and timeouts
+    try!(keychain.set_settings(&KeychainSettings::new()));
+
+    Ok((keychain, dir))
+}
+
 #[derive(Clone)]
 pub struct Pkcs12 {
     identity: SecIdentity,
@@ -79,16 +97,7 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let dir = match TempDir::new("native-tls") {
-            Ok(dir) => dir,
-            Err(_) => return Err(Error(base::Error::from(errSecIO))),
-        };
-
-        let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
-            dir.path().join("tmp.keychain"),
-        ));
-        // disable lock on sleep and timeouts
-        try!(keychain.set_settings(&KeychainSettings::new()));
+        let (keychain, _dir) = try!(temp_keychain(pass));
 
         let mut imports = try!(
             Pkcs12ImportOptions::new()
@@ -118,6 +127,23 @@ impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
         let cert = try!(SecCertificate::from_der(buf));
         Ok(Certificate(cert))
+    }
+}
+
+pub struct PrivateKey(SecKeychain);
+
+impl PrivateKey {
+    pub fn from_der(buf: &[u8]) -> Result<PrivateKey, Error> {
+        let (mut keychain, _dir) = try!(temp_keychain(""));
+
+        try!(
+            ImportOptions::new()
+                .filename(".der")
+                .keychain(&mut keychain)
+                .import(buf)
+        );
+
+        Ok(PrivateKey(keychain))
     }
 }
 
@@ -303,14 +329,30 @@ impl TlsAcceptorBuilder {
 
 #[derive(Clone)]
 pub struct TlsAcceptor {
-    pkcs12: Pkcs12,
+    identity: SecIdentity,
+    chain: Vec<SecCertificate>,
     protocols: Vec<Protocol>,
 }
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
-            pkcs12: pkcs12,
+            identity: pkcs12.identity,
+            chain: pkcs12.chain,
+            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+        }))
+    }
+
+    pub fn builder2(
+        key: PrivateKey,
+        cert: Certificate,
+        chain: Vec<Certificate>,
+    ) -> Result<TlsAcceptorBuilder, Error> {
+        let identity = try!(SecIdentity::with_certificate(&[key.0], &cert.0));
+        let chain = chain.into_iter().map(|c| c.0).collect();
+        Ok(TlsAcceptorBuilder(TlsAcceptor {
+            identity: identity,
+            chain: chain,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
         }))
     }
@@ -328,8 +370,8 @@ impl TlsAcceptor {
         try!(ctx.set_protocol_version_min(min));
         try!(ctx.set_protocol_version_max(max));
         try!(ctx.set_certificate(
-            &self.pkcs12.identity,
-            &self.pkcs12.chain,
+            &self.identity,
+            &self.chain,
         ));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

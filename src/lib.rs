@@ -194,12 +194,22 @@ impl Certificate {
     }
 }
 
+/// A private key.
+pub struct PrivateKey(imp::PrivateKey);
+
+impl PrivateKey {
+    /// Parses a DER-formatted PKCS#1 private key.
+    pub fn from_der(der: &[u8]) -> Result<PrivateKey> {
+        let key = try!(imp::PrivateKey::from_der(der));
+        Ok(PrivateKey(key))
+    }
+}
+
 /// A TLS stream which has been interrupted midway through the handshake process.
 pub struct MidHandshakeTlsStream<S>(imp::MidHandshakeTlsStream<S>);
 
 impl<S> fmt::Debug for MidHandshakeTlsStream<S>
-where
-    S: fmt::Debug,
+    where S: fmt::Debug
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
@@ -207,8 +217,7 @@ where
 }
 
 impl<S> MidHandshakeTlsStream<S>
-where
-    S: io::Read + io::Write,
+    where S: io::Read + io::Write
 {
     /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &S {
@@ -251,8 +260,7 @@ pub enum HandshakeError<S> {
 }
 
 impl<S> error::Error for HandshakeError<S>
-where
-    S: Any + fmt::Debug,
+    where S: Any + fmt::Debug
 {
     fn description(&self) -> &str {
         match *self {
@@ -270,8 +278,7 @@ where
 }
 
 impl<S> fmt::Display for HandshakeError<S>
-where
-    S: Any + fmt::Debug,
+    where S: Any + fmt::Debug
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         try!(fmt.write_str(self.description()));
@@ -327,10 +334,9 @@ impl TlsConnectorBuilder {
     ///
     /// The protocols supported by default are currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
     /// is subject to change.
-    pub fn supported_protocols(
-        &mut self,
-        protocols: &[Protocol],
-    ) -> Result<&mut TlsConnectorBuilder> {
+    pub fn supported_protocols(&mut self,
+                               protocols: &[Protocol])
+                               -> Result<&mut TlsConnectorBuilder> {
         try!(self.0.supported_protocols(protocols));
         Ok(self)
     }
@@ -389,13 +395,11 @@ impl TlsConnector {
     /// the handshake, a `HandshakeError::Interrupted` error will be returned
     /// which can be used to restart the handshake when the socket is ready
     /// again.
-    pub fn connect<S>(
-        &self,
-        domain: &str,
-        stream: S,
-    ) -> result::Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
+    pub fn connect<S>(&self,
+                      domain: &str,
+                      stream: S)
+                      -> result::Result<TlsStream<S>, HandshakeError<S>>
+        where S: io::Read + io::Write
     {
         let s = try!(self.0.connect(domain, stream));
         Ok(TlsStream(s))
@@ -425,10 +429,9 @@ impl TlsAcceptorBuilder {
     ///
     /// The protocols supported by default are currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
     /// is subject to change.
-    pub fn supported_protocols(
-        &mut self,
-        protocols: &[Protocol],
-    ) -> Result<&mut TlsAcceptorBuilder> {
+    pub fn supported_protocols(&mut self,
+                               protocols: &[Protocol])
+                               -> Result<&mut TlsAcceptorBuilder> {
         try!(self.0.supported_protocols(protocols));
         Ok(self)
     }
@@ -492,6 +495,16 @@ impl TlsAcceptor {
         Ok(TlsAcceptorBuilder(builder))
     }
 
+    pub fn builder2(key: PrivateKey,
+                    cert: Certificate,
+                    chain: Vec<Certificate>)
+                    -> Result<TlsAcceptorBuilder> {
+        let builder = try!(imp::TlsAcceptor::builder2(key.0,
+                                                      cert.0,
+                                                      chain.into_iter().map(|c| c.0).collect()));
+        Ok(TlsAcceptorBuilder(builder))
+    }
+
     /// Initiates a TLS handshake.
     ///
     /// If the socket is nonblocking and a `WouldBlock` error is returned during
@@ -499,8 +512,7 @@ impl TlsAcceptor {
     /// which can be used to restart the handshake when the socket is ready
     /// again.
     pub fn accept<S>(&self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
+        where S: io::Read + io::Write
     {
         match self.0.accept(stream) {
             Ok(s) => Ok(TlsStream(s)),

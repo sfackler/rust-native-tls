@@ -4,6 +4,7 @@ use std::io;
 use std::fmt;
 use std::error;
 use self::openssl::pkcs12;
+use self::openssl::pkey::PKey;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
                          SslAcceptor, MidHandshakeSslStream, SslContextBuilder};
@@ -84,6 +85,15 @@ impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
         let cert = try!(X509::from_der(buf));
         Ok(Certificate(cert))
+    }
+}
+
+pub struct PrivateKey(PKey);
+
+impl PrivateKey {
+    pub fn from_der(buf: &[u8]) -> Result<PrivateKey, Error> {
+        let key = try!(PKey::private_key_from_der(buf));
+        Ok(PrivateKey(key))
     }
 }
 
@@ -250,6 +260,20 @@ impl TlsAcceptor {
             &pkcs12.0.pkey,
             &pkcs12.0.cert,
             &pkcs12.0.chain,
+        ));
+        Ok(TlsAcceptorBuilder(builder))
+    }
+
+    pub fn builder2(
+        key: PrivateKey,
+        cert: Certificate,
+        chain: Vec<Certificate>,
+    ) -> Result<TlsAcceptorBuilder, Error> {
+        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(
+            SslMethod::tls(),
+            &key.0,
+            &cert.0,
+            chain.iter().map(|c| &c.0),
         ));
         Ok(TlsAcceptorBuilder(builder))
     }

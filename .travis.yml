@@ -10,13 +10,13 @@ matrix:
   - os: osx
     env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
   - os: linux
+    env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:
 - if [ ! -z "$TARGET" ]; then rustup target add $TARGET; fi
 script:
 - if [ ! -z "$TARGET" ]; then
-      rustc --print target-list
       cargo build --target=$TARGET;
     else
       cargo test;

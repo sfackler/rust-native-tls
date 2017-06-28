@@ -7,12 +7,17 @@ rust:
 matrix:
   include:
   - os: osx
-  - os: osx
   - osx_image: xcode7.3
-    env: TARGET=x86_64-apple-ios
+    env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
   - os: linux
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
+before_script:
+- if [ -z "$TARGET" ]; then rustup target add $TARGET; fi
 script:
-- cargo test
+- if [ -z "$TARGET" ]; then
+      cargo build --target=$TARGET;
+    else
+      cargo test;
+    fi
 - rustdoc --test README.md -L target/debug/deps -L target/debug

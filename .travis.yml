@@ -7,7 +7,6 @@ rust:
 matrix:
   include:
   - os: osx
-  - osx_image: xcode7.3
     env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
   - os: linux
 env:
@@ -16,7 +15,6 @@ before_script:
 - if [ ! -z "$TARGET" ]; then rustup target add $TARGET; fi
 script:
 - if [ ! -z "$TARGET" ]; then
-      xcodebuild -license
       rustc --print target-list
       cargo build --target=$TARGET;
     else

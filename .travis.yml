@@ -16,7 +16,7 @@ before_script:
 - if [ ! -z "$TARGET" ]; then rustup target add $TARGET; fi
 script:
 - if [ ! -z "$TARGET" ]; then
-      sudo xcodebuild -license
+      xcodebuild -license
       rustc --print target-list
       cargo build --target=$TARGET;
     else

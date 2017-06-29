@@ -10,7 +10,6 @@ matrix:
   - os: osx
     env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
   - os: linux
-    env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:
@@ -21,4 +20,6 @@ script:
     else
       cargo test;
     fi
-- rustdoc --test README.md -L target/debug/deps -L target/debug
+- if [ -z "$TARGET" ]; then
+      rustdoc --test README.md -L target/debug/deps -L target/debug
+    fi

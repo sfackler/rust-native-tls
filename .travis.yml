@@ -9,11 +9,17 @@ matrix:
   include:
   - os: osx
   - os: osx
-    env: TARGET=i386-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
+    env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:
-- if [ ! -z "$TARGET" ]; then rustup target add $TARGET; fi
+- if [ ! -z "$TARGET" ]; then
+    rustup target add i386-apple-ios;
+    rustup target add x86_64"-apple-ios;
+    rustup target add armv7"-apple-ios;
+    rustup target add armv7s"-apple-ios;
+    rustup target add aarch64"-apple-ios;
+  fi
 script:
 - if [ ! -z "$TARGET" ]; then
       cargo build --target=$TARGET;

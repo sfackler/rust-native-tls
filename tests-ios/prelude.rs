@@ -1,1 +1,1 @@
-extern crate native-tls;
+extern crate native_tls;

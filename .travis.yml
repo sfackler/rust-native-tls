@@ -9,7 +9,7 @@ matrix:
   include:
   - os: osx
   - os: osx
-    env: TARGET=x86_64-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
+    env: TARGET=i386-apple-ios RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:

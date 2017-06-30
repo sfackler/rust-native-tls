@@ -14,6 +14,11 @@ macro_rules! p {
 }
 
 #[test]
+fn deliberate_failure() {
+    assert!(false);
+}
+
+#[test]
 fn connect_google() {
     let builder = p!(TlsConnector::builder());
     let builder = p!(builder.build());

@@ -130,7 +130,7 @@ impl Pkcs12 {
     #[cfg(target_os = "ios")]
     fn import_options(
         buf: &[u8],
-        dir: &TempDir,
+        _dir: &TempDir,
         pass: &str,
     ) -> Result<Vec<ImportedIdentityOptions>, Error> {
         let imports = try!(

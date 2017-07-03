@@ -13,6 +13,7 @@ macro_rules! p {
     }
 }
 
+mod tests {
     #[test]
     fn connect_google() {
         let builder = p!(TlsConnector::builder());
@@ -213,3 +214,4 @@ macro_rules! p {
 
         p!(j.join());
     }
+}

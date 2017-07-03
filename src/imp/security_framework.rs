@@ -5,7 +5,7 @@ extern crate tempdir;
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
-use self::security_framework::import_export::Pkcs12ImportOptions;
+use self::security_framework::import_export::{Pkcs12ImportOptions, ImportedIdentityOptions};
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
 use self::security_framework_sys::base::errSecIO;
@@ -13,6 +13,9 @@ use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
 use std::error;
+
+#[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::keychain::{self, KeychainSettings};
 
 use Protocol;
 
@@ -83,35 +86,60 @@ impl Pkcs12 {
             Err(_) => return Err(Error(base::Error::from(errSecIO))),
         };
 
-        let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
-            dir.path().join("tmp.keychain"),
-        ));
-        // disable lock on sleep and timeouts
-        try!(keychain.set_settings(&KeychainSettings::new()));
-
-        let mut imports = try!(
-            Pkcs12ImportOptions::new()
-                .passphrase(pass)
-                .keychain(keychain)
-                .import(buf)
-        );
+        let mut imports = try!(Pkcs12::import_options(buf, &dir, pass));
         let import = imports.pop().unwrap();
 
-        let identity = import
-            .identity
-            .expect("Pkcs12 files must include an identity");
+        let identity = import.identity.expect(
+            "Pkcs12 files must include an identity",
+        );
 
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(identity.certificate()).to_der();
 
         Ok(Pkcs12 {
-            identity: import.identity,
+            identity: identity,
             chain: import
                 .cert_chain
+                .unwrap_or(vec![])
                 .into_iter()
                 .filter(|c| c.to_der() != identity_cert)
                 .collect(),
         })
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    fn import_options(
+        buf: &[u8],
+        dir: &TempDir,
+        pass: &str,
+    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
+        let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
+            dir.path().join("tmp.keychain"),
+        ));
+        // disable lock on sleep and timeouts
+        try!(keychain.set_settings(&KeychainSettings::new()));
+        let imports = try!(
+            Pkcs12ImportOptions::new()
+                .passphrase(pass)
+                .keychain(keychain)
+                .import_optional(buf)
+        );
+        Ok(imports)
+    }
+
+    #[cfg(target_os = "ios")]
+    fn import_options(
+        buf: &[u8],
+        dir: &TempDir,
+        pass: &str,
+    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
+        let imports = try!(
+            Pkcs12ImportOptions::new()
+                .passphrase(pass)
+                .keychain(keychain)
+                .import_optional(buf)
+        );
+        Ok(imports)
     }
 }
 
@@ -243,12 +271,10 @@ pub struct TlsConnector {
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
-                                   pkcs12: None,
-                                   protocols: vec![Protocol::Tlsv10,
-                                                   Protocol::Tlsv11,
-                                                   Protocol::Tlsv12],
-                                   roots: vec![],
-                               }))
+            pkcs12: None,
+            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+            roots: vec![],
+        }))
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
@@ -315,11 +341,9 @@ pub struct TlsAcceptor {
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
-                                  pkcs12: pkcs12,
-                                  protocols: vec![Protocol::Tlsv10,
-                                                  Protocol::Tlsv11,
-                                                  Protocol::Tlsv12],
-                              }))
+            pkcs12: pkcs12,
+            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+        }))
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

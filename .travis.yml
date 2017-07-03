@@ -22,7 +22,6 @@ before_script:
   fi
 script:
 - if [ ! -z "$TARGET" ]; then
-      cargo build --target=$TARGET;
       curl -LO https://github.com/SSheldon/rust-test-ios/releases/download/0.1.1/rust-test-ios;
       chmod +x rust-test-ios;
       ./rust-test-ios;

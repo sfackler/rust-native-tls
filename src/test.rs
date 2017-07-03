@@ -16,7 +16,7 @@ macro_rules! p {
 
 mod tests {
     use super::*;
-    
+
     #[test]
     fn connect_google() {
         let builder = p!(TlsConnector::builder());
@@ -181,8 +181,8 @@ mod tests {
         p!(j.join());
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
+    #[cfg(target_os = "windows")]
     fn schannel_verify_callback() {
         let buf = include_bytes!("../test/identity.p12");
         let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));

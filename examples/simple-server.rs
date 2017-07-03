@@ -2,7 +2,7 @@ extern crate native_tls;
 
 use native_tls::{Pkcs12, TlsAcceptor, TlsStream};
 use std::fs::File;
-use std::io::{Read};
+use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;

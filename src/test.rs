@@ -15,6 +15,8 @@ macro_rules! p {
 }
 
 mod tests {
+    use super::*;
+    
     #[test]
     fn connect_google() {
         let builder = p!(TlsConnector::builder());

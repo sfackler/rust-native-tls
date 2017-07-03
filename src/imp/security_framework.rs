@@ -136,7 +136,6 @@ impl Pkcs12 {
         let imports = try!(
             Pkcs12ImportOptions::new()
                 .passphrase(pass)
-                .keychain(keychain)
                 .import_optional(buf)
         );
         Ok(imports)

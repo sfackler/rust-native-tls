@@ -378,6 +378,6 @@ pub trait CertificateExt {
 
 impl CertificateExt for ::Certificate {
     fn from_cert_context(cert: CertContext) -> Certificate {
-        Certificate(cert)
+        ::Certificate(cert)
     }
 }

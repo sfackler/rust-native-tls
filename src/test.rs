@@ -47,6 +47,16 @@ fn connect_bad_hostname_ignored() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn connect_no_root_certs() {
+    let mut builder = p!(TlsConnector::builder());
+    p!(builder.disable_built_in_certs());
+    let builder = p!(builder.build());
+    let s = p!(TcpStream::connect("google.com:443"));
+    builder.connect("google.com", s).unwrap_err();
+}
+
+#[test]
 fn server() {
     let buf = include_bytes!("../test/identity.p12");
     let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));

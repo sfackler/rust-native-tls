@@ -104,6 +104,8 @@
 //! ```
 #![doc(html_root_url="https://docs.rs/native-tls/0.1.4")]
 #![warn(missing_docs)]
+#[cfg(target_os = "macos")]
+#[macro_use] extern crate lazy_static;
 
 use std::any::Any;
 use std::error;
@@ -293,6 +295,15 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
     }
 }
 
+/// Algorithms used in various ciphers and protocols
+#[derive(Debug, Copy, Clone)]
+pub enum Algorithm {
+    /// 3DES protocol
+    Des3,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
 /// SSL/TLS protocol versions.
 #[derive(Debug, Copy, Clone)]
 pub enum Protocol {
@@ -348,6 +359,21 @@ impl TlsConnectorBuilder {
     pub fn build(self) -> Result<TlsConnector> {
         let connector = try!(self.0.build());
         Ok(TlsConnector(connector))
+    }
+
+    pub fn disable_built_in_certs(&mut self) -> Result<&mut TlsConnectorBuilder> {
+        try!(self.0.disable_built_in_certs());
+        Ok(self)
+    }
+
+    pub fn whitelist_algorithms(&mut self, algos: &[Algorithm]) -> Result<&mut TlsConnectorBuilder> {
+        try!(self.0.whitelist_algorithms(algos));
+        Ok(self)
+    }
+
+    pub fn blacklist_algorithms(&mut self, algos: &[Algorithm]) -> Result<&mut TlsConnectorBuilder> {
+        try!(self.0.blacklist_algorithms(algos));
+        Ok(self)
     }
 }
 

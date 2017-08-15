@@ -22,7 +22,7 @@ before_script:
   fi
 script:
 - if [ ! -z "$TEST_IOS" ]; then
-      curl -LO https://github.com/SSheldon/rust-test-ios/releases/download/0.1.1/rust-test-ios;
+      curl -LO https://github.com/azdlowry/rust-test-ios/releases/download/0.1.2/rust-test-ios;
       chmod +x rust-test-ios;
       ./rust-test-ios;
     else

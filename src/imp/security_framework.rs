@@ -1,3 +1,4 @@
+extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;
 extern crate tempdir;
@@ -14,8 +15,15 @@ use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
 use std::error;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use Protocol;
+
+lazy_static! {
+    static ref AT_EXIT_SET: AtomicBool = AtomicBool::new(false);
+    static ref TEMP_DIRS: Mutex<Vec<TempDir>> = Mutex::new(vec![]);
+}
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
     match protocol {
@@ -87,6 +95,7 @@ impl Pkcs12 {
         let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
             dir.path().join("tmp.keychain"),
         ));
+
         // disable lock on sleep and timeouts
         try!(keychain.set_settings(&KeychainSettings::new()));
 
@@ -100,6 +109,16 @@ impl Pkcs12 {
 
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(import.identity.certificate()).to_der();
+
+        if !AT_EXIT_SET.swap(true, Ordering::Relaxed) {
+            extern "C" fn atexit() {
+                TEMP_DIRS.lock().unwrap().clear();
+            }
+
+            unsafe { libc::atexit(atexit); }
+        }
+
+        TEMP_DIRS.lock().unwrap().push(dir);
 
         Ok(Pkcs12 {
             identity: import.identity,

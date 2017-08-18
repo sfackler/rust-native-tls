@@ -8,12 +8,14 @@ repository = "https://github.com/sfackler/rust-native-tls"
 documentation = "https://docs.rs/native-tls/0.1.4/native_tls"
 readme = "README.md"
 
+[dependencies]
+lazy_static = "0.2"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = { version = "0.1.13", features = ["OSX_10_8" ] }
 security-framework-sys = "0.1.13"
-tempdir = "0.3"
-lazy_static = "0.2"
 libc = "0.2"
+tempdir = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 schannel = "0.1.7"

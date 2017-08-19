@@ -16,12 +16,13 @@ use std::fmt;
 use std::io;
 use std::error;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Once, ONCE_INIT};
 
 use Protocol;
 
+static SET_AT_EXIT: Once = ONCE_INIT;
+
 lazy_static! {
-    static ref AT_EXIT_SET: AtomicBool = AtomicBool::new(false);
     static ref TEMP_DIRS: Mutex<Vec<TempDir>> = Mutex::new(vec![]);
 }
 
@@ -110,13 +111,13 @@ impl Pkcs12 {
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(import.identity.certificate()).to_der();
 
-        if !AT_EXIT_SET.swap(true, Ordering::Relaxed) {
+        SET_AT_EXIT.call_once(|| {
             extern "C" fn atexit() {
                 TEMP_DIRS.lock().unwrap().clear();
             }
 
             unsafe { libc::atexit(atexit); }
-        }
+        });
 
         TEMP_DIRS.lock().unwrap().push(dir);
 

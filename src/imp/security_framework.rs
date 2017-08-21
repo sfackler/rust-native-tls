@@ -10,7 +10,7 @@ use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
-use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
+use self::security_framework::os::macos::keychain::{self, KeychainSettings};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
 use self::twox_hash::XxHash;
@@ -28,8 +28,8 @@ use Protocol;
 static SET_AT_EXIT: Once = ONCE_INIT;
 
 lazy_static! {
-    static ref TEMP_DIRS: Mutex<HashMap<Vec<u8>, (SecKeychain, TempDir), HashBuilder<XxHash>>> =
-        Mutex::new(HashMap::default());
+    static ref TEMP_DIRS: Mutex<
+        HashMap<Vec<u8>, (Pkcs12, TempDir), HashBuilder<XxHash>>> = Mutex::new(HashMap::default());
 }
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
@@ -98,42 +98,43 @@ impl Pkcs12 {
             extern "C" fn atexit() {
                 TEMP_DIRS.lock().unwrap().clear();
             }
-            unsafe { libc::atexit(atexit); }
+            unsafe {
+                libc::atexit(atexit);
+            }
         });
 
-        let keychain = match TEMP_DIRS.lock().unwrap().entry(buf.into()) {
+        let pkcs12 = match TEMP_DIRS.lock().unwrap().entry(buf.into()) {
             Vacant(entry) => {
-                let dir = TempDir::new("native-tls")
-                    .map_err(|_| Error(base::Error::from(errSecIO)))?;
-                let mut keychain = keychain::CreateOptions::new()
-                    .password(pass)
-                    .create(dir.path().join("tmp.keychain"))?;
+                let dir = TempDir::new("native-tls").map_err(|_| {
+                    Error(base::Error::from(errSecIO))
+                })?;
+
+                let mut keychain = keychain::CreateOptions::new().password(pass).create(
+                    dir.path().join("tmp.keychain"),
+                )?;
                 keychain.set_settings(&KeychainSettings::new())?;
-                entry.insert((keychain.clone(), dir));
-                keychain
-            },
+
+                let mut imports = Pkcs12ImportOptions::new()
+                    .passphrase(pass)
+                    .keychain(keychain)
+                    .import(buf)?;
+                let import = imports.pop().unwrap();
+
+                // FIXME: Compare the certificates for equality using CFEqual
+                let identity_cert = import.identity.certificate()?.to_der();
+                let identity = import.identity;
+                let chain = import
+                    .cert_chain
+                    .into_iter()
+                    .filter(|c| c.to_der() != identity_cert)
+                    .collect();
+
+                entry.insert((Pkcs12 { identity: identity, chain: chain }, dir)).0.clone()
+            }
             Occupied(entry) => entry.get().0.clone(),
         };
 
-        let mut imports = try!(
-            Pkcs12ImportOptions::new()
-                .passphrase(pass)
-                .keychain(keychain)
-                .import(buf)
-        );
-        let import = imports.pop().unwrap();
-
-        // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = try!(import.identity.certificate()).to_der();
-
-        Ok(Pkcs12 {
-            identity: import.identity,
-            chain: import
-                .cert_chain
-                .into_iter()
-                .filter(|c| c.to_der() != identity_cert)
-                .collect(),
-        })
+        Ok(pkcs12)
     }
 }
 

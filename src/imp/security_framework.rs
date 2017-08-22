@@ -1,9 +1,11 @@
+extern crate commoncrypto;
 extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;
 extern crate tempdir;
 extern crate twox_hash;
 
+use self::commoncrypto::hash::*;
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
@@ -29,7 +31,8 @@ static SET_AT_EXIT: Once = ONCE_INIT;
 
 lazy_static! {
     static ref TEMP_DIRS: Mutex<
-        HashMap<Vec<u8>, (Pkcs12, TempDir), HashBuilder<XxHash>>> = Mutex::new(HashMap::default());
+        HashMap<(Vec<u8>, Vec<u8>), (Pkcs12, TempDir), HashBuilder<XxHash>>
+    > = Mutex::new(HashMap::default());
 }
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
@@ -86,6 +89,12 @@ impl From<base::Error> for Error {
     }
 }
 
+fn sha256_hash(data: &[u8]) -> io::Result<Vec<u8>> {
+    let mut hasher = Hasher::new(CCDigestAlgorithm::kCCDigestSHA256);
+    hasher.update(data)?;
+    hasher.finish()
+}
+
 #[derive(Clone)]
 pub struct Pkcs12 {
     identity: SecIdentity,
@@ -103,7 +112,10 @@ impl Pkcs12 {
             }
         });
 
-        let pkcs12 = match TEMP_DIRS.lock().unwrap().entry(buf.into()) {
+        let pw_hash = sha256_hash(pass.as_ref())
+            .map_err(|_| Error(base::Error::from(errSecIO)))?;
+
+        let pkcs12 = match TEMP_DIRS.lock().unwrap().entry((buf.into(), pw_hash)) {
             Vacant(entry) => {
                 let dir = TempDir::new("native-tls").map_err(|_| {
                     Error(base::Error::from(errSecIO))

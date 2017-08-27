@@ -1,25 +1,18 @@
-extern crate commoncrypto;
 extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;
 extern crate tempdir;
-extern crate twox_hash;
 
-use self::commoncrypto::hash::*;
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::Pkcs12ImportOptions;
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
-use self::security_framework::os::macos::keychain::{self, KeychainSettings};
+use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
-use self::twox_hash::XxHash;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry::*;
 use std::fmt;
-use std::hash::BuildHasherDefault as HashBuilder;
 use std::io;
 use std::error;
 use std::sync::Mutex;
@@ -30,9 +23,7 @@ use Protocol;
 static SET_AT_EXIT: Once = ONCE_INIT;
 
 lazy_static! {
-    static ref TEMP_DIRS: Mutex<
-        HashMap<(Vec<u8>, Vec<u8>), (Pkcs12, TempDir), HashBuilder<XxHash>>
-    > = Mutex::new(HashMap::default());
+    static ref TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, TempDir)>> = Mutex::new(None);
 }
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
@@ -89,12 +80,6 @@ impl From<base::Error> for Error {
     }
 }
 
-fn sha256_hash(data: &[u8]) -> io::Result<Vec<u8>> {
-    let mut hasher = Hasher::new(CCDigestAlgorithm::kCCDigestSHA256);
-    hasher.update(data)?;
-    hasher.finish()
-}
-
 #[derive(Clone)]
 pub struct Pkcs12 {
     identity: SecIdentity,
@@ -105,18 +90,16 @@ impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
         SET_AT_EXIT.call_once(|| {
             extern "C" fn atexit() {
-                TEMP_DIRS.lock().unwrap().clear();
+                *TEMP_KEYCHAIN.lock().unwrap() = None;
             }
             unsafe {
                 libc::atexit(atexit);
             }
         });
 
-        let pw_hash = sha256_hash(pass.as_ref())
-            .map_err(|_| Error(base::Error::from(errSecIO)))?;
-
-        let pkcs12 = match TEMP_DIRS.lock().unwrap().entry((buf.into(), pw_hash)) {
-            Vacant(entry) => {
+        let keychain = match *TEMP_KEYCHAIN.lock().unwrap() {
+            Some((ref keychain, _)) => keychain.clone(),
+            ref mut lock @ None => {
                 let dir = TempDir::new("native-tls").map_err(|_| {
                     Error(base::Error::from(errSecIO))
                 })?;
@@ -126,27 +109,27 @@ impl Pkcs12 {
                 )?;
                 keychain.set_settings(&KeychainSettings::new())?;
 
-                let mut imports = Pkcs12ImportOptions::new()
-                    .passphrase(pass)
-                    .keychain(keychain)
-                    .import(buf)?;
-                let import = imports.pop().unwrap();
-
-                // FIXME: Compare the certificates for equality using CFEqual
-                let identity_cert = import.identity.certificate()?.to_der();
-                let identity = import.identity;
-                let chain = import
-                    .cert_chain
-                    .into_iter()
-                    .filter(|c| c.to_der() != identity_cert)
-                    .collect();
-
-                entry.insert((Pkcs12 { identity: identity, chain: chain }, dir)).0.clone()
+                *lock = Some((keychain, dir));
+                lock.as_ref().unwrap().0.clone()
             }
-            Occupied(entry) => entry.get().0.clone(),
         };
 
-        Ok(pkcs12)
+        let mut imports = Pkcs12ImportOptions::new()
+            .passphrase(pass)
+            .keychain(keychain)
+            .import(buf)?;
+        let import = imports.pop().unwrap();
+
+        // FIXME: Compare the certificates for equality using CFEqual
+        let identity_cert = import.identity.certificate()?.to_der();
+        let identity = import.identity;
+        let chain = import
+            .cert_chain
+            .into_iter()
+            .filter(|c| c.to_der() != identity_cert)
+            .collect();
+
+        Ok(Pkcs12 { identity: identity, chain: chain })
     }
 }
 

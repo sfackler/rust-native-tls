@@ -105,6 +105,9 @@
 #![doc(html_root_url="https://docs.rs/native-tls/0.1.4")]
 #![warn(missing_docs)]
 
+#[macro_use]
+extern crate lazy_static;
+
 use std::any::Any;
 use std::error;
 use std::error::Error as StdError;

@@ -1,5 +1,5 @@
 environment:
-  RUST_VERSION: 1.13.0
+  RUST_VERSION: 1.17.0
   TARGET: x86_64-pc-windows-msvc
 install:
   - ps: Start-FileDownload "https://static.rust-lang.org/dist/rust-${env:RUST_VERSION}-${env:TARGET}.exe"

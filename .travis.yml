@@ -3,11 +3,11 @@ sudo: false
 cache: cargo
 rust:
 - nightly
-- 1.13.0
+- 1.17.0
 matrix:
   include:
   - os: osx
-    rust: 1.13.0
+    rust: 1.17.0
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 script:

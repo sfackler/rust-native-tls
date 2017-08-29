@@ -14,6 +14,7 @@ macro_rules! p {
     }
 }
 
+// This nested mod is needed for ios testing with rust-test-ios
 mod tests {
     use super::*;
 

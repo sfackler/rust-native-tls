@@ -24,6 +24,7 @@ use Protocol;
 
 static SET_AT_EXIT: Once = ONCE_INIT;
 
+#[cfg(not(target_os = "ios"))]
 lazy_static! {
     static ref TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, TempDir)>> = Mutex::new(None);
 }

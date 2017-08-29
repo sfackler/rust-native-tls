@@ -90,7 +90,7 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let mut imports = try!(Pkcs12::import_options(buf, &dir, pass));
+        let mut imports = try!(Pkcs12::import_options(buf, pass));
         let import = imports.pop().unwrap();
 
         let identity = import.identity.expect(
@@ -114,7 +114,6 @@ impl Pkcs12 {
     #[cfg(not(target_os = "ios"))]
     fn import_options(
         buf: &[u8],
-        dir: &TempDir,
         pass: &str,
     ) -> Result<Vec<ImportedIdentityOptions>, Error> {
         SET_AT_EXIT.call_once(|| {
@@ -154,7 +153,6 @@ impl Pkcs12 {
     #[cfg(target_os = "ios")]
     fn import_options(
         buf: &[u8],
-        _dir: &TempDir,
         pass: &str,
     ) -> Result<Vec<ImportedIdentityOptions>, Error> {
         let imports = try!(

@@ -8,8 +8,10 @@ rust:
 matrix:
   include:
   - os: osx
+    rust: 1.17.0
   - os: osx
     env: TEST_IOS=true RUST_BACKTRACE=1 RUST_TEST_THREADS=1
+    rust: 1.17.0
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:

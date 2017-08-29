@@ -213,6 +213,13 @@ mod tests {
     }
 
     #[test]
+    fn import_same_identity_multiple_times() {
+        let buf = include_bytes!("../test/identity.p12");
+        let _ = p!(Pkcs12::from_der(buf, "mypass"));
+        let _ = p!(Pkcs12::from_der(buf, "mypass"));
+    }
+  
+    #[test]
     fn shutdown() {
         let buf = include_bytes!("../test/identity.p12");
         let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));

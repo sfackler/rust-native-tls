@@ -9,7 +9,6 @@ use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::{Pkcs12ImportOptions, ImportedIdentityOptions};
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
-use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
 use std::fmt;
@@ -19,7 +18,7 @@ use std::sync::Mutex;
 use std::sync::{Once, ONCE_INIT};
 
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::keychain::{self, KeychainSettings};
+use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
 
 use Protocol;
 
@@ -91,32 +90,6 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        SET_AT_EXIT.call_once(|| {
-            extern "C" fn atexit() {
-                *TEMP_KEYCHAIN.lock().unwrap() = None;
-            }
-            unsafe {
-                libc::atexit(atexit);
-            }
-        });
-
-        let keychain = match *TEMP_KEYCHAIN.lock().unwrap() {
-            Some((ref keychain, _)) => keychain.clone(),
-            ref mut lock @ None => {
-                let dir = TempDir::new("native-tls").map_err(|_| {
-                    Error(base::Error::from(errSecIO))
-                })?;
-
-                let mut keychain = keychain::CreateOptions::new().password(pass).create(
-                    dir.path().join("tmp.keychain"),
-                )?;
-                keychain.set_settings(&KeychainSettings::new())?;
-
-                *lock = Some((keychain, dir));
-                lock.as_ref().unwrap().0.clone()
-            }
-        };
-
         let mut imports = try!(Pkcs12::import_options(buf, &dir, pass));
         let import = imports.pop().unwrap();
 
@@ -144,11 +117,31 @@ impl Pkcs12 {
         dir: &TempDir,
         pass: &str,
     ) -> Result<Vec<ImportedIdentityOptions>, Error> {
-        let mut keychain = try!(keychain::CreateOptions::new().password(pass).create(
-            dir.path().join("tmp.keychain"),
-        ));
-        // disable lock on sleep and timeouts
-        try!(keychain.set_settings(&KeychainSettings::new()));
+        SET_AT_EXIT.call_once(|| {
+            extern "C" fn atexit() {
+                *TEMP_KEYCHAIN.lock().unwrap() = None;
+            }
+            unsafe {
+                libc::atexit(atexit);
+            }
+        });
+
+        let keychain = match *TEMP_KEYCHAIN.lock().unwrap() {
+            Some((ref keychain, _)) => keychain.clone(),
+            ref mut lock @ None => {
+                let dir = TempDir::new("native-tls").map_err(|_| {
+                    Error(base::Error::from(errSecIO))
+                })?;
+
+                let mut keychain = keychain::CreateOptions::new().password(pass).create(
+                    dir.path().join("tmp.keychain"),
+                )?;
+                keychain.set_settings(&KeychainSettings::new())?;
+
+                *lock = Some((keychain, dir));
+                lock.as_ref().unwrap().0.clone()
+            }
+        };
         let imports = try!(
             Pkcs12ImportOptions::new()
                 .passphrase(pass)

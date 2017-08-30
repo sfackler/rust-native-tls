@@ -6,10 +6,9 @@ extern crate tempdir;
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
-use self::security_framework::import_export::Pkcs12ImportOptions;
+use self::security_framework::import_export::{Pkcs12ImportOptions, ImportedIdentityOptions};
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
-use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
 use std::fmt;
@@ -18,10 +17,14 @@ use std::error;
 use std::sync::Mutex;
 use std::sync::{Once, ONCE_INIT};
 
+#[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
+
 use Protocol;
 
 static SET_AT_EXIT: Once = ONCE_INIT;
 
+#[cfg(not(target_os = "ios"))]
 lazy_static! {
     static ref TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, TempDir)>> = Mutex::new(None);
 }
@@ -88,6 +91,32 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+        let mut imports = try!(Pkcs12::import_options(buf, pass));
+        let import = imports.pop().unwrap();
+
+        let identity = import.identity.expect(
+            "Pkcs12 files must include an identity",
+        );
+
+        // FIXME: Compare the certificates for equality using CFEqual
+        let identity_cert = try!(identity.certificate()).to_der();
+
+        Ok(Pkcs12 {
+            identity: identity,
+            chain: import
+                .cert_chain
+                .unwrap_or(vec![])
+                .into_iter()
+                .filter(|c| c.to_der() != identity_cert)
+                .collect(),
+        })
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    fn import_options(
+        buf: &[u8],
+        pass: &str,
+    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
         SET_AT_EXIT.call_once(|| {
             extern "C" fn atexit() {
                 *TEMP_KEYCHAIN.lock().unwrap() = None;
@@ -113,23 +142,26 @@ impl Pkcs12 {
                 lock.as_ref().unwrap().0.clone()
             }
         };
+        let imports = try!(
+            Pkcs12ImportOptions::new()
+                .passphrase(pass)
+                .keychain(keychain)
+                .import_optional(buf)
+        );
+        Ok(imports)
+    }
 
-        let mut imports = Pkcs12ImportOptions::new()
-            .passphrase(pass)
-            .keychain(keychain)
-            .import(buf)?;
-        let import = imports.pop().unwrap();
-
-        // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = import.identity.certificate()?.to_der();
-        let identity = import.identity;
-        let chain = import
-            .cert_chain
-            .into_iter()
-            .filter(|c| c.to_der() != identity_cert)
-            .collect();
-
-        Ok(Pkcs12 { identity: identity, chain: chain })
+    #[cfg(target_os = "ios")]
+    fn import_options(
+        buf: &[u8],
+        pass: &str,
+    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
+        let imports = try!(
+            Pkcs12ImportOptions::new()
+                .passphrase(pass)
+                .import_optional(buf)
+        );
+        Ok(imports)
     }
 }
 

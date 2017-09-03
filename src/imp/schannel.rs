@@ -163,6 +163,10 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+        self.0.callback = Some(Arc::new(|_| Ok(())));
+    }
+
     pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
         self.0.protocols = convert_protocols(protocols);
         Ok(())

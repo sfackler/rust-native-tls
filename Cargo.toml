@@ -12,8 +12,8 @@ readme = "README.md"
 lazy_static = "0.2"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = { version = "0.1.15", features = ["OSX_10_8" ]}
-security-framework-sys = "0.1.15"
+security-framework = { git = "https://github.com/scottschroeder/rust-security-framework", branch = "noverify", features = ["OSX_10_8" ]}
+security-framework-sys = { git = "https://github.com/scottschroeder/rust-security-framework", branch = "noverify" }
 libc = "0.2"
 tempdir = "0.3"
 

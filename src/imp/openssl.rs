@@ -6,7 +6,7 @@ use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
-                         SslAcceptor, MidHandshakeSslStream, SslContextBuilder};
+                         SslAcceptor, MidHandshakeSslStream, SslContextBuilder, SSL_VERIFY_NONE};
 use self::openssl::x509::X509;
 
 use Protocol;
@@ -163,6 +163,10 @@ impl TlsConnectorBuilder {
     pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
         try!(self.0.builder_mut().cert_store_mut().add_cert(cert.0));
         Ok(())
+    }
+
+    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+        self.0.builder_mut().set_verify(SSL_VERIFY_NONE);
     }
 
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {

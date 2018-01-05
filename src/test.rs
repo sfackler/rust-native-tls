@@ -1,6 +1,8 @@
+#[allow(unused_imports)]
 use std::io::{Read, Write};
 use std::net::{TcpStream, TcpListener};
 use std::thread;
+#[allow(unused_imports)]
 use imp::TlsConnectorBuilderExt;
 
 use super::*;
@@ -218,7 +220,7 @@ mod tests {
         let _ = p!(Pkcs12::from_der(buf, "mypass"));
         let _ = p!(Pkcs12::from_der(buf, "mypass"));
     }
-  
+
     #[test]
     fn shutdown() {
         let buf = include_bytes!("../test/identity.p12");

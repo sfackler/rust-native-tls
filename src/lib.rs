@@ -106,6 +106,7 @@
 #![warn(missing_docs)]
 
 #[macro_use]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 extern crate lazy_static;
 
 use std::any::Any;

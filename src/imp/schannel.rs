@@ -3,6 +3,7 @@ extern crate schannel;
 use std::io;
 use std::fmt;
 use std::error;
+use std::error::Error;
 use std::sync::Arc;
 use self::schannel::cert_store::{PfxImportOptions, Memory, CertStore, CertAdd};
 use self::schannel::cert_context::CertContext;
@@ -102,13 +103,15 @@ impl Certificate {
                 Ok(Certificate(cert))
             }
             Err(e) => {
-                Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!(
-                        "PEM representation contains non-UTF8 bytes {}",
-                        e.description()
-                    ),
-                ))
+                Err(
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "PEM representation contains non-UTF8 bytes {}",
+                            e.description()
+                        ),
+                    ).into(),
+                )
             }
         }
     }

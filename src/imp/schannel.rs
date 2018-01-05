@@ -102,10 +102,13 @@ impl Certificate {
                 Ok(Certificate(cert))
             }
             Err(e) => {
-                io::Error::new(
+                Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "PEM representation contains non-UTF8 bytes",
-                )
+                    format!(
+                        "PEM representation contains non-UTF8 bytes {}",
+                        e.description()
+                    ),
+                ))
             }
         }
     }

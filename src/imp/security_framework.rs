@@ -10,6 +10,7 @@ use self::security_framework::import_export::{Pkcs12ImportOptions, ImportedIdent
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
 use self::security_framework_sys::base::errSecIO;
+use self::security_framework_sys::base::errSecParam;
 use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
@@ -173,7 +174,7 @@ impl Certificate {
         try!(ImportOptions::new().items(&mut items).import(buf));
         match items.certificates.pop() {
             Some(cert) => Ok(Certificate(cert)),
-            None => Err(Error(base::Error::from_code(0))),
+            None => Err(Error(base::Error::from(errSecParam))),
         }
     }
 }

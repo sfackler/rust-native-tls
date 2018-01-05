@@ -165,7 +165,7 @@ impl TlsConnectorBuilder {
     }
 
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        supported_protocols(protocols, self.0);
+        supported_protocols(protocols, &mut self.0);
         Ok(())
     }
 

@@ -89,6 +89,44 @@ mod tests {
     }
 
     #[test]
+    fn server_pem() {
+        let buf = include_bytes!("../test/identity.p12");
+        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let builder = p!(builder.build());
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let mut socket = p!(builder.accept(socket));
+
+            let mut buf = [0; 5];
+            p!(socket.read_exact(&mut buf));
+            assert_eq!(&buf, b"hello");
+
+            p!(socket.write_all(b"world"));
+        });
+
+        let root_ca = include_bytes!("../test/root-ca.pem");
+        let root_ca = Certificate::from_pem(root_ca).unwrap();
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let mut builder = p!(TlsConnector::builder());
+        p!(builder.add_root_certificate(root_ca));
+        let builder = p!(builder.build());
+        let mut socket = p!(builder.connect("foobar.com", socket));
+
+        p!(socket.write_all(b"hello"));
+        let mut buf = vec![];
+        p!(socket.read_to_end(&mut buf));
+        assert_eq!(buf, b"world");
+
+        p!(j.join());
+    }
+
+    #[test]
     fn server_tls11_only() {
         let buf = include_bytes!("../test/identity.p12");
         let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
@@ -150,7 +188,13 @@ mod tests {
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = p!(TlsConnector::builder());
         p!(builder.add_root_certificate(root_ca));
-        p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11]));
+        p!(builder.supported_protocols(
+            &[
+                Protocol::Sslv3,
+                Protocol::Tlsv10,
+                Protocol::Tlsv11,
+            ],
+        ));
         let builder = p!(builder.build());
         assert!(builder.connect("foobar.com", socket).is_err());
 
@@ -218,7 +262,7 @@ mod tests {
         let _ = p!(Pkcs12::from_der(buf, "mypass"));
         let _ = p!(Pkcs12::from_der(buf, "mypass"));
     }
-  
+
     #[test]
     fn shutdown() {
         let buf = include_bytes!("../test/identity.p12");

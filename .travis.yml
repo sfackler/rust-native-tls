@@ -1,17 +1,10 @@
 language: rust
-sudo: false
 cache: cargo
-rust:
-- stable
-- nightly
-- 1.17.0
+os: osx
+rust: 1.17.0
 matrix:
   include:
-  - os: osx
-    rust: 1.17.0
-  - os: osx
-    env: TEST_IOS=true RUST_BACKTRACE=1 RUST_TEST_THREADS=1
-    rust: 1.17.0
+  - env: TEST_IOS=true RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 env:
 - RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:

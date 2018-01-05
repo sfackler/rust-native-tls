@@ -96,8 +96,18 @@ impl Certificate {
         Ok(Certificate(cert))
     }
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
-        let cert = try!(CertContext::from_pem(buf));
-        Ok(Certificate(cert))
+        match ::std::str::from_utf8(buf) {
+            Ok(s) => {
+                let cert = try!(CertContext::from_pem(s));
+                Ok(Certificate(cert))
+            }
+            Err(e) => {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "PEM representation contains non-UTF8 bytes",
+                )
+            }
+        }
     }
 }
 

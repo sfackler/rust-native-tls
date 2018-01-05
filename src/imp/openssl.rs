@@ -85,6 +85,10 @@ impl Certificate {
         let cert = try!(X509::from_der(buf));
         Ok(Certificate(cert))
     }
+    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+        let cert = try!(X509::from_pem(buf));
+        Ok(Certificate(cert))
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);

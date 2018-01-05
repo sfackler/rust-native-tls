@@ -102,16 +102,8 @@ impl Certificate {
                 let cert = try!(CertContext::from_pem(s));
                 Ok(Certificate(cert))
             }
-            Err(e) => {
-                Err(
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!(
-                            "PEM representation contains non-UTF8 bytes {}",
-                            e.description()
-                        ),
-                    ).into(),
-                )
+            Err(_) => {
+                Err( io::Error::new( io::ErrorKind::InvalidInput, "PEM representation contains non-UTF-8 bytes")).into())
             }
         }
     }

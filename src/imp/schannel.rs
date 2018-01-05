@@ -95,6 +95,10 @@ impl Certificate {
         let cert = try!(CertContext::new(buf));
         Ok(Certificate(cert))
     }
+    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+        let cert = try!(CertContext::from_pem(buf));
+        Ok(Certificate(cert))
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(tls_stream::MidHandshakeTlsStream<S>);
@@ -370,9 +374,9 @@ impl ErrorExt for ::Error {
     }
 }
 
-/// SChannel-specific extensions to `Certificate`. 
+/// SChannel-specific extensions to `Certificate`.
 pub trait CertificateExt {
-    /// builds a native_Tls `Certificate` from an schannel `CertContext` 
+    /// builds a native_Tls `Certificate` from an schannel `CertContext`
     fn from_cert_context(CertContext) -> ::Certificate;
 }
 

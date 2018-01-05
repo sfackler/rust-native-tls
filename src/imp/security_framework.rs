@@ -19,6 +19,7 @@ use std::sync::{Once, ONCE_INIT};
 
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
+use self::security_framework::os::macos::import_export::{SecItems, ImportOptions};
 
 use Protocol;
 
@@ -113,10 +114,7 @@ impl Pkcs12 {
     }
 
     #[cfg(not(target_os = "ios"))]
-    fn import_options(
-        buf: &[u8],
-        pass: &str,
-    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
+    fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentityOptions>, Error> {
         SET_AT_EXIT.call_once(|| {
             extern "C" fn atexit() {
                 *TEMP_KEYCHAIN.lock().unwrap() = None;
@@ -152,10 +150,7 @@ impl Pkcs12 {
     }
 
     #[cfg(target_os = "ios")]
-    fn import_options(
-        buf: &[u8],
-        pass: &str,
-    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
+    fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentityOptions>, Error> {
         let imports = try!(
             Pkcs12ImportOptions::new()
                 .passphrase(pass)
@@ -171,6 +166,15 @@ impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
         let cert = try!(SecCertificate::from_der(buf));
         Ok(Certificate(cert))
+    }
+
+    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+        let mut items = SecItems::default();
+        try!(ImportOptions::new().items(&mut items).import(buf));
+        match items.certificates.pop() {
+            Some(cert) => Ok(Certificate(cert)),
+            None => Err(Error(base::Error::from_code(0))),
+        }
     }
 }
 

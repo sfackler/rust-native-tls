@@ -195,6 +195,13 @@ impl Certificate {
         let cert = try!(imp::Certificate::from_der(der));
         Ok(Certificate(cert))
     }
+    /// Parses a PEM-formatted X509 certificate.
+    /// If the PEM file contains more than one certificate the last one is used
+    /// and the others are ignored.
+    pub fn from_pem(der: &[u8]) -> Result<Certificate> {
+        let cert = try!(imp::Certificate::from_pem(der));
+        Ok(Certificate(cert))
+    }
 }
 
 /// A TLS stream which has been interrupted midway through the handshake process.

@@ -230,7 +230,7 @@ pub struct TlsAcceptorBuilder(SslAcceptorBuilder);
 
 impl TlsAcceptorBuilder {
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        supported_protocols(protocols, self.0.builder_mut());
+        supported_protocols(protocols, &mut self.0);
         Ok(())
     }
 

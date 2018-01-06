@@ -130,7 +130,7 @@ mod imp;
 #[cfg(test)]
 mod test;
 
-/// A typedef of the result type returned by many methods.
+/// A typedef of the result-type returned by many methods.
 pub type Result<T> = result::Result<T, Error>;
 
 /// An error returned from the TLS implementation.

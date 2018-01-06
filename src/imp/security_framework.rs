@@ -10,7 +10,6 @@ use self::security_framework::import_export::{Pkcs12ImportOptions, ImportedIdent
 use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
                                                  SslProtocol, ClientBuilder};
 use self::security_framework_sys::base::errSecIO;
-use self::security_framework_sys::base::errSecParam;
 use self::tempdir::TempDir;
 use std::fmt;
 use std::io;
@@ -20,7 +19,10 @@ use std::sync::{Once, ONCE_INIT};
 
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
+#[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::import_export::{SecItems, ImportOptions};
+#[cfg(not(target_os = "ios"))]
+use self::security_framework_sys::base::errSecParam;
 
 use Protocol;
 
@@ -169,6 +171,7 @@ impl Certificate {
         Ok(Certificate(cert))
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         let mut items = SecItems::default();
         try!(ImportOptions::new().items(&mut items).import(buf));
@@ -176,6 +179,10 @@ impl Certificate {
             Some(cert) => Ok(Certificate(cert)),
             None => Err(Error(base::Error::from(errSecParam))),
         }
+    }
+    #[cfg(target_os = "ios")]
+    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+        panic!("Not implemented on iOS");
     }
 }
 

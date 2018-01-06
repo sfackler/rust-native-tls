@@ -89,6 +89,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "ios"))]
     fn server_pem() {
         let buf = include_bytes!("../test/identity.p12");
         let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));

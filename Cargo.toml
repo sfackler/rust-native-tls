@@ -9,7 +9,7 @@ documentation = "https://docs.rs/native-tls/0.1.4/native_tls"
 readme = "README.md"
 
 [dependencies]
-lazy_static = "0.2"
+lazy_static = "1.0"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 security-framework = { version = "0.1.15", features = ["OSX_10_8" ]}
@@ -21,4 +21,4 @@ tempdir = "0.3"
 schannel = "0.1.7"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl = "0.9.23"
+openssl = "0.10.2"

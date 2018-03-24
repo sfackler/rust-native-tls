@@ -6,9 +6,9 @@ extern crate tempdir;
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
-use self::security_framework::import_export::{Pkcs12ImportOptions, ImportedIdentityOptions};
-use self::security_framework::secure_transport::{self, SslContext, ProtocolSide, ConnectionType,
-                                                 SslProtocol, ClientBuilder};
+use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
+use self::security_framework::secure_transport::{self, ClientBuilder, SslConnectionType,
+                                                 SslContext, SslProtocol, SslProtocolSide};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
 use std::fmt;
@@ -18,7 +18,11 @@ use std::sync::Mutex;
 use std::sync::{Once, ONCE_INIT};
 
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::keychain::{self, SecKeychain, KeychainSettings};
+use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
+#[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::import_export::{ImportOptions, SecItems};
+#[cfg(not(target_os = "ios"))]
+use self::security_framework_sys::base::errSecParam;
 
 use Protocol;
 
@@ -31,10 +35,10 @@ lazy_static! {
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
     match protocol {
-        Protocol::Sslv3 => SslProtocol::Ssl3,
-        Protocol::Tlsv10 => SslProtocol::Tls1,
-        Protocol::Tlsv11 => SslProtocol::Tls11,
-        Protocol::Tlsv12 => SslProtocol::Tls12,
+        Protocol::Sslv3 => SslProtocol::SSL3,
+        Protocol::Tlsv10 => SslProtocol::TLS1,
+        Protocol::Tlsv11 => SslProtocol::TLS11,
+        Protocol::Tlsv12 => SslProtocol::TLS12,
         Protocol::__NonExhaustive => unreachable!(),
     }
 }
@@ -94,9 +98,9 @@ impl Pkcs12 {
         let mut imports = try!(Pkcs12::import_options(buf, pass));
         let import = imports.pop().unwrap();
 
-        let identity = import.identity.expect(
-            "Pkcs12 files must include an identity",
-        );
+        let identity = import
+            .identity
+            .expect("Pkcs12 files must include an identity");
 
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = try!(identity.certificate()).to_der();
@@ -113,10 +117,7 @@ impl Pkcs12 {
     }
 
     #[cfg(not(target_os = "ios"))]
-    fn import_options(
-        buf: &[u8],
-        pass: &str,
-    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
+    fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentity>, Error> {
         SET_AT_EXIT.call_once(|| {
             extern "C" fn atexit() {
                 *TEMP_KEYCHAIN.lock().unwrap() = None;
@@ -129,13 +130,12 @@ impl Pkcs12 {
         let keychain = match *TEMP_KEYCHAIN.lock().unwrap() {
             Some((ref keychain, _)) => keychain.clone(),
             ref mut lock @ None => {
-                let dir = TempDir::new("native-tls").map_err(|_| {
-                    Error(base::Error::from(errSecIO))
-                })?;
+                let dir =
+                    TempDir::new("native-tls").map_err(|_| Error(base::Error::from(errSecIO)))?;
 
-                let mut keychain = keychain::CreateOptions::new().password(pass).create(
-                    dir.path().join("tmp.keychain"),
-                )?;
+                let mut keychain = keychain::CreateOptions::new()
+                    .password(pass)
+                    .create(dir.path().join("tmp.keychain"))?;
                 keychain.set_settings(&KeychainSettings::new())?;
 
                 *lock = Some((keychain, dir));
@@ -146,21 +146,14 @@ impl Pkcs12 {
             Pkcs12ImportOptions::new()
                 .passphrase(pass)
                 .keychain(keychain)
-                .import_optional(buf)
+                .import(buf)
         );
         Ok(imports)
     }
 
     #[cfg(target_os = "ios")]
-    fn import_options(
-        buf: &[u8],
-        pass: &str,
-    ) -> Result<Vec<ImportedIdentityOptions>, Error> {
-        let imports = try!(
-            Pkcs12ImportOptions::new()
-                .passphrase(pass)
-                .import_optional(buf)
-        );
+    fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentity>, Error> {
+        let imports = try!(Pkcs12ImportOptions::new().passphrase(pass).import(buf));
         Ok(imports)
     }
 }
@@ -171,6 +164,20 @@ impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
         let cert = try!(SecCertificate::from_der(buf));
         Ok(Certificate(cert))
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+        let mut items = SecItems::default();
+        try!(ImportOptions::new().items(&mut items).import(buf));
+        match items.certificates.pop() {
+            Some(cert) => Ok(Certificate(cert)),
+            None => Err(Error(base::Error::from(errSecParam))),
+        }
+    }
+    #[cfg(target_os = "ios")]
+    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+        panic!("Not implemented on iOS");
     }
 }
 
@@ -244,18 +251,14 @@ where
 
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
         match self {
-            MidHandshakeTlsStream::Server(s) => {
-                match s.handshake() {
-                    Ok(s) => Ok(TlsStream(s)),
-                    Err(e) => Err(e.into()),
-                }
-            }
-            MidHandshakeTlsStream::Client(s) => {
-                match s.handshake() {
-                    Ok(s) => Ok(TlsStream(s)),
-                    Err(e) => Err(e.into()),
-                }
-            }
+            MidHandshakeTlsStream::Server(s) => match s.handshake() {
+                Ok(s) => Ok(TlsStream(s)),
+                Err(e) => Err(e.into()),
+            },
+            MidHandshakeTlsStream::Client(s) => match s.handshake() {
+                Ok(s) => Ok(TlsStream(s)),
+                Err(e) => Err(e.into()),
+            },
         }
     }
 }
@@ -337,11 +340,11 @@ impl TlsConnector {
         builder.anchor_certificates(&self.roots);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
 
-        let r = match domain {
-            Some(domain) => builder.handshake2(domain, stream),
-            None => builder.danger_handshake_without_providing_domain_for_certificate_validation_and_server_name_indication(stream),
-        };
-        match r {
+        if domain.is_none() {
+            builder.use_sni(false).danger_accept_invalid_hostnames(true);
+        }
+
+        match builder.handshake(domain.unwrap_or(""), stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }
@@ -380,17 +383,14 @@ impl TlsAcceptor {
         S: io::Read + io::Write,
     {
         let mut ctx = try!(SslContext::new(
-            ProtocolSide::Server,
-            ConnectionType::Stream,
+            SslProtocolSide::SERVER,
+            SslConnectionType::STREAM,
         ));
 
         let (min, max) = protocol_min_max(&self.protocols);
         try!(ctx.set_protocol_version_min(min));
         try!(ctx.set_protocol_version_max(max));
-        try!(ctx.set_certificate(
-            &self.pkcs12.identity,
-            &self.pkcs12.chain,
-        ));
+        try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain,));
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

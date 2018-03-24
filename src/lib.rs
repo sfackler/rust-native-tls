@@ -102,7 +102,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url="https://docs.rs/native-tls/0.1.5")]
+#![doc(html_root_url = "https://docs.rs/native-tls/0.1.5")]
 #![warn(missing_docs)]
 
 #[macro_use]
@@ -363,8 +363,8 @@ impl TlsConnectorBuilder {
     /// certificates are trusted, *any* certificate for *any* site will be
     /// trusted for use. This includes expired certificates. This introduces
     /// significant vulnerabilities, and should only be used as a last resort.
-    pub fn danger_disable_certificate_validation_entirely(&mut self) {
-        self.0.danger_disable_certificate_validation_entirely();
+    pub fn danger_accept_invalid_certs(&mut self) {
+        self.0.danger_accept_invalid_certs();
     }
 
     /// Consumes the builder, returning a `TlsConnector`.
@@ -431,9 +431,14 @@ impl TlsConnector {
     /// You should think very carefully before you use this method. If hostname verification is not
     /// used, *any* valid certificate for *any* site will be trusted for use from any other. This
     /// introduces a significant vulnerability to man-in-the-middle attacks.
-    pub fn danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication<S>(
-            &self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>
-        where S: io::Read + io::Write
+    pub fn danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication<
+        S,
+    >(
+        &self,
+        stream: S,
+    ) -> result::Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
     {
         let s = try!(self.0.connect_no_domain(stream));
         Ok(TlsStream(s))

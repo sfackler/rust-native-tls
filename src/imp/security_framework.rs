@@ -152,12 +152,8 @@ impl Pkcs12 {
     }
 
     #[cfg(target_os = "ios")]
-    fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentityOptions>, Error> {
-        let imports = try!(
-            Pkcs12ImportOptions::new()
-                .passphrase(pass)
-                .import_optional(buf)
-        );
+    fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentity>, Error> {
+        let imports = try!(Pkcs12ImportOptions::new().passphrase(pass).import(buf));
         Ok(imports)
     }
 }

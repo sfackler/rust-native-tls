@@ -276,6 +276,10 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+        self.0.danger_accept_invalid_certs = true;
+    }
+
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
         self.0.protocols = protocols.to_vec();
         Ok(())
@@ -291,6 +295,7 @@ pub struct TlsConnector {
     pkcs12: Option<Pkcs12>,
     protocols: Vec<Protocol>,
     roots: Vec<SecCertificate>,
+    danger_accept_invalid_certs: bool,
 }
 
 impl TlsConnector {
@@ -299,6 +304,7 @@ impl TlsConnector {
             pkcs12: None,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
             roots: vec![],
+            danger_accept_invalid_certs: false,
         }))
     }
 
@@ -332,6 +338,7 @@ impl TlsConnector {
             builder.identity(&pkcs12.identity, &pkcs12.chain);
         }
         builder.anchor_certificates(&self.roots);
+        builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
 
         if domain.is_none() {
             builder.use_sni(false).danger_accept_invalid_hostnames(true);

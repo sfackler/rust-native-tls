@@ -5,17 +5,17 @@ use std::fmt;
 use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
-use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
-                         SslAcceptor, MidHandshakeSslStream, SslContextBuilder, SslOptions};
+use self::openssl::ssl::{self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder,
+                         SslConnector, SslConnectorBuilder, SslContextBuilder, SslMethod,
+                         SslOptions, SslVerifyMode};
 use self::openssl::x509::X509;
 
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
     // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
-    let ssl_op_no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1 |
-        SslOptions::NO_TLSV1_1 |
-        SslOptions::NO_TLSV1_2;
+    let ssl_op_no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
+        | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2;
 
     ctx.clear_options(ssl_op_no_ssl_mask);
     let mut options = ssl_op_no_ssl_mask;
@@ -168,6 +168,10 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+        self.0.set_verify(SslVerifyMode::NONE);
+    }
+
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
         supported_protocols(protocols, &mut self.0);
         Ok(())
@@ -316,9 +320,8 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         match self.0.shutdown() {
             Ok(_) => Ok(()),
             Err(ref e) if e.code() == ssl::ErrorCode::ZERO_RETURN => Ok(()),
-            Err(e) => Err(e.into_io_error().unwrap_or_else(
-                |e| io::Error::new(io::ErrorKind::Other, e),
-            )),
+            Err(e) => Err(e.into_io_error()
+                .unwrap_or_else(|e| io::Error::new(io::ErrorKind::Other, e))),
         }
     }
 

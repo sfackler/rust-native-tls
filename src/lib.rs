@@ -355,6 +355,18 @@ impl TlsConnectorBuilder {
         Ok(self)
     }
 
+    /// Completely disable any certificate validation.
+    ///
+    /// # Warning
+    ///
+    /// You should think very carefully before using this method. If invalid
+    /// certificates are trusted, *any* certificate for *any* site will be
+    /// trusted for use. This includes expired certificates. This introduces
+    /// significant vulnerabilities, and should only be used as a last resort.
+    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+        self.0.danger_disable_certificate_validation_entirely();
+    }
+
     /// Consumes the builder, returning a `TlsConnector`.
     pub fn build(self) -> Result<TlsConnector> {
         let connector = try!(self.0.build());

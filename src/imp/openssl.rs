@@ -6,25 +6,25 @@ use std::error;
 use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
 use self::openssl::ssl::{self, SslMethod, SslConnectorBuilder, SslConnector, SslAcceptorBuilder,
-                         SslAcceptor, MidHandshakeSslStream, SslContextBuilder};
+                         SslAcceptor, MidHandshakeSslStream, SslContextBuilder, SslOptions};
 use self::openssl::x509::X509;
 
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
     // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
-    let ssl_op_no_ssl_mask = ssl::SSL_OP_NO_SSLV2 | ssl::SSL_OP_NO_SSLV3 | ssl::SSL_OP_NO_TLSV1 |
-        ssl::SSL_OP_NO_TLSV1_1 |
-        ssl::SSL_OP_NO_TLSV1_2;
+    let ssl_op_no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1 |
+        SslOptions::NO_TLSV1_1 |
+        SslOptions::NO_TLSV1_2;
 
     ctx.clear_options(ssl_op_no_ssl_mask);
     let mut options = ssl_op_no_ssl_mask;
     for protocol in protocols {
         let op = match *protocol {
-            Protocol::Sslv3 => ssl::SSL_OP_NO_SSLV3,
-            Protocol::Tlsv10 => ssl::SSL_OP_NO_TLSV1,
-            Protocol::Tlsv11 => ssl::SSL_OP_NO_TLSV1_1,
-            Protocol::Tlsv12 => ssl::SSL_OP_NO_TLSV1_2,
+            Protocol::Sslv3 => SslOptions::NO_SSLV3,
+            Protocol::Tlsv10 => SslOptions::NO_TLSV1,
+            Protocol::Tlsv11 => SslOptions::NO_TLSV1_1,
+            Protocol::Tlsv12 => SslOptions::NO_TLSV1_2,
             Protocol::__NonExhaustive => unreachable!(),
         };
         options &= !op;
@@ -64,7 +64,7 @@ impl From<ssl::Error> for Error {
 
 impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Error {
-        ssl::Error::Ssl(err).into()
+        err.into()
     }
 }
 
@@ -132,11 +132,9 @@ pub enum HandshakeError<S> {
 impl<S> From<ssl::HandshakeError<S>> for HandshakeError<S> {
     fn from(e: ssl::HandshakeError<S>) -> HandshakeError<S> {
         match e {
-            ssl::HandshakeError::SetupFailure(e) => {
-                HandshakeError::Failure(Error(ssl::Error::Ssl(e)))
-            }
+            ssl::HandshakeError::SetupFailure(e) => HandshakeError::Failure(e.into()),
             ssl::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e.into_error())),
-            ssl::HandshakeError::Interrupted(s) => {
+            ssl::HandshakeError::WouldBlock(s) => {
                 HandshakeError::Interrupted(MidHandshakeTlsStream(s))
             }
         }
@@ -157,8 +155,10 @@ impl TlsConnectorBuilder {
         try!(self.0.set_certificate(&pkcs12.0.cert));
         try!(self.0.set_private_key(&pkcs12.0.pkey));
         try!(self.0.check_private_key());
-        for cert in pkcs12.0.chain {
-            try!(self.0.add_extra_chain_cert(cert));
+        if let Some(chain) = pkcs12.0.chain {
+            for cert in chain {
+                try!(self.0.add_extra_chain_cert(cert));
+            }
         }
         Ok(())
     }
@@ -183,7 +183,7 @@ pub struct TlsConnector(SslConnector);
 
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
-        let builder = try!(SslConnectorBuilder::new(SslMethod::tls()));
+        let builder = try!(SslConnector::builder(SslMethod::tls()));
         Ok(TlsConnectorBuilder(builder))
     }
 
@@ -199,7 +199,12 @@ impl TlsConnector {
     where
         S: io::Read + io::Write,
     {
-        let s = try!(self.0.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(stream));
+        let c = try!(self.0.configure());
+        let s = try!(
+            c.use_server_name_indication(false)
+                .verify_hostname(false)
+                .connect("", stream)
+        );
         Ok(TlsStream(s))
     }
 }
@@ -248,12 +253,14 @@ pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
-        let builder = try!(SslAcceptorBuilder::mozilla_intermediate(
-            SslMethod::tls(),
-            &pkcs12.0.pkey,
-            &pkcs12.0.cert,
-            &pkcs12.0.chain,
-        ));
+        let mut builder = try!(SslAcceptor::mozilla_intermediate(SslMethod::tls()));
+        try!(builder.set_private_key(&pkcs12.0.pkey));
+        try!(builder.set_certificate(&pkcs12.0.cert));
+        if let Some(chain) = pkcs12.0.chain {
+            for cert in chain {
+                try!(builder.add_extra_chain_cert(cert));
+            }
+        }
         Ok(TlsAcceptorBuilder(builder))
     }
 
@@ -307,12 +314,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn shutdown(&mut self) -> io::Result<()> {
         match self.0.shutdown() {
-            Ok(_) |
-            Err(ssl::Error::ZeroReturn) => Ok(()),
-            Err(ssl::Error::Stream(e)) |
-            Err(ssl::Error::WantRead(e)) |
-            Err(ssl::Error::WantWrite(e)) => Err(e),
-            Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
+            Ok(_) => Ok(()),
+            Err(ref e) if e.code() == ssl::ErrorCode::ZERO_RETURN => Ok(()),
+            Err(e) => Err(e.into_io_error().unwrap_or_else(
+                |e| io::Error::new(io::ErrorKind::Other, e),
+            )),
         }
     }
 

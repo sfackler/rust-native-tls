@@ -1,12 +1,11 @@
 language: rust
 cache: cargo
 os: osx
-rust: 1.17.0
+rust: 1.20.0
 matrix:
   include:
   - env: TEST_IOS=true RUST_BACKTRACE=1 RUST_TEST_THREADS=1
-env:
-- RUST_BACKTRACE=1 RUST_TEST_THREADS=1
+  - env: RUST_BACKTRACE=1 RUST_TEST_THREADS=1
 before_script:
 - if [ ! -z "$TEST_IOS" ]; then
     rustup target add i386-apple-ios;

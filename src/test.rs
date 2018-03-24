@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{Read, Write};
-use std::net::{TcpStream, TcpListener};
+use std::net::{TcpListener, TcpStream};
 use std::thread;
 #[allow(unused_imports)]
 use imp::TlsConnectorBuilderExt;
@@ -8,12 +8,12 @@ use imp::TlsConnectorBuilderExt;
 use super::*;
 
 macro_rules! p {
-    ($e:expr) => {
+    ($e: expr) => {
         match $e {
             Ok(r) => r,
             Err(e) => panic!("{:?}", e),
         }
-    }
+    };
 }
 
 // This nested mod is needed for ios testing with rust-test-ios
@@ -49,7 +49,11 @@ mod tests {
         let builder = p!(TlsConnector::builder());
         let builder = p!(builder.build());
         let s = p!(TcpStream::connect("google.com:443"));
-        builder.danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(s).unwrap();
+        builder
+            .danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(
+                s,
+            )
+            .unwrap();
     }
 
     #[test]
@@ -191,13 +195,7 @@ mod tests {
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = p!(TlsConnector::builder());
         p!(builder.add_root_certificate(root_ca));
-        p!(builder.supported_protocols(
-            &[
-                Protocol::Sslv3,
-                Protocol::Tlsv10,
-                Protocol::Tlsv11,
-            ],
-        ));
+        p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11,],));
         let builder = p!(builder.build());
         assert!(builder.connect("foobar.com", socket).is_err());
 
@@ -225,6 +223,41 @@ mod tests {
         let builder = p!(TlsConnector::builder());
         let builder = p!(builder.build());
         builder.connect("foobar.com", socket).unwrap_err();
+
+        p!(j.join());
+    }
+
+    #[test]
+    fn server_untrusted_unverified() {
+        let buf = include_bytes!("../test/identity.p12");
+        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let builder = p!(builder.build());
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let mut socket = p!(builder.accept(socket));
+
+            let mut buf = [0; 5];
+            p!(socket.read_exact(&mut buf));
+            assert_eq!(&buf, b"hello");
+
+            p!(socket.write_all(b"world"));
+        });
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let mut builder = p!(TlsConnector::builder());
+        builder.danger_accept_invalid_certs();
+        let builder = p!(builder.build());
+        let mut socket = p!(builder.connect("foobar.com", socket));
+
+        p!(socket.write_all(b"hello"));
+        let mut buf = vec![];
+        p!(socket.read_to_end(&mut buf));
+        assert_eq!(buf, b"world");
 
         p!(j.join());
     }

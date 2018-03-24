@@ -12,8 +12,8 @@ readme = "README.md"
 lazy_static = "1.0"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = { version = "0.1.15", features = ["OSX_10_8" ]}
-security-framework-sys = "0.1.15"
+security-framework = "0.2"
+security-framework-sys = "0.2"
 libc = "0.2"
 tempdir = "0.3"
 

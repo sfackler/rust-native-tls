@@ -276,7 +276,7 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
-    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+    pub fn danger_accept_invalid_certs(&mut self) {
         self.0.danger_accept_invalid_certs = true;
     }
 

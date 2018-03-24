@@ -4,9 +4,9 @@ use std::io;
 use std::fmt;
 use std::error;
 use std::sync::Arc;
-use self::schannel::cert_store::{PfxImportOptions, Memory, CertStore, CertAdd};
+use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::cert_context::CertContext;
-use self::schannel::schannel_cred::{Direction, SchannelCred, Protocol};
+use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
 
 fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
@@ -75,12 +75,10 @@ impl Pkcs12 {
         let identity = match identity {
             Some(identity) => identity,
             None => {
-                return Err(
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "No identity found in PKCS #12 archive",
-                    ).into(),
-                );
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "No identity found in PKCS #12 archive",
+                ).into());
             }
         };
 
@@ -101,14 +99,10 @@ impl Certificate {
                 let cert = try!(CertContext::from_pem(s));
                 Ok(Certificate(cert))
             }
-            Err(_) => {
-                Err(
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "PEM representation contains non-UTF-8 bytes",
-                    ).into(),
-                )
-            }
+            Err(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "PEM representation contains non-UTF-8 bytes",
+            ).into()),
         }
     }
 }
@@ -179,7 +173,7 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
-    pub fn danger_disable_certificate_validation_entirely(&mut self) {
+    pub fn danger_accept_invalid_certs(&mut self) {
         self.0.callback = Some(Arc::new(|_| Ok(())));
     }
 

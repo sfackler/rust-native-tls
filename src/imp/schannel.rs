@@ -69,6 +69,7 @@ impl Pkcs12 {
                 .is_ok()
             {
                 identity = Some(cert);
+                break;
             }
         }
 

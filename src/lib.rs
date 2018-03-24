@@ -188,6 +188,7 @@ impl Pkcs12 {
 }
 
 /// An X509 certificate.
+#[derive(Clone)]
 pub struct Certificate(imp::Certificate);
 
 impl Certificate {

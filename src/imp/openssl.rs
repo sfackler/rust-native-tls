@@ -78,6 +78,7 @@ impl Pkcs12 {
     }
 }
 
+#[derive(Clone)]
 pub struct Certificate(X509);
 
 impl Certificate {

@@ -86,6 +86,7 @@ impl Pkcs12 {
     }
 }
 
+#[derive(Clone)]
 pub struct Certificate(CertContext);
 
 impl Certificate {

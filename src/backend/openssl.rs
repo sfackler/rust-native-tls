@@ -1,4 +1,4 @@
 //! OpenSSL-specific functionality.
 
-pub use imp::{TlsConnectorBuilderExt, TlsAcceptorBuilderExt, TlsStreamExt};
 pub use imp::ErrorExt;
+pub use imp::{TlsAcceptorBuilderExt, TlsConnectorBuilderExt, TlsStreamExt};

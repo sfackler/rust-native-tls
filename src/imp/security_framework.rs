@@ -11,16 +11,16 @@ use self::security_framework::secure_transport::{self, ClientBuilder, SslConnect
                                                  SslContext, SslProtocol, SslProtocolSide};
 use self::security_framework_sys::base::errSecIO;
 use self::tempdir::TempDir;
+use std::error;
 use std::fmt;
 use std::io;
-use std::error;
 use std::sync::Mutex;
 use std::sync::{Once, ONCE_INIT};
 
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
-#[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::import_export::{ImportOptions, SecItems};
+#[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework_sys::base::errSecParam;
 
@@ -277,6 +277,14 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn disable_sni(&mut self) {
+        self.0.use_sni = false;
+    }
+
+    pub fn danger_accept_invalid_hostnames(&mut self) {
+        self.0.danger_accept_invalid_hostnames = true;
+    }
+
     pub fn danger_accept_invalid_certs(&mut self) {
         self.0.danger_accept_invalid_certs = true;
     }
@@ -296,6 +304,8 @@ pub struct TlsConnector {
     pkcs12: Option<Pkcs12>,
     protocols: Vec<Protocol>,
     roots: Vec<SecCertificate>,
+    use_sni: bool,
+    danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
 }
 
@@ -305,29 +315,13 @@ impl TlsConnector {
             pkcs12: None,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
             roots: vec![],
+            use_sni: true,
+            danger_accept_invalid_hostnames: false,
             danger_accept_invalid_certs: false,
         }))
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
-    {
-        self.connect_inner(Some(domain), stream)
-    }
-
-    pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
-    {
-        self.connect_inner(None, stream)
-    }
-
-    fn connect_inner<S>(
-        &self,
-        domain: Option<&str>,
-        stream: S,
-    ) -> Result<TlsStream<S>, HandshakeError<S>>
     where
         S: io::Read + io::Write,
     {
@@ -339,13 +333,11 @@ impl TlsConnector {
             builder.identity(&pkcs12.identity, &pkcs12.chain);
         }
         builder.anchor_certificates(&self.roots);
+        builder.use_sni(self.use_sni);
+        builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
 
-        if domain.is_none() {
-            builder.use_sni(false).danger_accept_invalid_hostnames(true);
-        }
-
-        match builder.handshake(domain.unwrap_or(""), stream) {
+        match builder.handshake(domain, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }

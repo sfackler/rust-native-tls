@@ -18,7 +18,7 @@ libc = "0.2"
 tempdir = "0.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = "0.1.7"
+schannel = "0.1.12"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 openssl = "0.10.1"

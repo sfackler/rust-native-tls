@@ -1,13 +1,13 @@
 extern crate schannel;
 
-use std::io;
-use std::fmt;
-use std::error;
-use std::sync::Arc;
-use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::cert_context::CertContext;
+use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
+use std::error;
+use std::fmt;
+use std::io;
+use std::sync::Arc;
 
 fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
     protocols
@@ -58,7 +58,7 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let mut store = try!(PfxImportOptions::new().password(pass).import(buf));
+        let store = try!(PfxImportOptions::new().password(pass).import(buf));
         let mut identity = None;
 
         for cert in store.certs() {
@@ -175,6 +175,14 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
+    pub fn disable_sni(&mut self) {
+        self.0.use_sni = false;
+    }
+
+    pub fn danger_accept_invalid_hostnames(&mut self) {
+        self.0.accept_invalid_hostnames = true;
+    }
+
     pub fn danger_accept_invalid_certs(&mut self) {
         self.0.callback = Some(Arc::new(|_| Ok(())));
     }
@@ -195,6 +203,8 @@ pub struct TlsConnector {
     roots: CertStore,
     protocols: Vec<Protocol>,
     callback: Option<Arc<Fn(tls_stream::CertValidationResult) -> io::Result<()> + Sync + Send>>,
+    use_sni: bool,
+    accept_invalid_hostnames: bool,
 }
 
 impl TlsConnector {
@@ -204,28 +214,12 @@ impl TlsConnector {
             roots: try!(Memory::new()).into_store(),
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
             callback: None,
+            use_sni: true,
+            accept_invalid_hostnames: false,
         }))
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
-    {
-        self._connect(Some(domain), stream)
-    }
-
-    pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
-    {
-        self._connect(None, stream)
-    }
-
-    fn _connect<S>(
-        &self,
-        domain: Option<&str>,
-        stream: S,
-    ) -> Result<TlsStream<S>, HandshakeError<S>>
     where
         S: io::Read + io::Write,
     {
@@ -236,14 +230,15 @@ impl TlsConnector {
         }
         let cred = try!(builder.acquire(Direction::Outbound));
         let mut builder = tls_stream::Builder::new();
-        if let Some(domain) = domain {
-            builder.domain(domain);
-        }
         if let Some(ref callback) = self.callback {
             let callback = callback.clone();
             builder.verify_callback(move |r| callback(r));
         }
-        builder.cert_store(self.roots.clone());
+        builder
+            .cert_store(self.roots.clone())
+            .domain(domain)
+            .use_sni(self.use_sni)
+            .accept_invalid_hostnames(self.accept_invalid_hostnames);
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

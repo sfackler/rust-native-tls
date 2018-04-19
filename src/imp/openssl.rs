@@ -127,7 +127,7 @@ where
 
 pub enum HandshakeError<S> {
     Failure(Error),
-    Interrupted(MidHandshakeTlsStream<S>),
+    WouldBlock(MidHandshakeTlsStream<S>),
 }
 
 impl<S> From<ssl::HandshakeError<S>> for HandshakeError<S> {
@@ -136,7 +136,7 @@ impl<S> From<ssl::HandshakeError<S>> for HandshakeError<S> {
             ssl::HandshakeError::SetupFailure(e) => HandshakeError::Failure(e.into()),
             ssl::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e.into_error())),
             ssl::HandshakeError::WouldBlock(s) => {
-                HandshakeError::Interrupted(MidHandshakeTlsStream(s))
+                HandshakeError::WouldBlock(MidHandshakeTlsStream(s))
             }
         }
     }
@@ -291,7 +291,7 @@ impl TlsAcceptor {
     where
         S: io::Read + io::Write,
     {
-        let s = try!(self.0.accept(stream));
+        let s = self.0.accept(stream)?;
         Ok(TlsStream(s))
     }
 }

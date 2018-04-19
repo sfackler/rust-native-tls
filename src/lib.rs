@@ -237,7 +237,7 @@ where
     /// If the handshake completes successfully then the negotiated stream is
     /// returned. If there is a problem, however, then an error is returned.
     /// Note that the error may not be fatal. For example if the underlying
-    /// stream is an asynchronous one then `HandshakeError::Interrupted` may
+    /// stream is an asynchronous one then `HandshakeError::WouldBlock` may
     /// just mean to wait for more I/O to happen later.
     pub fn handshake(self) -> result::Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
@@ -259,7 +259,7 @@ pub enum HandshakeError<S> {
     /// Note that this is not a fatal error and it should be safe to call
     /// `handshake` at a later time once the stream is ready to perform I/O
     /// again.
-    Interrupted(MidHandshakeTlsStream<S>),
+    WouldBlock(MidHandshakeTlsStream<S>),
 }
 
 impl<S> error::Error for HandshakeError<S>
@@ -269,14 +269,14 @@ where
     fn description(&self) -> &str {
         match *self {
             HandshakeError::Failure(ref e) => e.description(),
-            HandshakeError::Interrupted(_) => "the handshake process was interrupted",
+            HandshakeError::WouldBlock(_) => "the handshake process was interrupted",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             HandshakeError::Failure(ref e) => Some(e),
-            HandshakeError::Interrupted(_) => None,
+            HandshakeError::WouldBlock(_) => None,
         }
     }
 }
@@ -298,8 +298,8 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
     fn from(e: imp::HandshakeError<S>) -> HandshakeError<S> {
         match e {
             imp::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e)),
-            imp::HandshakeError::Interrupted(s) => {
-                HandshakeError::Interrupted(MidHandshakeTlsStream(s))
+            imp::HandshakeError::WouldBlock(s) => {
+                HandshakeError::WouldBlock(MidHandshakeTlsStream(s))
             }
         }
     }
@@ -427,7 +427,7 @@ impl TlsConnector {
     /// validation.
     ///
     /// If the socket is nonblocking and a `WouldBlock` error is returned during
-    /// the handshake, a `HandshakeError::Interrupted` error will be returned
+    /// the handshake, a `HandshakeError::WouldBlock` error will be returned
     /// which can be used to restart the handshake when the socket is ready
     /// again.
     ///
@@ -524,7 +524,7 @@ impl TlsAcceptor {
     /// Initiates a TLS handshake.
     ///
     /// If the socket is nonblocking and a `WouldBlock` error is returned during
-    /// the handshake, a `HandshakeError::Interrupted` error will be returned
+    /// the handshake, a `HandshakeError::WouldBlock` error will be returned
     /// which can be used to restart the handshake when the socket is ready
     /// again.
     pub fn accept<S>(&self, stream: S) -> result::Result<TlsStream<S>, HandshakeError<S>>

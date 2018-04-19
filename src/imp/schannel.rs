@@ -142,15 +142,15 @@ where
 
 pub enum HandshakeError<S> {
     Failure(Error),
-    Interrupted(MidHandshakeTlsStream<S>),
+    WouldBlock(MidHandshakeTlsStream<S>),
 }
 
 impl<S> From<tls_stream::HandshakeError<S>> for HandshakeError<S> {
     fn from(e: tls_stream::HandshakeError<S>) -> HandshakeError<S> {
         match e {
             tls_stream::HandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
-            tls_stream::HandshakeError::Interrupted(s) => {
-                HandshakeError::Interrupted(MidHandshakeTlsStream(s))
+            tls_stream::HandshakeError::WouldBlock(s) => {
+                HandshakeError::WouldBlock(MidHandshakeTlsStream(s))
             }
         }
     }

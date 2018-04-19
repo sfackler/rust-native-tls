@@ -181,7 +181,7 @@ impl Certificate {
 }
 
 pub enum HandshakeError<S> {
-    Interrupted(MidHandshakeTlsStream<S>),
+    WouldBlock(MidHandshakeTlsStream<S>),
     Failure(Error),
 }
 
@@ -190,7 +190,7 @@ impl<S> From<secure_transport::HandshakeError<S>> for HandshakeError<S> {
         match e {
             secure_transport::HandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
             secure_transport::HandshakeError::Interrupted(s) => {
-                HandshakeError::Interrupted(MidHandshakeTlsStream::Server(s))
+                HandshakeError::WouldBlock(MidHandshakeTlsStream::Server(s))
             }
         }
     }
@@ -200,8 +200,8 @@ impl<S> From<secure_transport::ClientHandshakeError<S>> for HandshakeError<S> {
     fn from(e: secure_transport::ClientHandshakeError<S>) -> HandshakeError<S> {
         match e {
             secure_transport::ClientHandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
-            secure_transport::ClientHandshakeError::Interrupted(s) => {
-                HandshakeError::Interrupted(MidHandshakeTlsStream::Client(s))
+            secure_transport::ClientHandshakeError::WouldBlock(s) => {
+                HandshakeError::WouldBlock(MidHandshakeTlsStream::Client(s))
             }
         }
     }

@@ -103,7 +103,7 @@ impl Pkcs12 {
             .expect("Pkcs12 files must include an identity");
 
         // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = identity.certificate().to_der();
+        let identity_cert = identity.certificate()?.to_der();
 
         Ok(Pkcs12 {
             identity: identity,
@@ -200,7 +200,7 @@ impl<S> From<secure_transport::ClientHandshakeError<S>> for HandshakeError<S> {
     fn from(e: secure_transport::ClientHandshakeError<S>) -> HandshakeError<S> {
         match e {
             secure_transport::ClientHandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
-            secure_transport::ClientHandshakeError::WouldBlock(s) => {
+            secure_transport::ClientHandshakeError::Interrupted(s) => {
                 HandshakeError::WouldBlock(MidHandshakeTlsStream::Client(s))
             }
         }

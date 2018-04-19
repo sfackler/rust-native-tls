@@ -1,7 +1,7 @@
 extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;
-extern crate tempdir;
+extern crate tempfile;
 
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
@@ -10,7 +10,7 @@ use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOpti
 use self::security_framework::secure_transport::{self, ClientBuilder, SslConnectionType,
                                                  SslContext, SslProtocol, SslProtocolSide};
 use self::security_framework_sys::base::errSecIO;
-use self::tempdir::TempDir;
+use self::tempfile::TempDir;
 use std::error;
 use std::fmt;
 use std::io;
@@ -131,7 +131,7 @@ impl Pkcs12 {
             Some((ref keychain, _)) => keychain.clone(),
             ref mut lock @ None => {
                 let dir =
-                    TempDir::new("native-tls").map_err(|_| Error(base::Error::from(errSecIO)))?;
+                    TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
 
                 let mut keychain = keychain::CreateOptions::new()
                     .password(pass)

@@ -138,8 +138,8 @@ impl Pkcs12 {
                     .create(dir.path().join("tmp.keychain"))?;
                 keychain.set_settings(&KeychainSettings::new())?;
 
-                *lock = Some((keychain, dir));
-                lock.as_ref().unwrap().0.clone()
+                *lock = Some((keychain.clone(), dir));
+                keychain
             }
         };
         let imports = Pkcs12ImportOptions::new()

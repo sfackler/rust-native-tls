@@ -112,8 +112,8 @@ extern crate lazy_static;
 use std::any::Any;
 use std::error;
 use std::error::Error as StdError;
-use std::io;
 use std::fmt;
+use std::io;
 use std::result;
 
 pub mod backend;
@@ -356,7 +356,7 @@ impl TlsConnectorBuilder {
         Ok(self)
     }
 
-    /// Completely disable any certificate validation.
+    /// Completely disables any certificate validation.
     ///
     /// # Warning
     ///
@@ -366,6 +366,23 @@ impl TlsConnectorBuilder {
     /// significant vulnerabilities, and should only be used as a last resort.
     pub fn danger_accept_invalid_certs(&mut self) {
         self.0.danger_accept_invalid_certs();
+    }
+
+    /// Disables the use of Server Name Indication (SNI).
+    pub fn disable_sni(&mut self) {
+        self.0.disable_sni();
+    }
+
+    /// Disables hostname checks during certificate validation.
+    ///
+    /// # Warning
+    ///
+    /// You should think very carefully before using this method. If invalid
+    /// hostnames are trusted, *any* valid certificate for *any* will be trusted
+    /// for use. This introduces significant vulnerabilities, and should only be
+    /// used as a last resort.
+    pub fn danger_accept_invalid_hostnames(&mut self) {
+        self.0.danger_accept_invalid_hostnames();
     }
 
     /// Consumes the builder, returning a `TlsConnector`.
@@ -413,6 +430,9 @@ impl TlsConnector {
     /// the handshake, a `HandshakeError::Interrupted` error will be returned
     /// which can be used to restart the handshake when the socket is ready
     /// again.
+    ///
+    /// The domain is ignored if both SNI and hostname verification are
+    /// disabled.
     pub fn connect<S>(
         &self,
         domain: &str,
@@ -422,26 +442,6 @@ impl TlsConnector {
         S: io::Read + io::Write,
     {
         let s = try!(self.0.connect(domain, stream));
-        Ok(TlsStream(s))
-    }
-
-    /// Like `connect`, but does not validate the server's domain name against its certificate.
-    ///
-    /// # Warning
-    ///
-    /// You should think very carefully before you use this method. If hostname verification is not
-    /// used, *any* valid certificate for *any* site will be trusted for use from any other. This
-    /// introduces a significant vulnerability to man-in-the-middle attacks.
-    pub fn danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication<
-        S,
-    >(
-        &self,
-        stream: S,
-    ) -> result::Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
-    {
-        let s = try!(self.0.connect_no_domain(stream));
         Ok(TlsStream(s))
     }
 }

@@ -1,14 +1,14 @@
 extern crate openssl;
 
-use std::io;
-use std::fmt;
-use std::error;
-use self::openssl::pkcs12;
 use self::openssl::error::ErrorStack;
+use self::openssl::pkcs12;
 use self::openssl::ssl::{self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder,
                          SslConnector, SslConnectorBuilder, SslContextBuilder, SslMethod,
                          SslOptions, SslVerifyMode};
 use self::openssl::x509::X509;
+use std::error;
+use std::fmt;
+use std::io;
 
 use Protocol;
 
@@ -148,68 +148,82 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
     }
 }
 
-pub struct TlsConnectorBuilder(SslConnectorBuilder);
+pub struct TlsConnectorBuilder {
+    connector: SslConnectorBuilder,
+    use_sni: bool,
+    verify_hostname: bool,
+}
 
 impl TlsConnectorBuilder {
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
         // FIXME clear chain certs to clean up if called multiple times
-        try!(self.0.set_certificate(&pkcs12.0.cert));
-        try!(self.0.set_private_key(&pkcs12.0.pkey));
-        try!(self.0.check_private_key());
+        try!(self.connector.set_certificate(&pkcs12.0.cert));
+        try!(self.connector.set_private_key(&pkcs12.0.pkey));
+        try!(self.connector.check_private_key());
         if let Some(chain) = pkcs12.0.chain {
             for cert in chain {
-                try!(self.0.add_extra_chain_cert(cert));
+                try!(self.connector.add_extra_chain_cert(cert));
             }
         }
         Ok(())
     }
 
     pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        try!(self.0.cert_store_mut().add_cert(cert.0));
+        try!(self.connector.cert_store_mut().add_cert(cert.0));
         Ok(())
     }
 
+    pub fn disable_sni(&mut self) {
+        self.use_sni = false;
+    }
+
+    pub fn danger_accept_invalid_hostnames(&mut self) {
+        self.verify_hostname = false;
+    }
+
     pub fn danger_accept_invalid_certs(&mut self) {
-        self.0.set_verify(SslVerifyMode::NONE);
+        self.connector.set_verify(SslVerifyMode::NONE);
     }
 
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        supported_protocols(protocols, &mut self.0);
+        supported_protocols(protocols, &mut self.connector);
         Ok(())
     }
 
     pub fn build(self) -> Result<TlsConnector, Error> {
-        Ok(TlsConnector(self.0.build()))
+        Ok(TlsConnector {
+            connector: self.connector.build(),
+            use_sni: self.use_sni,
+            verify_hostname: self.verify_hostname,
+        })
     }
 }
 
 #[derive(Clone)]
-pub struct TlsConnector(SslConnector);
+pub struct TlsConnector {
+    connector: SslConnector,
+    use_sni: bool,
+    verify_hostname: bool,
+}
 
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
-        let builder = try!(SslConnector::builder(SslMethod::tls()));
-        Ok(TlsConnectorBuilder(builder))
+        Ok(TlsConnectorBuilder {
+            connector: SslConnector::builder(SslMethod::tls())?,
+            use_sni: true,
+            verify_hostname: true,
+        })
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
     where
         S: io::Read + io::Write,
     {
-        let s = try!(self.0.connect(domain, stream));
-        Ok(TlsStream(s))
-    }
-
-    pub fn connect_no_domain<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: io::Read + io::Write,
-    {
-        let c = try!(self.0.configure());
-        let s = try!(
-            c.use_server_name_indication(false)
-                .verify_hostname(false)
-                .connect("", stream)
-        );
+        let s = self.connector
+            .configure()?
+            .use_server_name_indication(self.use_sni)
+            .verify_hostname(self.verify_hostname)
+            .connect(domain, stream)?;
         Ok(TlsStream(s))
     }
 }
@@ -228,15 +242,19 @@ pub trait TlsConnectorBuilderExt {
 
 impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
     fn from_openssl(builder: SslConnectorBuilder) -> ::TlsConnectorBuilder {
-        ::TlsConnectorBuilder(TlsConnectorBuilder(builder))
+        ::TlsConnectorBuilder(TlsConnectorBuilder {
+            connector: builder,
+            use_sni: true,
+            verify_hostname: true,
+        })
     }
 
     fn builder(&self) -> &SslConnectorBuilder {
-        &(self.0).0
+        &(self.0).connector
     }
 
     fn builder_mut(&mut self) -> &mut SslConnectorBuilder {
-        &mut (self.0).0
+        &mut (self.0).connector
     }
 }
 

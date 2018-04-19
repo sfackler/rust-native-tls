@@ -1,14 +1,14 @@
 #[allow(unused_imports)]
+use imp::TlsConnectorBuilderExt;
+#[allow(unused_imports)]
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
-#[allow(unused_imports)]
-use imp::TlsConnectorBuilderExt;
 
 use super::*;
 
 macro_rules! p {
-    ($e: expr) => {
+    ($e:expr) => {
         match $e {
             Ok(r) => r,
             Err(e) => panic!("{:?}", e),
@@ -46,14 +46,11 @@ mod tests {
 
     #[test]
     fn connect_bad_hostname_ignored() {
-        let builder = p!(TlsConnector::builder());
+        let mut builder = p!(TlsConnector::builder());
+        builder.danger_accept_invalid_hostnames();
         let builder = p!(builder.build());
         let s = p!(TcpStream::connect("google.com:443"));
-        builder
-            .danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication(
-                s,
-            )
-            .unwrap();
+        builder.connect("goggle.com", s).unwrap();
     }
 
     #[test]
@@ -195,7 +192,7 @@ mod tests {
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = p!(TlsConnector::builder());
         p!(builder.add_root_certificate(root_ca));
-        p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11,],));
+        p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11],));
         let builder = p!(builder.build());
         assert!(builder.connect("foobar.com", socket).is_err());
 

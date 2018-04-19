@@ -58,7 +58,7 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let store = try!(PfxImportOptions::new().password(pass).import(buf));
+        let store = PfxImportOptions::new().password(pass).import(buf)?;
         let mut identity = None;
 
         for cert in store.certs() {
@@ -92,13 +92,13 @@ pub struct Certificate(CertContext);
 
 impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
-        let cert = try!(CertContext::new(buf));
+        let cert = CertContext::new(buf)?;
         Ok(Certificate(cert))
     }
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         match ::std::str::from_utf8(buf) {
             Ok(s) => {
-                let cert = try!(CertContext::from_pem(s));
+                let cert = CertContext::from_pem(s)?;
                 Ok(Certificate(cert))
             }
             Err(_) => Err(io::Error::new(
@@ -171,7 +171,7 @@ impl TlsConnectorBuilder {
     }
 
     pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        try!(self.0.roots.add_cert(&cert.0, CertAdd::ReplaceExisting));
+        self.0.roots.add_cert(&cert.0, CertAdd::ReplaceExisting)?;
         Ok(())
     }
 
@@ -211,7 +211,7 @@ impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
             cert: None,
-            roots: try!(Memory::new()).into_store(),
+            roots: Memory::new()?.into_store(),
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
             callback: None,
             use_sni: true,
@@ -228,7 +228,7 @@ impl TlsConnector {
         if let Some(cert) = self.cert.as_ref() {
             builder.cert(cert.clone());
         }
-        let cred = try!(builder.acquire(Direction::Outbound));
+        let cred = builder.acquire(Direction::Outbound)?;
         let mut builder = tls_stream::Builder::new();
         if let Some(ref callback) = self.callback {
             let callback = callback.clone();
@@ -281,7 +281,7 @@ impl TlsAcceptor {
         builder.enabled_protocols(&self.protocols);
         builder.cert(self.cert.clone());
         // FIXME we're probably missing the certificate chain?
-        let cred = try!(builder.acquire(Direction::Inbound));
+        let cred = builder.acquire(Direction::Inbound)?;
         match tls_stream::Builder::new().accept(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
@@ -303,7 +303,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {
-        try!(self.0.shutdown());
+        self.0.shutdown()?;
         Ok(())
     }
 

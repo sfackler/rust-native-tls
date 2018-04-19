@@ -95,7 +95,7 @@ pub struct Pkcs12 {
 
 impl Pkcs12 {
     pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let mut imports = try!(Pkcs12::import_options(buf, pass));
+        let mut imports = Pkcs12::import_options(buf, pass)?;
         let import = imports.pop().unwrap();
 
         let identity = import
@@ -103,7 +103,7 @@ impl Pkcs12 {
             .expect("Pkcs12 files must include an identity");
 
         // FIXME: Compare the certificates for equality using CFEqual
-        let identity_cert = try!(identity.certificate()).to_der();
+        let identity_cert = identity.certificate().to_der();
 
         Ok(Pkcs12 {
             identity: identity,
@@ -142,18 +142,16 @@ impl Pkcs12 {
                 lock.as_ref().unwrap().0.clone()
             }
         };
-        let imports = try!(
-            Pkcs12ImportOptions::new()
-                .passphrase(pass)
-                .keychain(keychain)
-                .import(buf)
-        );
+        let imports = Pkcs12ImportOptions::new()
+            .passphrase(pass)
+            .keychain(keychain)
+            .import(buf)?;
         Ok(imports)
     }
 
     #[cfg(target_os = "ios")]
     fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentity>, Error> {
-        let imports = try!(Pkcs12ImportOptions::new().passphrase(pass).import(buf));
+        let imports = Pkcs12ImportOptions::new().passphrase(pass).import(buf)?;
         Ok(imports)
     }
 }
@@ -163,14 +161,14 @@ pub struct Certificate(SecCertificate);
 
 impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
-        let cert = try!(SecCertificate::from_der(buf));
+        let cert = SecCertificate::from_der(buf)?;
         Ok(Certificate(cert))
     }
 
     #[cfg(not(target_os = "ios"))]
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         let mut items = SecItems::default();
-        try!(ImportOptions::new().items(&mut items).import(buf));
+        ImportOptions::new().items(&mut items).import(buf)?;
         match items.certificates.pop() {
             Some(cert) => Ok(Certificate(cert)),
             None => Err(Error(base::Error::from(errSecParam))),
@@ -375,15 +373,12 @@ impl TlsAcceptor {
     where
         S: io::Read + io::Write,
     {
-        let mut ctx = try!(SslContext::new(
-            SslProtocolSide::SERVER,
-            SslConnectionType::STREAM,
-        ));
+        let mut ctx = SslContext::new(SslProtocolSide::SERVER, SslConnectionType::STREAM)?;
 
         let (min, max) = protocol_min_max(&self.protocols);
-        try!(ctx.set_protocol_version_min(min));
-        try!(ctx.set_protocol_version_max(max));
-        try!(ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain,));
+        ctx.set_protocol_version_min(min)?;
+        ctx.set_protocol_version_max(max)?;
+        ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain)?;
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
@@ -409,11 +404,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
-        Ok(try!(self.0.context().buffered_read_size()))
+        Ok(self.0.context().buffered_read_size()?)
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {
-        try!(self.0.close());
+        self.0.close()?;
         Ok(())
     }
 }

@@ -182,7 +182,7 @@ impl Pkcs12 {
     /// openssl pkcs12 -export -out identity.pfx -inkey key.pem -in cert.pem -certfile chain_certs.pem
     /// ```
     pub fn from_der(der: &[u8], password: &str) -> Result<Pkcs12> {
-        let pkcs12 = try!(imp::Pkcs12::from_der(der, password));
+        let pkcs12 = imp::Pkcs12::from_der(der, password)?;
         Ok(Pkcs12(pkcs12))
     }
 }
@@ -194,14 +194,14 @@ pub struct Certificate(imp::Certificate);
 impl Certificate {
     /// Parses a DER-formatted X509 certificate.
     pub fn from_der(der: &[u8]) -> Result<Certificate> {
-        let cert = try!(imp::Certificate::from_der(der));
+        let cert = imp::Certificate::from_der(der)?;
         Ok(Certificate(cert))
     }
     /// Parses a PEM-formatted X509 certificate.
     /// If the PEM file contains more than one certificate the last one is used
     /// and the others are ignored.
     pub fn from_pem(der: &[u8]) -> Result<Certificate> {
-        let cert = try!(imp::Certificate::from_pem(der));
+        let cert = imp::Certificate::from_pem(der)?;
         Ok(Certificate(cert))
     }
 }
@@ -286,9 +286,9 @@ where
     S: Any + fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!(fmt.write_str(self.description()));
+        fmt.write_str(self.description())?;
         if let Some(cause) = self.cause() {
-            try!(write!(fmt, ": {}", cause));
+            write!(fmt, ": {}", cause)?;
         }
         Ok(())
     }
@@ -331,7 +331,7 @@ pub struct TlsConnectorBuilder(imp::TlsConnectorBuilder);
 impl TlsConnectorBuilder {
     /// Sets the identity to be used for client certificate authentication.
     pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<&mut TlsConnectorBuilder> {
-        try!(self.0.identity(pkcs12.0));
+        self.0.identity(pkcs12.0)?;
         Ok(self)
     }
 
@@ -343,7 +343,7 @@ impl TlsConnectorBuilder {
         &mut self,
         protocols: &[Protocol],
     ) -> Result<&mut TlsConnectorBuilder> {
-        try!(self.0.supported_protocols(protocols));
+        self.0.supported_protocols(protocols)?;
         Ok(self)
     }
 
@@ -352,7 +352,7 @@ impl TlsConnectorBuilder {
     /// The connector will use the system's trust root by default. This method can be used to add
     /// to that set when communicating with servers not trusted by the system.
     pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<&mut TlsConnectorBuilder> {
-        try!(self.0.add_root_certificate(cert.0));
+        self.0.add_root_certificate(cert.0)?;
         Ok(self)
     }
 
@@ -387,7 +387,7 @@ impl TlsConnectorBuilder {
 
     /// Consumes the builder, returning a `TlsConnector`.
     pub fn build(self) -> Result<TlsConnector> {
-        let connector = try!(self.0.build());
+        let connector = self.0.build()?;
         Ok(TlsConnector(connector))
     }
 }
@@ -417,7 +417,7 @@ pub struct TlsConnector(imp::TlsConnector);
 impl TlsConnector {
     /// Returns a new builder for a `TlsConnector`.
     pub fn builder() -> Result<TlsConnectorBuilder> {
-        let builder = try!(imp::TlsConnector::builder());
+        let builder = imp::TlsConnector::builder()?;
         Ok(TlsConnectorBuilder(builder))
     }
 
@@ -441,7 +441,7 @@ impl TlsConnector {
     where
         S: io::Read + io::Write,
     {
-        let s = try!(self.0.connect(domain, stream));
+        let s = self.0.connect(domain, stream)?;
         Ok(TlsStream(s))
     }
 }
@@ -458,13 +458,13 @@ impl TlsAcceptorBuilder {
         &mut self,
         protocols: &[Protocol],
     ) -> Result<&mut TlsAcceptorBuilder> {
-        try!(self.0.supported_protocols(protocols));
+        self.0.supported_protocols(protocols)?;
         Ok(self)
     }
 
     /// Consumes the builder, returning a `TlsAcceptor`.
     pub fn build(self) -> Result<TlsAcceptor> {
-        let acceptor = try!(self.0.build());
+        let acceptor = self.0.build()?;
         Ok(TlsAcceptor(acceptor))
     }
 }
@@ -517,7 +517,7 @@ impl TlsAcceptor {
     /// archived passed in. The returned builder will use that key/certificate
     /// to send to clients which it connects to.
     pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder> {
-        let builder = try!(imp::TlsAcceptor::builder(pkcs12.0));
+        let builder = imp::TlsAcceptor::builder(pkcs12.0)?;
         Ok(TlsAcceptorBuilder(builder))
     }
 
@@ -561,12 +561,12 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// Returns the number of bytes that can be read without resulting in any
     /// network calls.
     pub fn buffered_read_size(&self) -> Result<usize> {
-        Ok(try!(self.0.buffered_read_size()))
+        Ok(self.0.buffered_read_size()?)
     }
 
     /// Shuts down the TLS session.
     pub fn shutdown(&mut self) -> io::Result<()> {
-        try!(self.0.shutdown());
+        self.0.shutdown()?;
         Ok(())
     }
 }

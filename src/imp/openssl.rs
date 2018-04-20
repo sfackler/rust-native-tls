@@ -13,12 +13,14 @@ use std::io;
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
-    // This constant is only defined on OpenSSL 1.0.2 and above, so manually do it.
-    let ssl_op_no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
+    #[cfg(ossl101)]
+    let no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
         | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2;
+    #[cfg(not(ossl101))]
+    let no_ssl_mask = SslOptions::NO_SSL_MASK;
 
-    ctx.clear_options(ssl_op_no_ssl_mask);
-    let mut options = ssl_op_no_ssl_mask;
+    ctx.clear_options(no_ssl_mask);
+    let mut options = no_ssl_mask;
     for protocol in protocols {
         let op = match *protocol {
             Protocol::Sslv3 => SslOptions::NO_SSLV3,

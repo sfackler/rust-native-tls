@@ -19,4 +19,5 @@ tempfile = "3.0"
 schannel = "0.1.12"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl = "0.10.1"
+openssl = "0.10.6"
+openssl-sys = "0.9"

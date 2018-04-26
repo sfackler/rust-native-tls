@@ -7,7 +7,6 @@ use self::schannel::tls_stream;
 use std::error;
 use std::fmt;
 use std::io;
-use std::sync::Arc;
 
 fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
     protocols
@@ -328,24 +327,6 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
-    }
-}
-
-/// SChannel-specific extensions to `TlsConnectorBuilder`.
-pub trait TlsConnectorBuilderExt {
-    /// Sets a callback function which decides if the server's certificate chain
-    /// is to be trusted.
-    fn verify_callback<F>(&mut self, callback: F)
-    where
-        F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync;
-}
-
-impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
-    fn verify_callback<F>(&mut self, callback: F)
-    where
-        F: Fn(tls_stream::CertValidationResult) -> io::Result<()> + 'static + Send + Sync,
-    {
-        (self.0).0.callback = Some(Arc::new(callback));
     }
 }
 

@@ -175,16 +175,16 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
-    pub fn disable_sni(&mut self) {
-        self.0.use_sni = false;
+    pub fn use_sni(&mut self, use_sni: bool) {
+        self.0.use_sni = use_sni;
     }
 
-    pub fn danger_accept_invalid_hostnames(&mut self) {
-        self.0.accept_invalid_hostnames = true;
+    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
+        self.0.accept_invalid_hostnames = accept_invalid_hostnames;
     }
 
-    pub fn danger_accept_invalid_certs(&mut self) {
-        self.0.callback = Some(Arc::new(|_| Ok(())));
+    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
+        self.0.accept_invalid_certs = accept_invalid_certs;
     }
 
     pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
@@ -202,9 +202,9 @@ pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,
     protocols: Vec<Protocol>,
-    callback: Option<Arc<Fn(tls_stream::CertValidationResult) -> io::Result<()> + Sync + Send>>,
     use_sni: bool,
     accept_invalid_hostnames: bool,
+    accept_invalid_certs: bool,
 }
 
 impl TlsConnector {
@@ -213,9 +213,9 @@ impl TlsConnector {
             cert: None,
             roots: Memory::new()?.into_store(),
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
-            callback: None,
             use_sni: true,
             accept_invalid_hostnames: false,
+            accept_invalid_certs: false,
         }))
     }
 
@@ -230,15 +230,14 @@ impl TlsConnector {
         }
         let cred = builder.acquire(Direction::Outbound)?;
         let mut builder = tls_stream::Builder::new();
-        if let Some(ref callback) = self.callback {
-            let callback = callback.clone();
-            builder.verify_callback(move |r| callback(r));
-        }
         builder
             .cert_store(self.roots.clone())
             .domain(domain)
             .use_sni(self.use_sni)
             .accept_invalid_hostnames(self.accept_invalid_hostnames);
+        if self.accept_invalid_certs {
+            builder.verify_callback(|_| Ok(()));
+        }
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),

@@ -130,8 +130,7 @@ impl Pkcs12 {
         let keychain = match *TEMP_KEYCHAIN.lock().unwrap() {
             Some((ref keychain, _)) => keychain.clone(),
             ref mut lock @ None => {
-                let dir =
-                    TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
+                let dir = TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
 
                 let mut keychain = keychain::CreateOptions::new()
                     .password(pass)
@@ -275,16 +274,16 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
-    pub fn disable_sni(&mut self) {
-        self.0.use_sni = false;
+    pub fn use_sni(&mut self, use_sni: bool) {
+        self.0.use_sni = use_sni;
     }
 
-    pub fn danger_accept_invalid_hostnames(&mut self) {
-        self.0.danger_accept_invalid_hostnames = true;
+    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
+        self.0.danger_accept_invalid_hostnames = accept_invalid_hostnames;
     }
 
-    pub fn danger_accept_invalid_certs(&mut self) {
-        self.0.danger_accept_invalid_certs = true;
+    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
+        self.0.danger_accept_invalid_certs = accept_invalid_certs;
     }
 
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {

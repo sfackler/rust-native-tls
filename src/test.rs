@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn connect_bad_hostname_ignored() {
         let mut builder = p!(TlsConnector::builder());
-        builder.danger_accept_invalid_hostnames();
+        builder.danger_accept_invalid_hostnames(true);
         let builder = p!(builder.build());
         let s = p!(TcpStream::connect("google.com:443"));
         builder.connect("goggle.com", s).unwrap();
@@ -247,7 +247,7 @@ mod tests {
 
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = p!(TlsConnector::builder());
-        builder.danger_accept_invalid_certs();
+        builder.danger_accept_invalid_certs(true);
         let builder = p!(builder.build());
         let mut socket = p!(builder.connect("foobar.com", socket));
 

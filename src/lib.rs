@@ -364,13 +364,13 @@ impl TlsConnectorBuilder {
     /// certificates are trusted, *any* certificate for *any* site will be
     /// trusted for use. This includes expired certificates. This introduces
     /// significant vulnerabilities, and should only be used as a last resort.
-    pub fn danger_accept_invalid_certs(&mut self) {
-        self.0.danger_accept_invalid_certs();
+    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
+        self.0.danger_accept_invalid_certs(accept_invalid_certs);
     }
 
     /// Disables the use of Server Name Indication (SNI).
-    pub fn disable_sni(&mut self) {
-        self.0.disable_sni();
+    pub fn use_sni(&mut self, use_sni: bool) {
+        self.0.use_sni(use_sni);
     }
 
     /// Disables hostname checks during certificate validation.
@@ -381,8 +381,9 @@ impl TlsConnectorBuilder {
     /// hostnames are trusted, *any* valid certificate for *any* will be trusted
     /// for use. This introduces significant vulnerabilities, and should only be
     /// used as a last resort.
-    pub fn danger_accept_invalid_hostnames(&mut self) {
-        self.0.danger_accept_invalid_hostnames();
+    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
+        self.0
+            .danger_accept_invalid_hostnames(accept_invalid_hostnames);
     }
 
     /// Consumes the builder, returning a `TlsConnector`.

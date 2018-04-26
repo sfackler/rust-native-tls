@@ -153,7 +153,8 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
 pub struct TlsConnectorBuilder {
     connector: SslConnectorBuilder,
     use_sni: bool,
-    verify_hostname: bool,
+    accept_invalid_hostnames: bool,
+    accept_invalid_certs: bool,
 }
 
 impl TlsConnectorBuilder {
@@ -175,16 +176,16 @@ impl TlsConnectorBuilder {
         Ok(())
     }
 
-    pub fn disable_sni(&mut self) {
-        self.use_sni = false;
+    pub fn use_sni(&mut self, use_sni: bool) {
+        self.use_sni = use_sni;
     }
 
-    pub fn danger_accept_invalid_hostnames(&mut self) {
-        self.verify_hostname = false;
+    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
+        self.accept_invalid_hostnames = accept_invalid_hostnames;
     }
 
-    pub fn danger_accept_invalid_certs(&mut self) {
-        self.connector.set_verify(SslVerifyMode::NONE);
+    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
+        self.accept_invalid_certs = accept_invalid_certs;
     }
 
     pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
@@ -196,7 +197,8 @@ impl TlsConnectorBuilder {
         Ok(TlsConnector {
             connector: self.connector.build(),
             use_sni: self.use_sni,
-            verify_hostname: self.verify_hostname,
+            accept_invalid_hostnames: self.accept_invalid_hostnames,
+            accept_invalid_certs: self.accept_invalid_certs,
         })
     }
 }
@@ -205,7 +207,8 @@ impl TlsConnectorBuilder {
 pub struct TlsConnector {
     connector: SslConnector,
     use_sni: bool,
-    verify_hostname: bool,
+    accept_invalid_hostnames: bool,
+    accept_invalid_certs: bool,
 }
 
 impl TlsConnector {
@@ -213,7 +216,8 @@ impl TlsConnector {
         Ok(TlsConnectorBuilder {
             connector: SslConnector::builder(SslMethod::tls())?,
             use_sni: true,
-            verify_hostname: true,
+            accept_invalid_hostnames: false,
+            accept_invalid_certs: false,
         })
     }
 
@@ -221,11 +225,15 @@ impl TlsConnector {
     where
         S: io::Read + io::Write,
     {
-        let s = self.connector
+        let mut ssl = self.connector
             .configure()?
             .use_server_name_indication(self.use_sni)
-            .verify_hostname(self.verify_hostname)
-            .connect(domain, stream)?;
+            .verify_hostname(!self.accept_invalid_hostnames);
+        if self.accept_invalid_certs {
+            ssl.set_verify(SslVerifyMode::NONE);
+        }
+
+        let s = ssl.connect(domain, stream)?;
         Ok(TlsStream(s))
     }
 }
@@ -247,7 +255,8 @@ impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
         ::TlsConnectorBuilder(TlsConnectorBuilder {
             connector: builder,
             use_sni: true,
-            verify_hostname: true,
+            accept_invalid_hostnames: false,
+            accept_invalid_certs: false,
         })
     }
 

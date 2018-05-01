@@ -13,10 +13,10 @@ use std::io;
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
-    #[cfg(ossl101)]
+    #[cfg(no_ssl_mask)]
     let no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
         | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2;
-    #[cfg(not(ossl101))]
+    #[cfg(not(no_ssl_mask))]
     let no_ssl_mask = SslOptions::NO_SSL_MASK;
 
     ctx.clear_options(no_ssl_mask);

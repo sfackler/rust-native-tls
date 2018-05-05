@@ -51,12 +51,12 @@ impl From<io::Error> for Error {
     }
 }
 
-pub struct Pkcs12 {
+pub struct Identity {
     cert: CertContext,
 }
 
-impl Pkcs12 {
-    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+impl Identity {
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Idenitty, Error> {
         let store = PfxImportOptions::new().password(pass).import(buf)?;
         let mut identity = None;
 
@@ -82,7 +82,7 @@ impl Pkcs12 {
             }
         };
 
-        Ok(Pkcs12 { cert: identity })
+        Ok(Identity { cert: identity })
     }
 }
 
@@ -164,8 +164,8 @@ impl<S> From<io::Error> for HandshakeError<S> {
 pub struct TlsConnectorBuilder(TlsConnector);
 
 impl TlsConnectorBuilder {
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        self.0.cert = Some(pkcs12.cert);
+    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
+        self.0.cert = Some(identity.cert);
         Ok(())
     }
 
@@ -264,9 +264,9 @@ pub struct TlsAcceptor {
 }
 
 impl TlsAcceptor {
-    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
-            cert: pkcs12.cert,
+            cert: identity.cert,
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
         }))
     }

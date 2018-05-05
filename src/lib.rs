@@ -69,7 +69,7 @@
 //! To accept connections as a server from remote clients:
 //!
 //! ```rust,no_run
-//! use native_tls::{Pkcs12, TlsAcceptor, TlsStream};
+//! use native_tls::{Identity, TlsAcceptor, TlsStream};
 //! use std::fs::File;
 //! use std::io::{Read};
 //! use std::net::{TcpListener, TcpStream};
@@ -77,12 +77,12 @@
 //! use std::thread;
 //!
 //! let mut file = File::open("identity.pfx").unwrap();
-//! let mut pkcs12 = vec![];
-//! file.read_to_end(&mut pkcs12).unwrap();
-//! let pkcs12 = Pkcs12::from_der(&pkcs12, "hunter2").unwrap();
+//! let mut identity = vec![];
+//! file.read_to_end(&mut identity).unwrap();
+//! let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 //!
 //! let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-//! let acceptor = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+//! let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
 //! let acceptor = Arc::new(acceptor);
 //!
 //! fn handle_client(stream: TlsStream<TcpStream>) {
@@ -163,10 +163,13 @@ impl<T: Into<imp::Error>> From<T> for Error {
     }
 }
 
-/// A PKCS #12 archive.
-pub struct Pkcs12(imp::Pkcs12);
+/// A cryptographic identity.
+///
+/// An identity is an X509 certificate along with its corresponding private key and chain of certificates to a trusted
+/// root.
+pub struct Identity(imp::Identity);
 
-impl Pkcs12 {
+impl Identity {
     /// Parses a DER-formatted PKCS #12 archive, using the specified password to decrypt the key.
     ///
     /// The archive should contain a leaf certificate and its private key, as well any intermediate
@@ -179,9 +182,9 @@ impl Pkcs12 {
     /// ```bash
     /// openssl pkcs12 -export -out identity.pfx -inkey key.pem -in cert.pem -certfile chain_certs.pem
     /// ```
-    pub fn from_der(der: &[u8], password: &str) -> Result<Pkcs12> {
-        let pkcs12 = imp::Pkcs12::from_der(der, password)?;
-        Ok(Pkcs12(pkcs12))
+    pub fn from_pkcs12(der: &[u8], password: &str) -> Result<Identity> {
+        let identity = imp::Identity::from_pkcs12(der, password)?;
+        Ok(Identity(identity))
     }
 }
 
@@ -328,8 +331,8 @@ pub struct TlsConnectorBuilder(imp::TlsConnectorBuilder);
 
 impl TlsConnectorBuilder {
     /// Sets the identity to be used for client certificate authentication.
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<&mut TlsConnectorBuilder> {
-        self.0.identity(pkcs12.0)?;
+    pub fn identity(&mut self, identity: Identity) -> Result<&mut TlsConnectorBuilder> {
+        self.0.identity(identity.0)?;
         Ok(self)
     }
 
@@ -473,7 +476,7 @@ impl TlsAcceptorBuilder {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use native_tls::{Pkcs12, TlsAcceptor, TlsStream};
+/// use native_tls::{Identity, TlsAcceptor, TlsStream};
 /// use std::fs::File;
 /// use std::io::{Read};
 /// use std::net::{TcpListener, TcpStream};
@@ -481,12 +484,12 @@ impl TlsAcceptorBuilder {
 /// use std::thread;
 ///
 /// let mut file = File::open("identity.pfx").unwrap();
-/// let mut pkcs12 = vec![];
-/// file.read_to_end(&mut pkcs12).unwrap();
-/// let pkcs12 = Pkcs12::from_der(&pkcs12, "hunter2").unwrap();
+/// let mut identity = vec![];
+/// file.read_to_end(&mut identity).unwrap();
+/// let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 ///
 /// let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-/// let acceptor = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+/// let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
 /// let acceptor = Arc::new(acceptor);
 ///
 /// fn handle_client(stream: TlsStream<TcpStream>) {
@@ -515,8 +518,8 @@ impl TlsAcceptor {
     /// This builder is created with a key/certificate pair in the `pkcs12`
     /// archived passed in. The returned builder will use that key/certificate
     /// to send to clients which it connects to.
-    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder> {
-        let builder = imp::TlsAcceptor::builder(pkcs12.0)?;
+    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder> {
+        let builder = imp::TlsAcceptor::builder(identity.0)?;
         Ok(TlsAcceptorBuilder(builder))
     }
 

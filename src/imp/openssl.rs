@@ -1,7 +1,7 @@
 extern crate openssl;
 
 use self::openssl::error::ErrorStack;
-use self::openssl::pkcs12;
+use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
 use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector,
     SslConnectorBuilder, SslContextBuilder, SslMethod, SslOptions, SslVerifyMode,
@@ -71,13 +71,13 @@ impl From<ErrorStack> for Error {
     }
 }
 
-pub struct Pkcs12(pkcs12::ParsedPkcs12);
+pub struct Identity(ParsedPkcs12);
 
-impl Pkcs12 {
-    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+impl Identity {
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
         let pkcs12 = pkcs12::Pkcs12::from_der(buf)?;
         let parsed = pkcs12.parse(pass)?;
-        Ok(Pkcs12(parsed))
+        Ok(Identity(parsed))
     }
 }
 
@@ -159,12 +159,12 @@ pub struct TlsConnectorBuilder {
 }
 
 impl TlsConnectorBuilder {
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
+    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
         // FIXME clear chain certs to clean up if called multiple times
-        self.connector.set_certificate(&pkcs12.0.cert)?;
-        self.connector.set_private_key(&pkcs12.0.pkey)?;
+        self.connector.set_certificate(&identity.0.cert)?;
+        self.connector.set_private_key(&identity.0.pkey)?;
         self.connector.check_private_key()?;
-        if let Some(chain) = pkcs12.0.chain {
+        if let Some(chain) = identity.0.chain {
             for cert in chain {
                 self.connector.add_extra_chain_cert(cert)?;
             }
@@ -256,11 +256,11 @@ impl TlsAcceptorBuilder {
 pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
-    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-        builder.set_private_key(&pkcs12.0.pkey)?;
-        builder.set_certificate(&pkcs12.0.cert)?;
-        if let Some(chain) = pkcs12.0.chain {
+        builder.set_private_key(&identity.0.pkey)?;
+        builder.set_certificate(&identity.0.cert)?;
+        if let Some(chain) = identity.0.chain {
             for cert in chain {
                 builder.add_extra_chain_cert(cert)?;
             }

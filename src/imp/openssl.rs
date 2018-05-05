@@ -238,37 +238,6 @@ impl TlsConnector {
     }
 }
 
-/// OpenSSL-specific extensions to `TlsConnectorBuilder`.
-pub trait TlsConnectorBuilderExt {
-    /// Initialize `TlsAcceptorBuilderExt` from an `SslAcceptorBuilder`.
-    fn from_openssl(builder: SslConnectorBuilder) -> Self;
-
-    /// Returns a shared reference to the inner `SslConnectorBuilder`.
-    fn builder(&self) -> &SslConnectorBuilder;
-
-    /// Returns a mutable reference to the inner `SslConnectorBuilder`.
-    fn builder_mut(&mut self) -> &mut SslConnectorBuilder;
-}
-
-impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
-    fn from_openssl(builder: SslConnectorBuilder) -> ::TlsConnectorBuilder {
-        ::TlsConnectorBuilder(TlsConnectorBuilder {
-            connector: builder,
-            use_sni: true,
-            accept_invalid_hostnames: false,
-            accept_invalid_certs: false,
-        })
-    }
-
-    fn builder(&self) -> &SslConnectorBuilder {
-        &(self.0).connector
-    }
-
-    fn builder_mut(&mut self) -> &mut SslConnectorBuilder {
-        &mut (self.0).connector
-    }
-}
-
 pub struct TlsAcceptorBuilder(SslAcceptorBuilder);
 
 impl TlsAcceptorBuilder {
@@ -304,32 +273,6 @@ impl TlsAcceptor {
     {
         let s = self.0.accept(stream)?;
         Ok(TlsStream(s))
-    }
-}
-
-/// OpenSSL-specific extensions to `TlsAcceptorBuilder`.
-pub trait TlsAcceptorBuilderExt {
-    /// Initialize `TlsAcceptorBuilderExt` from an `SslAcceptorBuilder`.
-    fn from_openssl(builder: SslAcceptorBuilder) -> Self;
-
-    /// Returns a shared reference to the inner `SslAcceptorBuilder`.
-    fn builder(&self) -> &SslAcceptorBuilder;
-
-    /// Returns a mutable reference to the inner `SslAcceptorBuilder`.
-    fn builder_mut(&mut self) -> &mut SslAcceptorBuilder;
-}
-
-impl TlsAcceptorBuilderExt for ::TlsAcceptorBuilder {
-    fn from_openssl(builder: SslAcceptorBuilder) -> ::TlsAcceptorBuilder {
-        ::TlsAcceptorBuilder(TlsAcceptorBuilder(builder))
-    }
-
-    fn builder(&self) -> &SslAcceptorBuilder {
-        &(self.0).0
-    }
-
-    fn builder_mut(&mut self) -> &mut SslAcceptorBuilder {
-        &mut (self.0).0
     }
 }
 
@@ -377,36 +320,5 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
-    }
-}
-
-/// OpenSSL-specific extensions to `TlsStream`.
-pub trait TlsStreamExt<S> {
-    /// Returns a shared reference to the OpenSSL `SslStream`.
-    fn raw_stream(&self) -> &ssl::SslStream<S>;
-
-    /// Returns a mutable reference to the OpenSSL `SslStream`.
-    fn raw_stream_mut(&mut self) -> &mut ssl::SslStream<S>;
-}
-
-impl<S> TlsStreamExt<S> for ::TlsStream<S> {
-    fn raw_stream(&self) -> &ssl::SslStream<S> {
-        &(self.0).0
-    }
-
-    fn raw_stream_mut(&mut self) -> &mut ssl::SslStream<S> {
-        &mut (self.0).0
-    }
-}
-
-/// OpenSSL-specific extensions to `Error`
-pub trait ErrorExt {
-    /// Extract the underlying OpenSSL error for inspection.
-    fn openssl_error(&self) -> &ssl::Error;
-}
-
-impl ErrorExt for ::Error {
-    fn openssl_error(&self) -> &ssl::Error {
-        &(self.0).0
     }
 }

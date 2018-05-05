@@ -1,14 +1,12 @@
 use std::env;
 
 fn main() {
-    let no_ssl_mask = if let Ok(version) = env::var("DEP_OPENSSL_VERSION_NUMBER") {
-        let version = u64::from_str_radix(&version, 16).unwrap();
-        version < 0x1_00_02_00_0
-    } else {
-        true
-    };
+    let openssl_version = env::var("DEP_OPENSSL_VERSION_NUMBER")
+        .ok()
+        .map(|s| u64::from_str_radix(&s, 16).unwrap());
 
-    if no_ssl_mask {
-        println!("cargo:rustc-cfg=no_ssl_mask");
+    match openssl_version {
+        Some(version) if version >= 0x1_00_02_00_0 => println!("cargo:rustc-cfg=have_no_ssl_mask"),
+        _ => {}
     }
 }

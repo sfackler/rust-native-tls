@@ -2,9 +2,10 @@ extern crate openssl;
 
 use self::openssl::error::ErrorStack;
 use self::openssl::pkcs12;
-use self::openssl::ssl::{self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder,
-                         SslConnector, SslConnectorBuilder, SslContextBuilder, SslMethod,
-                         SslOptions, SslVerifyMode};
+use self::openssl::ssl::{
+    self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector,
+    SslConnectorBuilder, SslContextBuilder, SslMethod, SslOptions, SslVerifyMode,
+};
 use self::openssl::x509::X509;
 use std::error;
 use std::fmt;
@@ -13,10 +14,10 @@ use std::io;
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
-    #[cfg(no_ssl_mask)]
+    #[cfg(not(have_no_ssl_mask))]
     let no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
         | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2;
-    #[cfg(not(no_ssl_mask))]
+    #[cfg(have_no_ssl_mask)]
     let no_ssl_mask = SslOptions::NO_SSL_MASK;
 
     ctx.clear_options(no_ssl_mask);

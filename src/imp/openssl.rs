@@ -75,7 +75,7 @@ pub struct Identity(ParsedPkcs12);
 
 impl Identity {
     pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
-        let pkcs12 = pkcs12::Pkcs12::from_der(buf)?;
+        let pkcs12 = Pkcs12::from_der(buf)?;
         let parsed = pkcs12.parse(pass)?;
         Ok(Identity(parsed))
     }

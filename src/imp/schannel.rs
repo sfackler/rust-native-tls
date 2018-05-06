@@ -56,7 +56,7 @@ pub struct Identity {
 }
 
 impl Identity {
-    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Idenitty, Error> {
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
         let store = PfxImportOptions::new().password(pass).import(buf)?;
         let mut identity = None;
 

@@ -54,8 +54,8 @@ mod tests {
     #[test]
     fn server() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(identity));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -93,8 +93,8 @@ mod tests {
     #[cfg(not(target_os = "ios"))]
     fn server_pem() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(identity));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -131,8 +131,8 @@ mod tests {
     #[test]
     fn server_tls11_only() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let mut builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let mut builder = p!(TlsAcceptor::builder(identity));
         p!(builder.supported_protocols(&[Protocol::Tlsv11]));
         let builder = p!(builder.build());
 
@@ -171,8 +171,8 @@ mod tests {
     #[test]
     fn server_no_shared_protocol() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let mut builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let mut builder = p!(TlsAcceptor::builder(identity));
         p!(builder.supported_protocols(&[Protocol::Tlsv12]));
         let builder = p!(builder.build());
 
@@ -200,8 +200,8 @@ mod tests {
     #[test]
     fn server_untrusted() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(identity));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -225,8 +225,8 @@ mod tests {
     #[test]
     fn server_untrusted_unverified() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(identity));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -260,15 +260,15 @@ mod tests {
     #[test]
     fn import_same_identity_multiple_times() {
         let buf = include_bytes!("../test/identity.p12");
-        let _ = p!(Pkcs12::from_der(buf, "mypass"));
-        let _ = p!(Pkcs12::from_der(buf, "mypass"));
+        let _ = p!(Identity::from_pkcs12(buf, "mypass"));
+        let _ = p!(Identity::from_pkcs12(buf, "mypass"));
     }
 
     #[test]
     fn shutdown() {
         let buf = include_bytes!("../test/identity.p12");
-        let pkcs12 = p!(Pkcs12::from_der(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(pkcs12));
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(identity));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));

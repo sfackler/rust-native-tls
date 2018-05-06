@@ -1,10 +1,11 @@
 extern crate openssl;
 
 use self::openssl::error::ErrorStack;
-use self::openssl::pkcs12;
-use self::openssl::ssl::{self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder,
-                         SslConnector, SslConnectorBuilder, SslContextBuilder, SslMethod,
-                         SslOptions, SslVerifyMode};
+use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
+use self::openssl::ssl::{
+    self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector,
+    SslConnectorBuilder, SslContextBuilder, SslMethod, SslOptions, SslVerifyMode,
+};
 use self::openssl::x509::X509;
 use std::error;
 use std::fmt;
@@ -13,10 +14,10 @@ use std::io;
 use Protocol;
 
 fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
-    #[cfg(no_ssl_mask)]
+    #[cfg(not(have_no_ssl_mask))]
     let no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
         | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2;
-    #[cfg(not(no_ssl_mask))]
+    #[cfg(have_no_ssl_mask)]
     let no_ssl_mask = SslOptions::NO_SSL_MASK;
 
     ctx.clear_options(no_ssl_mask);
@@ -70,13 +71,13 @@ impl From<ErrorStack> for Error {
     }
 }
 
-pub struct Pkcs12(pkcs12::ParsedPkcs12);
+pub struct Identity(ParsedPkcs12);
 
-impl Pkcs12 {
-    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let pkcs12 = pkcs12::Pkcs12::from_der(buf)?;
+impl Identity {
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
+        let pkcs12 = Pkcs12::from_der(buf)?;
         let parsed = pkcs12.parse(pass)?;
-        Ok(Pkcs12(parsed))
+        Ok(Identity(parsed))
     }
 }
 
@@ -158,12 +159,12 @@ pub struct TlsConnectorBuilder {
 }
 
 impl TlsConnectorBuilder {
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
+    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
         // FIXME clear chain certs to clean up if called multiple times
-        self.connector.set_certificate(&pkcs12.0.cert)?;
-        self.connector.set_private_key(&pkcs12.0.pkey)?;
+        self.connector.set_certificate(&identity.0.cert)?;
+        self.connector.set_private_key(&identity.0.pkey)?;
         self.connector.check_private_key()?;
-        if let Some(chain) = pkcs12.0.chain {
+        if let Some(chain) = identity.0.chain {
             for cert in chain {
                 self.connector.add_extra_chain_cert(cert)?;
             }
@@ -238,37 +239,6 @@ impl TlsConnector {
     }
 }
 
-/// OpenSSL-specific extensions to `TlsConnectorBuilder`.
-pub trait TlsConnectorBuilderExt {
-    /// Initialize `TlsAcceptorBuilderExt` from an `SslAcceptorBuilder`.
-    fn from_openssl(builder: SslConnectorBuilder) -> Self;
-
-    /// Returns a shared reference to the inner `SslConnectorBuilder`.
-    fn builder(&self) -> &SslConnectorBuilder;
-
-    /// Returns a mutable reference to the inner `SslConnectorBuilder`.
-    fn builder_mut(&mut self) -> &mut SslConnectorBuilder;
-}
-
-impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
-    fn from_openssl(builder: SslConnectorBuilder) -> ::TlsConnectorBuilder {
-        ::TlsConnectorBuilder(TlsConnectorBuilder {
-            connector: builder,
-            use_sni: true,
-            accept_invalid_hostnames: false,
-            accept_invalid_certs: false,
-        })
-    }
-
-    fn builder(&self) -> &SslConnectorBuilder {
-        &(self.0).connector
-    }
-
-    fn builder_mut(&mut self) -> &mut SslConnectorBuilder {
-        &mut (self.0).connector
-    }
-}
-
 pub struct TlsAcceptorBuilder(SslAcceptorBuilder);
 
 impl TlsAcceptorBuilder {
@@ -286,11 +256,11 @@ impl TlsAcceptorBuilder {
 pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
-    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-        builder.set_private_key(&pkcs12.0.pkey)?;
-        builder.set_certificate(&pkcs12.0.cert)?;
-        if let Some(chain) = pkcs12.0.chain {
+        builder.set_private_key(&identity.0.pkey)?;
+        builder.set_certificate(&identity.0.cert)?;
+        if let Some(chain) = identity.0.chain {
             for cert in chain {
                 builder.add_extra_chain_cert(cert)?;
             }
@@ -304,32 +274,6 @@ impl TlsAcceptor {
     {
         let s = self.0.accept(stream)?;
         Ok(TlsStream(s))
-    }
-}
-
-/// OpenSSL-specific extensions to `TlsAcceptorBuilder`.
-pub trait TlsAcceptorBuilderExt {
-    /// Initialize `TlsAcceptorBuilderExt` from an `SslAcceptorBuilder`.
-    fn from_openssl(builder: SslAcceptorBuilder) -> Self;
-
-    /// Returns a shared reference to the inner `SslAcceptorBuilder`.
-    fn builder(&self) -> &SslAcceptorBuilder;
-
-    /// Returns a mutable reference to the inner `SslAcceptorBuilder`.
-    fn builder_mut(&mut self) -> &mut SslAcceptorBuilder;
-}
-
-impl TlsAcceptorBuilderExt for ::TlsAcceptorBuilder {
-    fn from_openssl(builder: SslAcceptorBuilder) -> ::TlsAcceptorBuilder {
-        ::TlsAcceptorBuilder(TlsAcceptorBuilder(builder))
-    }
-
-    fn builder(&self) -> &SslAcceptorBuilder {
-        &(self.0).0
-    }
-
-    fn builder_mut(&mut self) -> &mut SslAcceptorBuilder {
-        &mut (self.0).0
     }
 }
 
@@ -377,36 +321,5 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
-    }
-}
-
-/// OpenSSL-specific extensions to `TlsStream`.
-pub trait TlsStreamExt<S> {
-    /// Returns a shared reference to the OpenSSL `SslStream`.
-    fn raw_stream(&self) -> &ssl::SslStream<S>;
-
-    /// Returns a mutable reference to the OpenSSL `SslStream`.
-    fn raw_stream_mut(&mut self) -> &mut ssl::SslStream<S>;
-}
-
-impl<S> TlsStreamExt<S> for ::TlsStream<S> {
-    fn raw_stream(&self) -> &ssl::SslStream<S> {
-        &(self.0).0
-    }
-
-    fn raw_stream_mut(&mut self) -> &mut ssl::SslStream<S> {
-        &mut (self.0).0
-    }
-}
-
-/// OpenSSL-specific extensions to `Error`
-pub trait ErrorExt {
-    /// Extract the underlying OpenSSL error for inspection.
-    fn openssl_error(&self) -> &ssl::Error;
-}
-
-impl ErrorExt for ::Error {
-    fn openssl_error(&self) -> &ssl::Error {
-        &(self.0).0
     }
 }

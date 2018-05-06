@@ -51,12 +51,12 @@ impl From<io::Error> for Error {
     }
 }
 
-pub struct Pkcs12 {
+pub struct Identity {
     cert: CertContext,
 }
 
-impl Pkcs12 {
-    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
+impl Identity {
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
         let store = PfxImportOptions::new().password(pass).import(buf)?;
         let mut identity = None;
 
@@ -82,7 +82,7 @@ impl Pkcs12 {
             }
         };
 
-        Ok(Pkcs12 { cert: identity })
+        Ok(Identity { cert: identity })
     }
 }
 
@@ -164,8 +164,8 @@ impl<S> From<io::Error> for HandshakeError<S> {
 pub struct TlsConnectorBuilder(TlsConnector);
 
 impl TlsConnectorBuilder {
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        self.0.cert = Some(pkcs12.cert);
+    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
+        self.0.cert = Some(identity.cert);
         Ok(())
     }
 
@@ -264,9 +264,9 @@ pub struct TlsAcceptor {
 }
 
 impl TlsAcceptor {
-    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
-            cert: pkcs12.cert,
+            cert: identity.cert,
             protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
         }))
     }
@@ -327,48 +327,5 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
-    }
-}
-
-/// SChannel-specific extensions to `TlsStream`.
-pub trait TlsStreamExt<S> {
-    /// Returns a shared reference to the SChannel `TlsStream`.
-    fn raw_stream(&self) -> &tls_stream::TlsStream<S>;
-
-    /// Returns a mutable reference to the SChannel `TlsStream`.
-    fn raw_stream_mut(&mut self) -> &mut tls_stream::TlsStream<S>;
-}
-
-impl<S> TlsStreamExt<S> for ::TlsStream<S> {
-    fn raw_stream(&self) -> &tls_stream::TlsStream<S> {
-        &(self.0).0
-    }
-
-    fn raw_stream_mut(&mut self) -> &mut tls_stream::TlsStream<S> {
-        &mut (self.0).0
-    }
-}
-
-/// SChannel-specific extensions to `Error`
-pub trait ErrorExt {
-    /// Extract the underlying SChannel error for inspection.
-    fn schannel_error(&self) -> &io::Error;
-}
-
-impl ErrorExt for ::Error {
-    fn schannel_error(&self) -> &io::Error {
-        &(self.0).0
-    }
-}
-
-/// SChannel-specific extensions to `Certificate`.
-pub trait CertificateExt {
-    /// builds a native_Tls `Certificate` from an schannel `CertContext`
-    fn from_cert_context(CertContext) -> ::Certificate;
-}
-
-impl CertificateExt for ::Certificate {
-    fn from_cert_context(cert: CertContext) -> ::Certificate {
-        ::Certificate(Certificate(cert))
     }
 }

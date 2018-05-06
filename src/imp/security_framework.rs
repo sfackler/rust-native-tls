@@ -7,8 +7,9 @@ use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
-use self::security_framework::secure_transport::{self, ClientBuilder, SslConnectionType,
-                                                 SslContext, SslProtocol, SslProtocolSide};
+use self::security_framework::secure_transport::{
+    self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
+};
 use self::security_framework_sys::base::errSecIO;
 use self::tempfile::TempDir;
 use std::error;
@@ -88,14 +89,14 @@ impl From<base::Error> for Error {
 }
 
 #[derive(Clone)]
-pub struct Pkcs12 {
+pub struct Identity {
     identity: SecIdentity,
     chain: Vec<SecCertificate>,
 }
 
-impl Pkcs12 {
-    pub fn from_der(buf: &[u8], pass: &str) -> Result<Pkcs12, Error> {
-        let mut imports = Pkcs12::import_options(buf, pass)?;
+impl Identity {
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
+        let mut imports = Identity::import_options(buf, pass)?;
         let import = imports.pop().unwrap();
 
         let identity = import
@@ -105,7 +106,7 @@ impl Pkcs12 {
         // FIXME: Compare the certificates for equality using CFEqual
         let identity_cert = identity.certificate()?.to_der();
 
-        Ok(Pkcs12 {
+        Ok(Identity {
             identity: identity,
             chain: import
                 .cert_chain
@@ -264,8 +265,8 @@ where
 pub struct TlsConnectorBuilder(TlsConnector);
 
 impl TlsConnectorBuilder {
-    pub fn identity(&mut self, pkcs12: Pkcs12) -> Result<(), Error> {
-        self.0.pkcs12 = Some(pkcs12);
+    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
+        self.0.identity = Some(identity);
         Ok(())
     }
 
@@ -298,7 +299,7 @@ impl TlsConnectorBuilder {
 
 #[derive(Clone)]
 pub struct TlsConnector {
-    pkcs12: Option<Pkcs12>,
+    identity: Option<Identity>,
     protocols: Vec<Protocol>,
     roots: Vec<SecCertificate>,
     use_sni: bool,
@@ -309,7 +310,7 @@ pub struct TlsConnector {
 impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
-            pkcs12: None,
+            identity: None,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
             roots: vec![],
             use_sni: true,
@@ -326,8 +327,8 @@ impl TlsConnector {
         let (min, max) = protocol_min_max(&self.protocols);
         builder.protocol_min(min);
         builder.protocol_max(max);
-        if let Some(pkcs12) = self.pkcs12.as_ref() {
-            builder.identity(&pkcs12.identity, &pkcs12.chain);
+        if let Some(identity) = self.identity.as_ref() {
+            builder.identity(&identity.identity, &identity.chain);
         }
         builder.anchor_certificates(&self.roots);
         builder.use_sni(self.use_sni);
@@ -356,14 +357,14 @@ impl TlsAcceptorBuilder {
 
 #[derive(Clone)]
 pub struct TlsAcceptor {
-    pkcs12: Pkcs12,
+    identity: Identity,
     protocols: Vec<Protocol>,
 }
 
 impl TlsAcceptor {
-    pub fn builder(pkcs12: Pkcs12) -> Result<TlsAcceptorBuilder, Error> {
+    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
-            pkcs12: pkcs12,
+            identity,
             protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
         }))
     }
@@ -377,7 +378,7 @@ impl TlsAcceptor {
         let (min, max) = protocol_min_max(&self.protocols);
         ctx.set_protocol_version_min(min)?;
         ctx.set_protocol_version_max(max)?;
-        ctx.set_certificate(&self.pkcs12.identity, &self.pkcs12.chain)?;
+        ctx.set_certificate(&self.identity.identity, &self.identity.chain)?;
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
@@ -425,50 +426,5 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
-    }
-}
-
-/// Security Framework-specific extensions to `TlsStream`.
-pub trait TlsStreamExt<S> {
-    /// Returns a shared reference to the Security Framework `SslStream`.
-    fn raw_stream(&self) -> &secure_transport::SslStream<S>;
-
-    /// Returns a mutable reference to the Security Framework `SslStream`.
-    fn raw_stream_mut(&mut self) -> &mut secure_transport::SslStream<S>;
-}
-
-impl<S> TlsStreamExt<S> for ::TlsStream<S> {
-    fn raw_stream(&self) -> &secure_transport::SslStream<S> {
-        &(self.0).0
-    }
-
-    fn raw_stream_mut(&mut self) -> &mut secure_transport::SslStream<S> {
-        &mut (self.0).0
-    }
-}
-
-/// Security Framework-specific extensions to `TlsConnectorBuilder`.
-pub trait TlsConnectorBuilderExt {
-    /// Deprecated
-    #[deprecated(since = "0.1.2", note = "use add_root_certificate")]
-    fn anchor_certificates(&mut self, certs: &[SecCertificate]) -> &mut Self;
-}
-
-impl TlsConnectorBuilderExt for ::TlsConnectorBuilder {
-    fn anchor_certificates(&mut self, certs: &[SecCertificate]) -> &mut Self {
-        (self.0).0.roots = certs.to_owned();
-        self
-    }
-}
-
-/// Security Framework-specific extensions to `Error`
-pub trait ErrorExt {
-    /// Extract the underlying Security Framework error for inspection.
-    fn security_framework_error(&self) -> &base::Error;
-}
-
-impl ErrorExt for ::Error {
-    fn security_framework_error(&self) -> &base::Error {
-        &(self.0).0
     }
 }

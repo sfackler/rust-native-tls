@@ -133,7 +133,8 @@ mod tests {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
         let mut builder = p!(TlsAcceptor::builder(identity));
-        p!(builder.supported_protocols(&[Protocol::Tlsv11]));
+        p!(builder.min_protocol_version(Some(Protocol::Tlsv11)));
+        p!(builder.max_protocol_version(Some(Protocol::Tlsv11)));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -156,7 +157,8 @@ mod tests {
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = p!(TlsConnector::builder());
         p!(builder.add_root_certificate(root_ca));
-        p!(builder.supported_protocols(&[Protocol::Tlsv11]));
+        p!(builder.min_protocol_version(Some(Protocol::Tlsv11)));
+        p!(builder.max_protocol_version(Some(Protocol::Tlsv11)));
         let builder = p!(builder.build());
         let mut socket = p!(builder.connect("foobar.com", socket));
 
@@ -173,7 +175,7 @@ mod tests {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
         let mut builder = p!(TlsAcceptor::builder(identity));
-        p!(builder.supported_protocols(&[Protocol::Tlsv12]));
+        p!(builder.min_protocol_version(Some(Protocol::Tlsv12)));
         let builder = p!(builder.build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -190,7 +192,7 @@ mod tests {
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = p!(TlsConnector::builder());
         p!(builder.add_root_certificate(root_ca));
-        p!(builder.supported_protocols(&[Protocol::Sslv3, Protocol::Tlsv10, Protocol::Tlsv11],));
+        p!(builder.max_protocol_version(Some(Protocol::Tlsv11)));
         let builder = p!(builder.build());
         assert!(builder.connect("foobar.com", socket).is_err());
 

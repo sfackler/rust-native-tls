@@ -4,7 +4,7 @@ use self::openssl::error::ErrorStack;
 use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
 use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector,
-    SslConnectorBuilder, SslContextBuilder, SslMethod, SslOptions, SslVerifyMode,
+    SslConnectorBuilder, SslContextBuilder, SslMethod, SslVerifyMode,
 };
 use self::openssl::x509::X509;
 use std::error;
@@ -13,26 +13,67 @@ use std::io;
 
 use Protocol;
 
-fn supported_protocols(protocols: &[Protocol], ctx: &mut SslContextBuilder) {
-    #[cfg(not(have_no_ssl_mask))]
-    let no_ssl_mask = SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
-        | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2;
-    #[cfg(have_no_ssl_mask)]
-    let no_ssl_mask = SslOptions::NO_SSL_MASK;
+#[cfg(have_min_max_version)]
+fn supported_protocols(
+    min: Option<Protocol>,
+    max: Option<Protocol>,
+    ctx: &mut SslContextBuilder,
+) -> Result<(), ErrorStack> {
+    use self::openssl::ssl::SslVersion;
+
+    fn cvt(p: Protocol) -> SslVersion {
+        match p {
+            Protocol::Sslv3 => SslVersion::SSL3,
+            Protocol::Tlsv10 => SslVersion::TLS1,
+            Protocol::Tlsv11 => SslVersion::TLS1_1,
+            Protocol::Tlsv12 => SslVersion::TLS1_2,
+            Protocol::__NonExhaustive => unreachable!(),
+        }
+    }
+
+    ctx.set_min_proto_version(min.map(cvt))?;
+    ctx.set_max_proto_version(max.map(cvt))?;
+
+    Ok(())
+}
+
+#[cfg(not(have_min_max_version))]
+fn supported_protocols(
+    min: Option<Protocol>,
+    max: Option<Protocol>,
+    ctx: &mut SslContextBuilder,
+) -> Result<(), ErrorStack> {
+    use self::openssl::ssl::SslOptions;
+
+    let no_ssl_mask = SslOptions::NO_SSLV2
+        | SslOptions::NO_SSLV3
+        | SslOptions::NO_TLSV1
+        | SslOptions::NO_TLSV1_1
+        | SslOptions::NO_TLSV1_2;
 
     ctx.clear_options(no_ssl_mask);
-    let mut options = no_ssl_mask;
-    for protocol in protocols {
-        let op = match *protocol {
-            Protocol::Sslv3 => SslOptions::NO_SSLV3,
-            Protocol::Tlsv10 => SslOptions::NO_TLSV1,
-            Protocol::Tlsv11 => SslOptions::NO_TLSV1_1,
-            Protocol::Tlsv12 => SslOptions::NO_TLSV1_2,
-            Protocol::__NonExhaustive => unreachable!(),
-        };
-        options &= !op;
+    let mut options = SslOptions::NO_SSLV2;
+    match min {
+        None | Some(Protocol::Sslv3) => {}
+        Some(Protocol::Tlsv10) => options |= SslOptions::NO_SSLV3,
+        Some(Protocol::Tlsv11) => options |= SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1,
+        Some(Protocol::Tlsv12) => {
+            options |= SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1 | SslOptions::NO_TLSV1_1
+        }
+        Some(Protocol::__NonExhaustive) => unreachable!(),
     }
+    match max {
+        None | Some(Protocol::Tlsv12) => {}
+        Some(Protocol::Tlsv11) => options |= SslOptions::NO_TLSV1_2,
+        Some(Protocol::Tlsv10) => options |= SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2,
+        Some(Protocol::Sslv3) => {
+            options |= SslOptions::NO_TLSV1_0 | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2
+        }
+    }
+
     ctx.set_options(options);
+
+    Ok(())
 }
 
 pub struct Error(ssl::Error);
@@ -156,6 +197,8 @@ pub struct TlsConnectorBuilder {
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
 }
 
 impl TlsConnectorBuilder {
@@ -189,12 +232,19 @@ impl TlsConnectorBuilder {
         self.accept_invalid_certs = accept_invalid_certs;
     }
 
-    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        supported_protocols(protocols, &mut self.connector);
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.min_protocol = protocol;
         Ok(())
     }
 
-    pub fn build(self) -> Result<TlsConnector, Error> {
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.max_protocol = protocol;
+        Ok(())
+    }
+
+    pub fn build(mut self) -> Result<TlsConnector, Error> {
+        supported_protocols(self.min_protocol, self.max_protocol, &mut self.connector)?;
+
         Ok(TlsConnector {
             connector: self.connector.build(),
             use_sni: self.use_sni,
@@ -219,6 +269,8 @@ impl TlsConnector {
             use_sni: true,
             accept_invalid_hostnames: false,
             accept_invalid_certs: false,
+            min_protocol: None,
+            max_protocol: None,
         })
     }
 
@@ -226,7 +278,8 @@ impl TlsConnector {
     where
         S: io::Read + io::Write,
     {
-        let mut ssl = self.connector
+        let mut ssl = self
+            .connector
             .configure()?
             .use_server_name_indication(self.use_sni)
             .verify_hostname(!self.accept_invalid_hostnames);
@@ -239,16 +292,27 @@ impl TlsConnector {
     }
 }
 
-pub struct TlsAcceptorBuilder(SslAcceptorBuilder);
+pub struct TlsAcceptorBuilder {
+    acceptor: SslAcceptorBuilder,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
+}
 
 impl TlsAcceptorBuilder {
-    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        supported_protocols(protocols, &mut self.0);
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.min_protocol = protocol;
         Ok(())
     }
 
-    pub fn build(self) -> Result<TlsAcceptor, Error> {
-        Ok(TlsAcceptor(self.0.build()))
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.max_protocol = protocol;
+        Ok(())
+    }
+
+    pub fn build(mut self) -> Result<TlsAcceptor, Error> {
+        supported_protocols(self.min_protocol, self.max_protocol, &mut self.acceptor)?;
+
+        Ok(TlsAcceptor(self.acceptor.build()))
     }
 }
 
@@ -257,15 +321,20 @@ pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
     pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
-        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-        builder.set_private_key(&identity.0.pkey)?;
-        builder.set_certificate(&identity.0.cert)?;
+        let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
+        acceptor.set_private_key(&identity.0.pkey)?;
+        acceptor.set_certificate(&identity.0.cert)?;
         if let Some(chain) = identity.0.chain {
             for cert in chain {
-                builder.add_extra_chain_cert(cert)?;
+                acceptor.add_extra_chain_cert(cert)?;
             }
         }
-        Ok(TlsAcceptorBuilder(builder))
+
+        Ok(TlsAcceptorBuilder {
+            acceptor,
+            min_protocol: None,
+            max_protocol: None,
+        })
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
@@ -294,7 +363,8 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         match self.0.shutdown() {
             Ok(_) => Ok(()),
             Err(ref e) if e.code() == ssl::ErrorCode::ZERO_RETURN => Ok(()),
-            Err(e) => Err(e.into_io_error()
+            Err(e) => Err(e
+                .into_io_error()
                 .unwrap_or_else(|e| io::Error::new(io::ErrorKind::Other, e))),
         }
     }

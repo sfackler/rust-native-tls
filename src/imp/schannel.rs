@@ -8,17 +8,22 @@ use std::error;
 use std::fmt;
 use std::io;
 
-fn convert_protocols(protocols: &[::Protocol]) -> Vec<Protocol> {
+static PROTOCOLS: &'static [Protocol] = &[
+    Protocol::Ssl3,
+    Protocol::Tls10,
+    Protocol::Tls11,
+    Protocol::Tls12,
+];
+
+fn convert_protocols(min: Option<::Protocol>, max: Option<::Protocol>) -> &'static [Protocol] {
+    let mut protocols = PROTOCOLS;
+    if let Some(p) = max.and_then(|max| protocols.get(..max as usize)) {
+        protocols = p;
+    }
+    if let Some(p) = min.and_then(|min| protocols.get(min as usize..)) {
+        protocols = p;
+    }
     protocols
-        .iter()
-        .map(|p| match *p {
-            ::Protocol::Sslv3 => Protocol::Ssl3,
-            ::Protocol::Tlsv10 => Protocol::Tls10,
-            ::Protocol::Tlsv11 => Protocol::Tls11,
-            ::Protocol::Tlsv12 => Protocol::Tls12,
-            ::Protocol::__NonExhaustive => unreachable!(),
-        })
-        .collect()
 }
 
 pub struct Error(io::Error);
@@ -61,7 +66,8 @@ impl Identity {
         let mut identity = None;
 
         for cert in store.certs() {
-            if cert.private_key()
+            if cert
+                .private_key()
                 .silent(true)
                 .compare_key(true)
                 .acquire()
@@ -186,8 +192,13 @@ impl TlsConnectorBuilder {
         self.0.accept_invalid_certs = accept_invalid_certs;
     }
 
-    pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
-        self.0.protocols = convert_protocols(protocols);
+    pub fn min_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
+        self.0.min_protocol = protocol;
+        Ok(())
+    }
+
+    pub fn max_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
+        self.0.max_protocol = protocol;
         Ok(())
     }
 
@@ -200,7 +211,8 @@ impl TlsConnectorBuilder {
 pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,
-    protocols: Vec<Protocol>,
+    min_protocol: Option<::Protocol>,
+    max_protocol: Option<::Protocol>,
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
@@ -211,7 +223,8 @@ impl TlsConnector {
         Ok(TlsConnectorBuilder(TlsConnector {
             cert: None,
             roots: Memory::new()?.into_store(),
-            protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
+            min_protocol: None,
+            max_protocol: None,
             use_sni: true,
             accept_invalid_hostnames: false,
             accept_invalid_certs: false,
@@ -223,7 +236,7 @@ impl TlsConnector {
         S: io::Read + io::Write,
     {
         let mut builder = SchannelCred::builder();
-        builder.enabled_protocols(&self.protocols);
+        builder.enabled_protocols(convert_protocols(self.min_protocol, self.max_protocol));
         if let Some(cert) = self.cert.as_ref() {
             builder.cert(cert.clone());
         }
@@ -247,8 +260,13 @@ impl TlsConnector {
 pub struct TlsAcceptorBuilder(TlsAcceptor);
 
 impl TlsAcceptorBuilder {
-    pub fn supported_protocols(&mut self, protocols: &[::Protocol]) -> Result<(), Error> {
-        self.0.protocols = convert_protocols(protocols);
+    pub fn min_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
+        self.0.min_protocol = protocol;
+        Ok(())
+    }
+
+    pub fn max_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
+        self.0.max_protocol = protocol;
         Ok(())
     }
 
@@ -260,14 +278,16 @@ impl TlsAcceptorBuilder {
 #[derive(Clone)]
 pub struct TlsAcceptor {
     cert: CertContext,
-    protocols: Vec<Protocol>,
+    min_protocol: Option<::Protocol>,
+    max_protocol: Option<::Protocol>,
 }
 
 impl TlsAcceptor {
     pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
             cert: identity.cert,
-            protocols: vec![Protocol::Tls10, Protocol::Tls11, Protocol::Tls12],
+            min_protocol: None,
+            max_protocol: None,
         }))
     }
 
@@ -276,7 +296,7 @@ impl TlsAcceptor {
         S: io::Read + io::Write,
     {
         let mut builder = SchannelCred::builder();
-        builder.enabled_protocols(&self.protocols);
+        builder.enabled_protocols(convert_protocols(self.min_protocol, self.max_protocol));
         builder.cert(self.cert.clone());
         // FIXME we're probably missing the certificate chain?
         let cred = builder.acquire(Direction::Inbound)?;

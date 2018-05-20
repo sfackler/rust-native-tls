@@ -252,7 +252,7 @@ impl TlsAcceptor {
         let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
         acceptor.set_private_key(&(builder.identity.0).0.pkey)?;
         acceptor.set_certificate(&(builder.identity.0).0.cert)?;
-        if let Some(ref chain) = &(builder.identity.0).0.chain {
+        if let Some(ref chain) = (builder.identity.0).0.chain {
             for cert in chain {
                 acceptor.add_extra_chain_cert(cert.to_owned())?;
             }

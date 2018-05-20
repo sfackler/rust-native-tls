@@ -3,15 +3,15 @@ extern crate openssl;
 use self::openssl::error::ErrorStack;
 use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
 use self::openssl::ssl::{
-    self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector, SslContextBuilder,
-    SslMethod, SslVerifyMode,
+    self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
+    SslVerifyMode,
 };
 use self::openssl::x509::X509;
 use std::error;
 use std::fmt;
 use std::io;
 
-use {Protocol, TlsConnectorBuilder};
+use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -244,49 +244,22 @@ impl TlsConnector {
     }
 }
 
-pub struct TlsAcceptorBuilder {
-    acceptor: SslAcceptorBuilder,
-    min_protocol: Option<Protocol>,
-    max_protocol: Option<Protocol>,
-}
-
-impl TlsAcceptorBuilder {
-    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.min_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.max_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn build(mut self) -> Result<TlsAcceptor, Error> {
-        supported_protocols(self.min_protocol, self.max_protocol, &mut self.acceptor)?;
-
-        Ok(TlsAcceptor(self.acceptor.build()))
-    }
-}
-
 #[derive(Clone)]
 pub struct TlsAcceptor(SslAcceptor);
 
 impl TlsAcceptor {
-    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
+    pub fn new(builder: &TlsAcceptorBuilder) -> Result<TlsAcceptor, Error> {
         let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-        acceptor.set_private_key(&identity.0.pkey)?;
-        acceptor.set_certificate(&identity.0.cert)?;
-        if let Some(chain) = identity.0.chain {
+        acceptor.set_private_key(&(builder.identity.0).0.pkey)?;
+        acceptor.set_certificate(&(builder.identity.0).0.cert)?;
+        if let Some(ref chain) = &(builder.identity.0).0.chain {
             for cert in chain {
-                acceptor.add_extra_chain_cert(cert)?;
+                acceptor.add_extra_chain_cert(cert.to_owned())?;
             }
         }
+        supported_protocols(builder.min_protocol, builder.max_protocol, &mut acceptor)?;
 
-        Ok(TlsAcceptorBuilder {
-            acceptor,
-            min_protocol: None,
-            max_protocol: None,
-        })
+        Ok(TlsAcceptor(acceptor.build()))
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

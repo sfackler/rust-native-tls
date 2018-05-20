@@ -13,7 +13,7 @@ fn main() {
     file.read_to_end(&mut pkcs12).unwrap();
     let pkcs12 = Identity::from_pkcs12(&pkcs12, "hunter2").unwrap();
 
-    let acceptor = TlsAcceptor::builder(pkcs12).unwrap().build().unwrap();
+    let acceptor = TlsAcceptor::new(pkcs12).unwrap();
     let acceptor = Arc::new(acceptor);
 
     let listener = TcpListener::bind("0.0.0.0:8443").unwrap();

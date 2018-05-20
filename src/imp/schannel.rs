@@ -8,7 +8,7 @@ use std::error;
 use std::fmt;
 use std::io;
 
-use TlsConnectorBuilder;
+use {TlsAcceptorBuilder, TlsConnectorBuilder};
 
 static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Ssl3,
@@ -225,24 +225,6 @@ impl TlsConnector {
     }
 }
 
-pub struct TlsAcceptorBuilder(TlsAcceptor);
-
-impl TlsAcceptorBuilder {
-    pub fn min_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
-        self.0.min_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn max_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
-        self.0.max_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn build(self) -> Result<TlsAcceptor, Error> {
-        Ok(self.0)
-    }
-}
-
 #[derive(Clone)]
 pub struct TlsAcceptor {
     cert: CertContext,
@@ -251,12 +233,12 @@ pub struct TlsAcceptor {
 }
 
 impl TlsAcceptor {
-    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
-        Ok(TlsAcceptorBuilder(TlsAcceptor {
-            cert: identity.cert,
-            min_protocol: None,
-            max_protocol: None,
-        }))
+    pub fn new(builder: &TlsAcceptorBuilder) -> Result<TlsAcceptor, Error> {
+        Ok(TlsAcceptor {
+            cert: builder.identity.0.cert.clone(),
+            min_protocol: builder.min_protocol,
+            max_protocol: builder.max_protocol,
+        })
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

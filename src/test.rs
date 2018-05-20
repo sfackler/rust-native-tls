@@ -53,8 +53,7 @@ mod tests {
     fn server() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(identity));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::new(identity));
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();
@@ -92,8 +91,7 @@ mod tests {
     fn server_pem() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(identity));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::new(identity));
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();
@@ -130,10 +128,10 @@ mod tests {
     fn server_tls11_only() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let mut builder = p!(TlsAcceptor::builder(identity));
-        p!(builder.min_protocol_version(Some(Protocol::Tlsv11)));
-        p!(builder.max_protocol_version(Some(Protocol::Tlsv11)));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::builder(identity)
+            .min_protocol_version(Some(Protocol::Tlsv11))
+            .max_protocol_version(Some(Protocol::Tlsv11))
+            .build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();
@@ -172,9 +170,9 @@ mod tests {
     fn server_no_shared_protocol() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let mut builder = p!(TlsAcceptor::builder(identity));
-        p!(builder.min_protocol_version(Some(Protocol::Tlsv12)));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::builder(identity)
+            .min_protocol_version(Some(Protocol::Tlsv12))
+            .build());
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();
@@ -201,8 +199,7 @@ mod tests {
     fn server_untrusted() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(identity));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::new(identity));
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();
@@ -225,8 +222,7 @@ mod tests {
     fn server_untrusted_unverified() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(identity));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::new(identity));
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();
@@ -267,8 +263,7 @@ mod tests {
     fn shutdown() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
-        let builder = p!(TlsAcceptor::builder(identity));
-        let builder = p!(builder.build());
+        let builder = p!(TlsAcceptor::new(identity));
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
         let port = p!(listener.local_addr()).port();

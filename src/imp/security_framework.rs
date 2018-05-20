@@ -25,7 +25,7 @@ use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecK
 #[cfg(not(target_os = "ios"))]
 use self::security_framework_sys::base::errSecParam;
 
-use {Protocol, TlsConnectorBuilder};
+use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 static SET_AT_EXIT: Once = ONCE_INIT;
 
@@ -302,24 +302,6 @@ impl TlsConnector {
     }
 }
 
-pub struct TlsAcceptorBuilder(TlsAcceptor);
-
-impl TlsAcceptorBuilder {
-    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.0.min_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.0.max_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn build(self) -> Result<TlsAcceptor, Error> {
-        Ok(self.0)
-    }
-}
-
 #[derive(Clone)]
 pub struct TlsAcceptor {
     identity: Identity,
@@ -328,12 +310,12 @@ pub struct TlsAcceptor {
 }
 
 impl TlsAcceptor {
-    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
-        Ok(TlsAcceptorBuilder(TlsAcceptor {
-            identity,
-            min_protocol: None,
-            max_protocol: None,
-        }))
+    pub fn new(builder: &TlsAcceptorBuilder) -> Result<TlsAcceptor, Error> {
+        Ok(TlsAcceptor {
+            identity: builder.identity.0.clone(),
+            min_protocol: builder.min_protocol,
+            max_protocol: builder.max_protocol,
+        })
     }
 
     pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

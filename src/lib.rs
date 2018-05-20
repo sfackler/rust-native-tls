@@ -82,7 +82,7 @@
 //! let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 //!
 //! let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-//! let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
+//! let acceptor = TlsAcceptor::new(identity).unwrap();
 //! let acceptor = Arc::new(acceptor);
 //!
 //! fn handle_client(stream: TlsStream<TcpStream>) {
@@ -407,7 +407,7 @@ impl TlsConnectorBuilder {
         self
     }
 
-    /// Consumes the builder, returning a `TlsConnector`.
+    /// Creates a new `TlsConnector`.
     pub fn build(&self) -> Result<TlsConnector> {
         let connector = imp::TlsConnector::new(self)?;
         Ok(TlsConnector(connector))
@@ -481,30 +481,28 @@ impl TlsConnector {
 }
 
 /// A builder for `TlsAcceptor`s.
-pub struct TlsAcceptorBuilder(imp::TlsAcceptorBuilder);
+pub struct TlsAcceptorBuilder {
+    identity: Identity,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
+}
 
 impl TlsAcceptorBuilder {
     /// Sets the minimum supported protocol version.
-    pub fn min_protocol_version(
-        &mut self,
-        protocol: Option<Protocol>,
-    ) -> Result<&mut TlsAcceptorBuilder> {
-        self.0.min_protocol_version(protocol)?;
-        Ok(self)
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
+        self.min_protocol = protocol;
+        self
     }
 
     /// Sets the minimum supported protocol version.
-    pub fn max_protocol_version(
-        &mut self,
-        protocol: Option<Protocol>,
-    ) -> Result<&mut TlsAcceptorBuilder> {
-        self.0.max_protocol_version(protocol)?;
-        Ok(self)
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
+        self.max_protocol = protocol;
+        self
     }
 
-    /// Consumes the builder, returning a `TlsAcceptor`.
-    pub fn build(self) -> Result<TlsAcceptor> {
-        let acceptor = self.0.build()?;
+    /// Creates a new `TlsAcceptor`.
+    pub fn build(&self) -> Result<TlsAcceptor> {
+        let acceptor = imp::TlsAcceptor::new(self)?;
         Ok(TlsAcceptor(acceptor))
     }
 }
@@ -527,7 +525,7 @@ impl TlsAcceptorBuilder {
 /// let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 ///
 /// let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-/// let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
+/// let acceptor = TlsAcceptor::new(identity).unwrap();
 /// let acceptor = Arc::new(acceptor);
 ///
 /// fn handle_client(stream: TlsStream<TcpStream>) {
@@ -551,14 +549,22 @@ impl TlsAcceptorBuilder {
 pub struct TlsAcceptor(imp::TlsAcceptor);
 
 impl TlsAcceptor {
+    /// Creates a `TlsAcceptor` with default settings.
+    pub fn new(identity: Identity) -> Result<TlsAcceptor> {
+        TlsAcceptor::builder(identity).build()
+    }
+
     /// Returns a new builder for a `TlsAcceptor`.
     ///
     /// This builder is created with a key/certificate pair in the `pkcs12`
     /// archived passed in. The returned builder will use that key/certificate
     /// to send to clients which it connects to.
-    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder> {
-        let builder = imp::TlsAcceptor::builder(identity.0)?;
-        Ok(TlsAcceptorBuilder(builder))
+    pub fn builder(identity: Identity) -> TlsAcceptorBuilder {
+        TlsAcceptorBuilder {
+            identity,
+            min_protocol: Some(Protocol::Tlsv10),
+            max_protocol: None,
+        }
     }
 
     /// Initiates a TLS handshake.

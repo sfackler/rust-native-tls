@@ -21,6 +21,7 @@ schannel = "0.1.12"
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 openssl = "0.10.6"
 openssl-sys = "0.9.30"
+openssl-probe = "0.1"
 
 [patch.crates-io]
 openssl = { git = "https://github.com/sfackler/rust-openssl" }

@@ -1,4 +1,5 @@
 extern crate openssl;
+extern crate openssl_probe;
 
 use self::openssl::error::ErrorStack;
 use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
@@ -10,6 +11,7 @@ use self::openssl::x509::X509;
 use std::error;
 use std::fmt;
 use std::io;
+use std::sync::{Once, ONCE_INIT};
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
@@ -74,6 +76,11 @@ fn supported_protocols(
     ctx.set_options(options);
 
     Ok(())
+}
+
+fn init_trust() {
+    static ONCE: Once = ONCE_INIT;
+    ONCE.call_once(|| openssl_probe::init_ssl_cert_env_vars());
 }
 
 pub struct Error(ssl::Error);
@@ -202,6 +209,8 @@ pub struct TlsConnector {
 
 impl TlsConnector {
     pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
+        init_trust();
+
         let mut connector = SslConnector::builder(SslMethod::tls())?;
         if let Some(ref identity) = builder.identity {
             connector.set_certificate(&(identity.0).0.cert)?;

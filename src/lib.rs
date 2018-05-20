@@ -55,7 +55,7 @@
 //! use std::io::{Read, Write};
 //! use std::net::TcpStream;
 //!
-//! let connector = TlsConnector::builder().unwrap().build().unwrap();
+//! let connector = TlsConnector::new().unwrap();
 //!
 //! let stream = TcpStream::connect("google.com:443").unwrap();
 //! let mut stream = connector.connect("google.com", stream).unwrap();
@@ -82,7 +82,7 @@
 //! let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 //!
 //! let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-//! let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
+//! let acceptor = TlsAcceptor::new(identity).unwrap();
 //! let acceptor = Arc::new(acceptor);
 //!
 //! fn handle_client(stream: TlsStream<TcpStream>) {
@@ -327,40 +327,46 @@ pub enum Protocol {
 }
 
 /// A builder for `TlsConnector`s.
-pub struct TlsConnectorBuilder(imp::TlsConnectorBuilder);
+pub struct TlsConnectorBuilder {
+    identity: Option<Identity>,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
+    root_certificates: Vec<Certificate>,
+    accept_invalid_certs: bool,
+    accept_invalid_hostnames: bool,
+    use_sni: bool,
+}
 
 impl TlsConnectorBuilder {
     /// Sets the identity to be used for client certificate authentication.
-    pub fn identity(&mut self, identity: Identity) -> Result<&mut TlsConnectorBuilder> {
-        self.0.identity(identity.0)?;
-        Ok(self)
+    pub fn identity(&mut self, identity: Identity) -> &mut TlsConnectorBuilder {
+        self.identity = Some(identity);
+        self
     }
 
     /// Sets the minimum supported protocol version.
-    pub fn min_protocol_version(
-        &mut self,
-        protocol: Option<Protocol>,
-    ) -> Result<&mut TlsConnectorBuilder> {
-        self.0.min_protocol_version(protocol)?;
-        Ok(self)
+    ///
+    /// A value of `None` enables support for the oldest protocols supported by the implementation.
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsConnectorBuilder {
+        self.min_protocol = protocol;
+        self
     }
 
     /// Sets the minimum supported protocol version.
-    pub fn max_protocol_version(
-        &mut self,
-        protocol: Option<Protocol>,
-    ) -> Result<&mut TlsConnectorBuilder> {
-        self.0.max_protocol_version(protocol)?;
-        Ok(self)
+    ///
+    /// A value of `None` enables support for the newest protocols supported by the implementation.
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsConnectorBuilder {
+        self.max_protocol = protocol;
+        self
     }
 
     /// Adds a certificate to the set of roots that the connector will trust.
     ///
     /// The connector will use the system's trust root by default. This method can be used to add
     /// to that set when communicating with servers not trusted by the system.
-    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<&mut TlsConnectorBuilder> {
-        self.0.add_root_certificate(cert.0)?;
-        Ok(self)
+    pub fn add_root_certificate(&mut self, cert: Certificate) -> &mut TlsConnectorBuilder {
+        self.root_certificates.push(cert);
+        self
     }
 
     /// Completely disables any certificate validation.
@@ -371,13 +377,18 @@ impl TlsConnectorBuilder {
     /// certificates are trusted, *any* certificate for *any* site will be
     /// trusted for use. This includes expired certificates. This introduces
     /// significant vulnerabilities, and should only be used as a last resort.
-    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
-        self.0.danger_accept_invalid_certs(accept_invalid_certs);
+    pub fn danger_accept_invalid_certs(
+        &mut self,
+        accept_invalid_certs: bool,
+    ) -> &mut TlsConnectorBuilder {
+        self.accept_invalid_certs = accept_invalid_certs;
+        self
     }
 
-    /// Disables the use of Server Name Indication (SNI).
-    pub fn use_sni(&mut self, use_sni: bool) {
-        self.0.use_sni(use_sni);
+    /// Enables the use of Server Name Indication (SNI).
+    pub fn use_sni(&mut self, use_sni: bool) -> &mut TlsConnectorBuilder {
+        self.use_sni = use_sni;
+        self
     }
 
     /// Disables hostname checks during certificate validation.
@@ -388,14 +399,17 @@ impl TlsConnectorBuilder {
     /// hostnames are trusted, *any* valid certificate for *any* will be trusted
     /// for use. This introduces significant vulnerabilities, and should only be
     /// used as a last resort.
-    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
-        self.0
-            .danger_accept_invalid_hostnames(accept_invalid_hostnames);
+    pub fn danger_accept_invalid_hostnames(
+        &mut self,
+        accept_invalid_hostnames: bool,
+    ) -> &mut TlsConnectorBuilder {
+        self.accept_invalid_hostnames = accept_invalid_hostnames;
+        self
     }
 
-    /// Consumes the builder, returning a `TlsConnector`.
-    pub fn build(self) -> Result<TlsConnector> {
-        let connector = self.0.build()?;
+    /// Creates a new `TlsConnector`.
+    pub fn build(&self) -> Result<TlsConnector> {
+        let connector = imp::TlsConnector::new(self)?;
         Ok(TlsConnector(connector))
     }
 }
@@ -409,7 +423,7 @@ impl TlsConnectorBuilder {
 /// use std::io::{Read, Write};
 /// use std::net::TcpStream;
 ///
-/// let connector = TlsConnector::builder().unwrap().build().unwrap();
+/// let connector = TlsConnector::new().unwrap();
 ///
 /// let stream = TcpStream::connect("google.com:443").unwrap();
 /// let mut stream = connector.connect("google.com", stream).unwrap();
@@ -423,10 +437,22 @@ impl TlsConnectorBuilder {
 pub struct TlsConnector(imp::TlsConnector);
 
 impl TlsConnector {
+    /// Returns a new builder with default settings.
+    pub fn new() -> Result<TlsConnector> {
+        TlsConnector::builder().build()
+    }
+
     /// Returns a new builder for a `TlsConnector`.
-    pub fn builder() -> Result<TlsConnectorBuilder> {
-        let builder = imp::TlsConnector::builder()?;
-        Ok(TlsConnectorBuilder(builder))
+    pub fn builder() -> TlsConnectorBuilder {
+        TlsConnectorBuilder {
+            identity: None,
+            min_protocol: Some(Protocol::Tlsv10),
+            max_protocol: None,
+            root_certificates: vec![],
+            use_sni: true,
+            accept_invalid_certs: false,
+            accept_invalid_hostnames: false,
+        }
     }
 
     /// Initiates a TLS handshake.
@@ -455,30 +481,28 @@ impl TlsConnector {
 }
 
 /// A builder for `TlsAcceptor`s.
-pub struct TlsAcceptorBuilder(imp::TlsAcceptorBuilder);
+pub struct TlsAcceptorBuilder {
+    identity: Identity,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
+}
 
 impl TlsAcceptorBuilder {
     /// Sets the minimum supported protocol version.
-    pub fn min_protocol_version(
-        &mut self,
-        protocol: Option<Protocol>,
-    ) -> Result<&mut TlsAcceptorBuilder> {
-        self.0.min_protocol_version(protocol)?;
-        Ok(self)
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
+        self.min_protocol = protocol;
+        self
     }
 
     /// Sets the minimum supported protocol version.
-    pub fn max_protocol_version(
-        &mut self,
-        protocol: Option<Protocol>,
-    ) -> Result<&mut TlsAcceptorBuilder> {
-        self.0.max_protocol_version(protocol)?;
-        Ok(self)
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
+        self.max_protocol = protocol;
+        self
     }
 
-    /// Consumes the builder, returning a `TlsAcceptor`.
-    pub fn build(self) -> Result<TlsAcceptor> {
-        let acceptor = self.0.build()?;
+    /// Creates a new `TlsAcceptor`.
+    pub fn build(&self) -> Result<TlsAcceptor> {
+        let acceptor = imp::TlsAcceptor::new(self)?;
         Ok(TlsAcceptor(acceptor))
     }
 }
@@ -501,7 +525,7 @@ impl TlsAcceptorBuilder {
 /// let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 ///
 /// let listener = TcpListener::bind("0.0.0.0:8443").unwrap();
-/// let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
+/// let acceptor = TlsAcceptor::new(identity).unwrap();
 /// let acceptor = Arc::new(acceptor);
 ///
 /// fn handle_client(stream: TlsStream<TcpStream>) {
@@ -525,14 +549,22 @@ impl TlsAcceptorBuilder {
 pub struct TlsAcceptor(imp::TlsAcceptor);
 
 impl TlsAcceptor {
+    /// Creates a `TlsAcceptor` with default settings.
+    pub fn new(identity: Identity) -> Result<TlsAcceptor> {
+        TlsAcceptor::builder(identity).build()
+    }
+
     /// Returns a new builder for a `TlsAcceptor`.
     ///
     /// This builder is created with a key/certificate pair in the `pkcs12`
     /// archived passed in. The returned builder will use that key/certificate
     /// to send to clients which it connects to.
-    pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder> {
-        let builder = imp::TlsAcceptor::builder(identity.0)?;
-        Ok(TlsAcceptorBuilder(builder))
+    pub fn builder(identity: Identity) -> TlsAcceptorBuilder {
+        TlsAcceptorBuilder {
+            identity,
+            min_protocol: Some(Protocol::Tlsv10),
+            max_protocol: None,
+        }
     }
 
     /// Initiates a TLS handshake.

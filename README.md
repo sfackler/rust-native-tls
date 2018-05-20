@@ -34,7 +34,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 fn main() {
-    let connector = TlsConnector::builder().unwrap().build().unwrap();
+    let connector = TlsConnector::new().unwrap();
 
     let stream = TcpStream::connect("google.com:443").unwrap();
     let mut stream = connector.connect("google.com", stream).unwrap();
@@ -64,7 +64,7 @@ fn main() {
     file.read_to_end(&mut identity).unwrap();
     let identity = Identity::from_pkcs12(&identity, "hunter2").unwrap();
 
-    let acceptor = TlsAcceptor::builder(identity).unwrap().build().unwrap();
+    let acceptor = TlsAcceptor::new(identity).unwrap();
     let acceptor = Arc::new(acceptor);
 
     let listener = TcpListener::bind("0.0.0.0:8443").unwrap();

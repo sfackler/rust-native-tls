@@ -8,6 +8,8 @@ use std::error;
 use std::fmt;
 use std::io;
 
+use TlsConnectorBuilder;
+
 static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Ssl3,
     Protocol::Tls10,
@@ -167,46 +169,6 @@ impl<S> From<io::Error> for HandshakeError<S> {
     }
 }
 
-pub struct TlsConnectorBuilder(TlsConnector);
-
-impl TlsConnectorBuilder {
-    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
-        self.0.cert = Some(identity.cert);
-        Ok(())
-    }
-
-    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        self.0.roots.add_cert(&cert.0, CertAdd::ReplaceExisting)?;
-        Ok(())
-    }
-
-    pub fn use_sni(&mut self, use_sni: bool) {
-        self.0.use_sni = use_sni;
-    }
-
-    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
-        self.0.accept_invalid_hostnames = accept_invalid_hostnames;
-    }
-
-    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
-        self.0.accept_invalid_certs = accept_invalid_certs;
-    }
-
-    pub fn min_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
-        self.0.min_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn max_protocol_version(&mut self, protocol: Option<::Protocol>) -> Result<(), Error> {
-        self.0.max_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn build(self) -> Result<TlsConnector, Error> {
-        Ok(self.0)
-    }
-}
-
 #[derive(Clone)]
 pub struct TlsConnector {
     cert: Option<CertContext>,
@@ -219,16 +181,22 @@ pub struct TlsConnector {
 }
 
 impl TlsConnector {
-    pub fn builder() -> Result<TlsConnectorBuilder, Error> {
-        Ok(TlsConnectorBuilder(TlsConnector {
-            cert: None,
-            roots: Memory::new()?.into_store(),
-            min_protocol: None,
-            max_protocol: None,
-            use_sni: true,
-            accept_invalid_hostnames: false,
-            accept_invalid_certs: false,
-        }))
+    pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
+        let cert = builder.identity.as_ref().map(|i| i.0.cert.clone());
+        let mut roots = Memory::new()?.into_store();
+        for cert in &builder.root_certificates {
+            roots.add_cert(&(cert.0).0, CertAdd::ReplaceExisting)?;
+        }
+
+        Ok(TlsConnector {
+            cert,
+            roots,
+            min_protocol: builder.min_protocol,
+            max_protocol: builder.max_protocol,
+            use_sni: builder.use_sni,
+            accept_invalid_hostnames: builder.accept_invalid_hostnames,
+            accept_invalid_certs: builder.accept_invalid_certs,
+        })
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

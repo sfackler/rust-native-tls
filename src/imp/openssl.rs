@@ -3,15 +3,15 @@ extern crate openssl;
 use self::openssl::error::ErrorStack;
 use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
 use self::openssl::ssl::{
-    self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector,
-    SslConnectorBuilder, SslContextBuilder, SslMethod, SslVerifyMode,
+    self, MidHandshakeSslStream, SslAcceptor, SslAcceptorBuilder, SslConnector, SslContextBuilder,
+    SslMethod, SslVerifyMode,
 };
 use self::openssl::x509::X509;
 use std::error;
 use std::fmt;
 use std::io;
 
-use Protocol;
+use {Protocol, TlsConnectorBuilder};
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -192,68 +192,6 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
     }
 }
 
-pub struct TlsConnectorBuilder {
-    connector: SslConnectorBuilder,
-    use_sni: bool,
-    accept_invalid_hostnames: bool,
-    accept_invalid_certs: bool,
-    min_protocol: Option<Protocol>,
-    max_protocol: Option<Protocol>,
-}
-
-impl TlsConnectorBuilder {
-    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
-        // FIXME clear chain certs to clean up if called multiple times
-        self.connector.set_certificate(&identity.0.cert)?;
-        self.connector.set_private_key(&identity.0.pkey)?;
-        self.connector.check_private_key()?;
-        if let Some(chain) = identity.0.chain {
-            for cert in chain {
-                self.connector.add_extra_chain_cert(cert)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        self.connector.cert_store_mut().add_cert(cert.0)?;
-        Ok(())
-    }
-
-    pub fn use_sni(&mut self, use_sni: bool) {
-        self.use_sni = use_sni;
-    }
-
-    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
-        self.accept_invalid_hostnames = accept_invalid_hostnames;
-    }
-
-    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
-        self.accept_invalid_certs = accept_invalid_certs;
-    }
-
-    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.min_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.max_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn build(mut self) -> Result<TlsConnector, Error> {
-        supported_protocols(self.min_protocol, self.max_protocol, &mut self.connector)?;
-
-        Ok(TlsConnector {
-            connector: self.connector.build(),
-            use_sni: self.use_sni,
-            accept_invalid_hostnames: self.accept_invalid_hostnames,
-            accept_invalid_certs: self.accept_invalid_certs,
-        })
-    }
-}
-
 #[derive(Clone)]
 pub struct TlsConnector {
     connector: SslConnector,
@@ -263,14 +201,28 @@ pub struct TlsConnector {
 }
 
 impl TlsConnector {
-    pub fn builder() -> Result<TlsConnectorBuilder, Error> {
-        Ok(TlsConnectorBuilder {
-            connector: SslConnector::builder(SslMethod::tls())?,
-            use_sni: true,
-            accept_invalid_hostnames: false,
-            accept_invalid_certs: false,
-            min_protocol: None,
-            max_protocol: None,
+    pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
+        let mut connector = SslConnector::builder(SslMethod::tls())?;
+        if let Some(ref identity) = builder.identity {
+            connector.set_certificate(&(identity.0).0.cert)?;
+            connector.set_private_key(&(identity.0).0.pkey)?;
+            if let Some(ref chain) = (identity.0).0.chain {
+                for cert in chain {
+                    connector.add_extra_chain_cert(cert.to_owned())?;
+                }
+            }
+        }
+        supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
+
+        for cert in &builder.root_certificates {
+            connector.cert_store_mut().add_cert((cert.0).0.clone())?;
+        }
+
+        Ok(TlsConnector {
+            connector: connector.build(),
+            use_sni: builder.use_sni,
+            accept_invalid_hostnames: builder.accept_invalid_hostnames,
+            accept_invalid_certs: builder.accept_invalid_certs,
         })
     }
 

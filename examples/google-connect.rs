@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 fn main() {
-    let connector = TlsConnector::builder().unwrap().build().unwrap();
+    let connector = TlsConnector::new().unwrap();
 
     let stream = TcpStream::connect("google.com:443").unwrap();
     let mut stream = connector.connect("google.com", stream).unwrap();

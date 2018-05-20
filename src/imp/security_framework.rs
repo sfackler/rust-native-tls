@@ -25,7 +25,7 @@ use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecK
 #[cfg(not(target_os = "ios"))]
 use self::security_framework_sys::base::errSecParam;
 
-use Protocol;
+use {Protocol, TlsConnectorBuilder};
 
 static SET_AT_EXIT: Once = ONCE_INIT;
 
@@ -248,46 +248,6 @@ where
     }
 }
 
-pub struct TlsConnectorBuilder(TlsConnector);
-
-impl TlsConnectorBuilder {
-    pub fn identity(&mut self, identity: Identity) -> Result<(), Error> {
-        self.0.identity = Some(identity);
-        Ok(())
-    }
-
-    pub fn add_root_certificate(&mut self, cert: Certificate) -> Result<(), Error> {
-        self.0.roots.push(cert.0);
-        Ok(())
-    }
-
-    pub fn use_sni(&mut self, use_sni: bool) {
-        self.0.use_sni = use_sni;
-    }
-
-    pub fn danger_accept_invalid_hostnames(&mut self, accept_invalid_hostnames: bool) {
-        self.0.danger_accept_invalid_hostnames = accept_invalid_hostnames;
-    }
-
-    pub fn danger_accept_invalid_certs(&mut self, accept_invalid_certs: bool) {
-        self.0.danger_accept_invalid_certs = accept_invalid_certs;
-    }
-
-    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.0.min_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
-        self.0.max_protocol = protocol;
-        Ok(())
-    }
-
-    pub fn build(self) -> Result<TlsConnector, Error> {
-        Ok(self.0)
-    }
-}
-
 #[derive(Clone)]
 pub struct TlsConnector {
     identity: Option<Identity>,
@@ -300,16 +260,20 @@ pub struct TlsConnector {
 }
 
 impl TlsConnector {
-    pub fn builder() -> Result<TlsConnectorBuilder, Error> {
-        Ok(TlsConnectorBuilder(TlsConnector {
-            identity: None,
-            min_protocol: None,
-            max_protocol: None,
-            roots: vec![],
-            use_sni: true,
-            danger_accept_invalid_hostnames: false,
-            danger_accept_invalid_certs: false,
-        }))
+    pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
+        Ok(TlsConnector {
+            identity: builder.identity.as_ref().map(|i| i.0.clone()),
+            min_protocol: builder.min_protocol,
+            max_protocol: builder.max_protocol,
+            roots: builder
+                .root_certificates
+                .iter()
+                .map(|c| (c.0).0.clone())
+                .collect(),
+            use_sni: builder.use_sni,
+            danger_accept_invalid_hostnames: builder.accept_invalid_hostnames,
+            danger_accept_invalid_certs: builder.accept_invalid_certs,
+        })
     }
 
     pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>

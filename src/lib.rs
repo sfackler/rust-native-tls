@@ -336,15 +336,21 @@ impl TlsConnectorBuilder {
         Ok(self)
     }
 
-    /// Sets the protocols which the connector will support.
-    ///
-    /// The protocols supported by default are currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
-    /// is subject to change.
-    pub fn supported_protocols(
+    /// Sets the minimum supported protocol version.
+    pub fn min_protocol_version(
         &mut self,
-        protocols: &[Protocol],
+        protocol: Option<Protocol>,
     ) -> Result<&mut TlsConnectorBuilder> {
-        self.0.supported_protocols(protocols)?;
+        self.0.min_protocol_version(protocol)?;
+        Ok(self)
+    }
+
+    /// Sets the minimum supported protocol version.
+    pub fn max_protocol_version(
+        &mut self,
+        protocol: Option<Protocol>,
+    ) -> Result<&mut TlsConnectorBuilder> {
+        self.0.max_protocol_version(protocol)?;
         Ok(self)
     }
 
@@ -452,15 +458,21 @@ impl TlsConnector {
 pub struct TlsAcceptorBuilder(imp::TlsAcceptorBuilder);
 
 impl TlsAcceptorBuilder {
-    /// Sets the protocols which the acceptor will support.
-    ///
-    /// The protocols supported by default are currently TLS 1.0, TLS 1.1, and TLS 1.2, though this
-    /// is subject to change.
-    pub fn supported_protocols(
+    /// Sets the minimum supported protocol version.
+    pub fn min_protocol_version(
         &mut self,
-        protocols: &[Protocol],
+        protocol: Option<Protocol>,
     ) -> Result<&mut TlsAcceptorBuilder> {
-        self.0.supported_protocols(protocols)?;
+        self.0.min_protocol_version(protocol)?;
+        Ok(self)
+    }
+
+    /// Sets the minimum supported protocol version.
+    pub fn max_protocol_version(
+        &mut self,
+        protocol: Option<Protocol>,
+    ) -> Result<&mut TlsAcceptorBuilder> {
+        self.0.max_protocol_version(protocol)?;
         Ok(self)
     }
 

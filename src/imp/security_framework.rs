@@ -44,20 +44,6 @@ fn convert_protocol(protocol: Protocol) -> SslProtocol {
     }
 }
 
-fn protocol_min_max(protocols: &[Protocol]) -> (SslProtocol, SslProtocol) {
-    let mut min = Protocol::Tlsv12;
-    let mut max = Protocol::Sslv3;
-    for protocol in protocols {
-        if (*protocol as usize) < (min as usize) {
-            min = *protocol;
-        }
-        if (*protocol as usize) > (max as usize) {
-            max = *protocol;
-        }
-    }
-    (convert_protocol(min), convert_protocol(max))
-}
-
 pub struct Error(base::Error);
 
 impl error::Error for Error {
@@ -287,8 +273,13 @@ impl TlsConnectorBuilder {
         self.0.danger_accept_invalid_certs = accept_invalid_certs;
     }
 
-    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        self.0.protocols = protocols.to_vec();
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.0.min_protocol = protocol;
+        Ok(())
+    }
+
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.0.max_protocol = protocol;
         Ok(())
     }
 
@@ -300,7 +291,8 @@ impl TlsConnectorBuilder {
 #[derive(Clone)]
 pub struct TlsConnector {
     identity: Option<Identity>,
-    protocols: Vec<Protocol>,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
     roots: Vec<SecCertificate>,
     use_sni: bool,
     danger_accept_invalid_hostnames: bool,
@@ -311,7 +303,8 @@ impl TlsConnector {
     pub fn builder() -> Result<TlsConnectorBuilder, Error> {
         Ok(TlsConnectorBuilder(TlsConnector {
             identity: None,
-            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+            min_protocol: None,
+            max_protocol: None,
             roots: vec![],
             use_sni: true,
             danger_accept_invalid_hostnames: false,
@@ -324,9 +317,12 @@ impl TlsConnector {
         S: io::Read + io::Write,
     {
         let mut builder = ClientBuilder::new();
-        let (min, max) = protocol_min_max(&self.protocols);
-        builder.protocol_min(min);
-        builder.protocol_max(max);
+        if let Some(min) = self.min_protocol {
+            builder.protocol_min(convert_protocol(min));
+        }
+        if let Some(max) = self.max_protocol {
+            builder.protocol_max(convert_protocol(max));
+        }
         if let Some(identity) = self.identity.as_ref() {
             builder.identity(&identity.identity, &identity.chain);
         }
@@ -345,8 +341,13 @@ impl TlsConnector {
 pub struct TlsAcceptorBuilder(TlsAcceptor);
 
 impl TlsAcceptorBuilder {
-    pub fn supported_protocols(&mut self, protocols: &[Protocol]) -> Result<(), Error> {
-        self.0.protocols = protocols.to_vec();
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.0.min_protocol = protocol;
+        Ok(())
+    }
+
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> Result<(), Error> {
+        self.0.max_protocol = protocol;
         Ok(())
     }
 
@@ -358,14 +359,16 @@ impl TlsAcceptorBuilder {
 #[derive(Clone)]
 pub struct TlsAcceptor {
     identity: Identity,
-    protocols: Vec<Protocol>,
+    min_protocol: Option<Protocol>,
+    max_protocol: Option<Protocol>,
 }
 
 impl TlsAcceptor {
     pub fn builder(identity: Identity) -> Result<TlsAcceptorBuilder, Error> {
         Ok(TlsAcceptorBuilder(TlsAcceptor {
             identity,
-            protocols: vec![Protocol::Tlsv10, Protocol::Tlsv11, Protocol::Tlsv12],
+            min_protocol: None,
+            max_protocol: None,
         }))
     }
 
@@ -375,9 +378,12 @@ impl TlsAcceptor {
     {
         let mut ctx = SslContext::new(SslProtocolSide::SERVER, SslConnectionType::STREAM)?;
 
-        let (min, max) = protocol_min_max(&self.protocols);
-        ctx.set_protocol_version_min(min)?;
-        ctx.set_protocol_version_max(max)?;
+        if let Some(min) = self.min_protocol {
+            ctx.set_protocol_version_min(convert_protocol(min))?;
+        }
+        if let Some(max) = self.max_protocol {
+            ctx.set_protocol_version_max(convert_protocol(max))?;
+        }
         ctx.set_certificate(&self.identity.identity, &self.identity.chain)?;
         match ctx.handshake(stream) {
             Ok(s) => Ok(TlsStream(s)),

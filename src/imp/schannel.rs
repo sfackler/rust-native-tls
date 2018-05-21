@@ -7,6 +7,7 @@ use self::schannel::tls_stream;
 use std::error;
 use std::fmt;
 use std::io;
+use std::str;
 
 use {TlsAcceptorBuilder, TlsConnectorBuilder};
 
@@ -102,8 +103,9 @@ impl Certificate {
         let cert = CertContext::new(buf)?;
         Ok(Certificate(cert))
     }
+
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
-        match ::std::str::from_utf8(buf) {
+        match str::from_utf8(buf) {
             Ok(s) => {
                 let cert = CertContext::from_pem(s)?;
                 Ok(Certificate(cert))

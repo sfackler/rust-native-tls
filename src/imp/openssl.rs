@@ -143,6 +143,7 @@ impl Certificate {
         let cert = X509::from_der(buf)?;
         Ok(Certificate(cert))
     }
+
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         let cert = X509::from_pem(buf)?;
         Ok(Certificate(cert))

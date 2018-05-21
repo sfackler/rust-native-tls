@@ -160,6 +160,7 @@ impl Certificate {
             None => Err(Error(base::Error::from(errSecParam))),
         }
     }
+
     #[cfg(target_os = "ios")]
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         panic!("Not implemented on iOS");

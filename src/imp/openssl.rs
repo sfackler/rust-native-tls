@@ -7,7 +7,7 @@ use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::X509;
+use self::openssl::x509::{X509, X509VerifyResult};
 use std::error;
 use std::fmt;
 use std::io;
@@ -89,39 +89,41 @@ fn init_trust() {
     ONCE.call_once(|| openssl_probe::init_ssl_cert_env_vars());
 }
 
-pub struct Error(ssl::Error);
+#[derive(Debug)]
+pub enum Error {
+    Normal(ErrorStack),
+    Ssl(ssl::Error, X509VerifyResult),
+}
 
 impl error::Error for Error {
     fn description(&self) -> &str {
-        error::Error::description(&self.0)
+        match *self {
+            Error::Normal(ref e) => error::Error::description(e),
+            Error::Ssl(ref e, _) => error::Error::description(e),
+        }
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        error::Error::cause(&self.0)
+        match *self {
+            Error::Normal(ref e) => error::Error::cause(e),
+            Error::Ssl(ref e, _) => error::Error::cause(e),
+        }
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, fmt)
-    }
-}
-
-impl fmt::Debug for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, fmt)
-    }
-}
-
-impl From<ssl::Error> for Error {
-    fn from(err: ssl::Error) -> Error {
-        Error(err)
+        match *self {
+            Error::Normal(ref e) => fmt::Display::fmt(e, fmt),
+            Error::Ssl(ref e, X509VerifyResult::OK) => fmt::Display::fmt(e, fmt),
+            Error::Ssl(ref e, v) => write!(fmt, "{} ({})", e, v),
+        }
     }
 }
 
 impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Error {
-        err.into()
+        Error::Normal(err)
     }
 }
 
@@ -192,7 +194,10 @@ impl<S> From<ssl::HandshakeError<S>> for HandshakeError<S> {
     fn from(e: ssl::HandshakeError<S>) -> HandshakeError<S> {
         match e {
             ssl::HandshakeError::SetupFailure(e) => HandshakeError::Failure(e.into()),
-            ssl::HandshakeError::Failure(e) => HandshakeError::Failure(Error(e.into_error())),
+            ssl::HandshakeError::Failure(e) => {
+                let v = e.ssl().verify_result();
+                HandshakeError::Failure(Error::Ssl(e.into_error(), v))
+            }
             ssl::HandshakeError::WouldBlock(s) => {
                 HandshakeError::WouldBlock(MidHandshakeTlsStream(s))
             }

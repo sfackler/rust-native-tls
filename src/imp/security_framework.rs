@@ -158,7 +158,7 @@ impl Certificate {
         if items.certificates.len() == 1 && items.identities.is_empty() && items.keys.is_empty() {
             Ok(Certificate(items.certificates.pop().unwrap()))
         } else {
-            Err(base::Error::from(errSecParam))
+            Err(Error(base::Error::from(errSecParam)))
         }
     }
 

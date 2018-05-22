@@ -155,9 +155,10 @@ impl Certificate {
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         let mut items = SecItems::default();
         ImportOptions::new().items(&mut items).import(buf)?;
-        match items.certificates.pop() {
-            Some(cert) => Ok(Certificate(cert)),
-            None => Err(Error(base::Error::from(errSecParam))),
+        if items.certificates.len() == 1 && items.identities.is_empty() && items.keys.is_empty() {
+            Ok(Certificate(items.certificates.pop().unwrap()))
+        } else {
+            Err(base::Error::from(errSecParam))
         }
     }
 

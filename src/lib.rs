@@ -20,12 +20,6 @@
 //! other TLS frameworks as well, but these initial libraries are likely to
 //! remain as the defaults.
 //!
-//! If you know you're on a particular platform then you can use the
-//! platform-specific extension traits in this crate to configure the underlying
-//! details of that platform. For example OpenSSL may have more options for
-//! configuration than Secure Transport. By default, though, the API of this
-//! crate works across all platforms.
-//!
 //! Note that this crate also strives to be secure-by-default. For example when
 //! using OpenSSL it will configure validation callbacks to ensure that
 //! hostnames match certificates, use strong ciphers, etc. This implies that
@@ -42,9 +36,6 @@
 //! * Secure-by-default for client and server
 //!     * Includes hostname verification for clients
 //! * Supports asynchronous I/O for both the server and the client
-//!
-//! Each implementation may support more features which can be accessed through
-//! the extension traits in the `backend` module.
 //!
 //! # Examples
 //!
@@ -197,9 +188,8 @@ impl Certificate {
         let cert = imp::Certificate::from_der(der)?;
         Ok(Certificate(cert))
     }
+
     /// Parses a PEM-formatted X509 certificate.
-    /// If the PEM file contains more than one certificate the last one is used
-    /// and the others are ignored.
     pub fn from_pem(der: &[u8]) -> Result<Certificate> {
         let cert = imp::Certificate::from_pem(der)?;
         Ok(Certificate(cert))
@@ -432,7 +422,7 @@ impl TlsConnectorBuilder {
 pub struct TlsConnector(imp::TlsConnector);
 
 impl TlsConnector {
-    /// Returns a new builder with default settings.
+    /// Returns a new connector with default settings.
     pub fn new() -> Result<TlsConnector> {
         TlsConnector::builder().build()
     }
@@ -544,16 +534,16 @@ impl TlsAcceptorBuilder {
 pub struct TlsAcceptor(imp::TlsAcceptor);
 
 impl TlsAcceptor {
-    /// Creates a `TlsAcceptor` with default settings.
+    /// Creates a acceptor with default settings.
+    ///
+    /// The identity acts as the server's private key/certificate chain.
     pub fn new(identity: Identity) -> Result<TlsAcceptor> {
         TlsAcceptor::builder(identity).build()
     }
 
     /// Returns a new builder for a `TlsAcceptor`.
     ///
-    /// This builder is created with a key/certificate pair in the `pkcs12`
-    /// archived passed in. The returned builder will use that key/certificate
-    /// to send to clients which it connects to.
+    /// The identity acts as the server's private key/certificate chain.
     pub fn builder(identity: Identity) -> TlsAcceptorBuilder {
         TlsAcceptorBuilder {
             identity,

@@ -63,7 +63,7 @@ fn supported_protocols(
             SslOptions::NO_SSLV2 | SslOptions::NO_SSLV3 | SslOptions::NO_TLSV1
         }
         Some(Protocol::Tlsv12) => {
-            SslOptions::NO_SSL_V2
+            SslOptions::NO_SSLV2
                 | SslOptions::NO_SSLV3
                 | SslOptions::NO_TLSV1
                 | SslOptions::NO_TLSV1_1
@@ -75,8 +75,9 @@ fn supported_protocols(
         Some(Protocol::Tlsv11) => SslOptions::NO_TLSV1_2,
         Some(Protocol::Tlsv10) => SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2,
         Some(Protocol::Sslv3) => {
-            SslOptions::NO_TLSV1_0 | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2
+            SslOptions::NO_TLSV1 | SslOptions::NO_TLSV1_1 | SslOptions::NO_TLSV1_2
         }
+        Some(Protocol::__NonExhaustive) => unreachable!(),
     };
 
     ctx.set_options(options);

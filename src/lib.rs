@@ -332,14 +332,18 @@ impl TlsConnectorBuilder {
     /// Sets the minimum supported protocol version.
     ///
     /// A value of `None` enables support for the oldest protocols supported by the implementation.
+    ///
+    /// Defaults to `Some(Protocol::Tlsv10)`.
     pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsConnectorBuilder {
         self.min_protocol = protocol;
         self
     }
 
-    /// Sets the minimum supported protocol version.
+    /// Sets the maximum supported protocol version.
     ///
     /// A value of `None` enables support for the newest protocols supported by the implementation.
+    ///
+    /// Defaults to `None`.
     pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsConnectorBuilder {
         self.max_protocol = protocol;
         self
@@ -349,12 +353,16 @@ impl TlsConnectorBuilder {
     ///
     /// The connector will use the system's trust root by default. This method can be used to add
     /// to that set when communicating with servers not trusted by the system.
+    ///
+    /// Defaults to an empty set.
     pub fn add_root_certificate(&mut self, cert: Certificate) -> &mut TlsConnectorBuilder {
         self.root_certificates.push(cert);
         self
     }
 
-    /// Completely disables any certificate validation.
+    /// Controls the use of certificate validation.
+    ///
+    /// Defaults to `false`.
     ///
     /// # Warning
     ///
@@ -370,13 +378,17 @@ impl TlsConnectorBuilder {
         self
     }
 
-    /// Enables the use of Server Name Indication (SNI).
+    /// Controls the use of Server Name Indication (SNI).
+    ///
+    /// Defaults to `true`.
     pub fn use_sni(&mut self, use_sni: bool) -> &mut TlsConnectorBuilder {
         self.use_sni = use_sni;
         self
     }
 
-    /// Disables hostname checks during certificate validation.
+    /// Controls the use of hostname verification.
+    ///
+    /// Defaults to `false`.
     ///
     /// # Warning
     ///
@@ -474,12 +486,20 @@ pub struct TlsAcceptorBuilder {
 
 impl TlsAcceptorBuilder {
     /// Sets the minimum supported protocol version.
+    ///
+    /// A value of `None` enables support for the oldest protocols supported by the implementation.
+    ///
+    /// Defaults to `Some(Protocol::Tlsv10)`.
     pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
         self.min_protocol = protocol;
         self
     }
 
-    /// Sets the minimum supported protocol version.
+    /// Sets the maximum supported protocol version.
+    ///
+    /// A value of `None` enables support for the newest protocols supported by the implementation.
+    ///
+    /// Defaults to `None`.
     pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
         self.max_protocol = protocol;
         self

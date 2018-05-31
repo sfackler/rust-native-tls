@@ -194,6 +194,12 @@ impl Certificate {
         let cert = imp::Certificate::from_pem(der)?;
         Ok(Certificate(cert))
     }
+
+    /// Returns the DER-encoded representation of this certificate.
+    pub fn to_der(&self) -> Result<Vec<u8>> {
+        let der = self.0.to_der()?;
+        Ok(der)
+    }
 }
 
 /// A TLS stream which has been interrupted midway through the handshake process.
@@ -613,6 +619,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// network calls.
     pub fn buffered_read_size(&self) -> Result<usize> {
         Ok(self.0.buffered_read_size()?)
+    }
+
+    /// Returns the peer's leaf certificate, if available.
+    pub fn peer_certificate(&self) -> Result<Option<Certificate>> {
+        Ok(self.0.peer_certificate()?.map(Certificate))
     }
 
     /// Shuts down the TLS session.

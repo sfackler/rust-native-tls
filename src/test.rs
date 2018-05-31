@@ -125,6 +125,37 @@ mod tests {
     }
 
     #[test]
+    fn peer_certificate() {
+        let buf = include_bytes!("../test/identity.p12");
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::new(identity));
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let socket = p!(builder.accept(socket));
+            assert!(socket.peer_certificate().unwrap().is_none());
+        });
+
+        let root_ca = include_bytes!("../test/root-ca.der");
+        let root_ca = Certificate::from_der(root_ca).unwrap();
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let builder = p!(TlsConnector::builder()
+            .add_root_certificate(root_ca)
+            .build());
+        let socket = p!(builder.connect("foobar.com", socket));
+
+        let cert_der = include_bytes!("../test/cert.der");
+        let cert = socket.peer_certificate().unwrap().unwrap();
+        assert_eq!(cert.to_der().unwrap(), &cert_der[..]);
+
+        p!(j.join());
+    }
+
+    #[test]
     fn server_tls11_only() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));

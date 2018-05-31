@@ -166,6 +166,10 @@ impl Certificate {
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
         panic!("Not implemented on iOS");
     }
+
+    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+        Ok(self.0.to_der())
+    }
 }
 
 pub enum HandshakeError<S> {
@@ -359,6 +363,16 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
         Ok(self.0.context().buffered_read_size()?)
+    }
+
+    pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
+        let trust = match self.0.context().peer_trust2()? {
+            Some(trust) => trust,
+            None => return Ok(None),
+        };
+        trust.evaluate()?;
+
+        Ok(trust.certificate_at_index(0).map(Certificate))
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {

@@ -9,8 +9,8 @@ documentation = "https://docs.rs/native-tls/0.1.4/native_tls"
 readme = "README.md"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = "0.2"
-security-framework-sys = "0.2"
+security-framework = "0.2.1"
+security-framework-sys = "0.2.1"
 lazy_static = "1.0"
 libc = "0.2"
 tempfile = "3.0"
@@ -22,3 +22,6 @@ schannel = "0.1.12"
 openssl = "0.10.8"
 openssl-sys = "0.9.30"
 openssl-probe = "0.1"
+
+[patch.crates-io]
+schannel = { git = "https://github.com/steffengy/schannel-rs" }

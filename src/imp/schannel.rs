@@ -11,6 +11,8 @@ use std::str;
 
 use {TlsAcceptorBuilder, TlsConnectorBuilder};
 
+const SEC_E_NO_CREDENTIALS: u32 = 0x8009030E;
+
 static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Ssl3,
     Protocol::Tls10,
@@ -115,6 +117,10 @@ impl Certificate {
                 "PEM representation contains non-UTF-8 bytes",
             ).into()),
         }
+    }
+
+    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+        Ok(self.0.to_der().to_vec())
     }
 }
 
@@ -268,21 +274,29 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
-    pub fn buffered_read_size(&self) -> Result<usize, Error> {
-        Ok(self.0.get_buf().len())
-    }
-
-    pub fn shutdown(&mut self) -> io::Result<()> {
-        self.0.shutdown()?;
-        Ok(())
-    }
-
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
     }
 
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
+    }
+
+    pub fn buffered_read_size(&self) -> Result<usize, Error> {
+        Ok(self.0.get_buf().len())
+    }
+
+    pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
+        match self.0.peer_certificate() {
+            Ok(cert) => Ok(Some(Certificate(cert))),
+            Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => Ok(None),
+            Err(e) => Err(Error(e)),
+        }
+    }
+
+    pub fn shutdown(&mut self) -> io::Result<()> {
+        self.0.shutdown()?;
+        Ok(())
     }
 }
 

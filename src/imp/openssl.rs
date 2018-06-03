@@ -2,6 +2,8 @@ extern crate openssl;
 extern crate openssl_probe;
 
 use self::openssl::error::ErrorStack;
+use self::openssl::hash::MessageDigest;
+use self::openssl::nid::Nid;
 use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
 use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
@@ -321,6 +323,37 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
         Ok(self.0.ssl().peer_certificate().map(Certificate))
+    }
+
+    pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {
+        let cert = if self.0.ssl().is_server() {
+            self.0.ssl().certificate().map(|x| x.to_owned())
+        } else {
+            self.0.ssl().peer_certificate()
+        };
+
+        let cert = match cert {
+            Some(cert) => cert,
+            None => return Ok(None),
+        };
+
+        let algo_nid = cert.signature_algorithm().object().nid();
+        let signature_algorithms = match algo_nid.signature_algorithms() {
+            Some(algs) => algs,
+            None => return Ok(None),
+        };
+
+        let md = match signature_algorithms.digest {
+            Nid::MD5 | Nid::SHA1 => MessageDigest::sha256(),
+            nid => match MessageDigest::from_nid(nid) {
+                Some(md) => md,
+                None => return Ok(None),
+            },
+        };
+
+        let digest = cert.digest(md)?;
+
+        Ok(Some(digest.to_vec()))
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {

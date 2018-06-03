@@ -19,6 +19,10 @@ use std::sync::Mutex;
 use std::sync::{Once, ONCE_INIT};
 
 #[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::certificate::{PropertyType, SecCertificateExt};
+#[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::certificate_oids::CertificateOid;
+#[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::import_export::{ImportOptions, SecItems};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
@@ -177,17 +181,6 @@ pub enum HandshakeError<S> {
     Failure(Error),
 }
 
-impl<S> From<secure_transport::HandshakeError<S>> for HandshakeError<S> {
-    fn from(e: secure_transport::HandshakeError<S>) -> HandshakeError<S> {
-        match e {
-            secure_transport::HandshakeError::Failure(e) => HandshakeError::Failure(e.into()),
-            secure_transport::HandshakeError::Interrupted(s) => {
-                HandshakeError::WouldBlock(MidHandshakeTlsStream::Server(s))
-            }
-        }
-    }
-}
-
 impl<S> From<secure_transport::ClientHandshakeError<S>> for HandshakeError<S> {
     fn from(e: secure_transport::ClientHandshakeError<S>) -> HandshakeError<S> {
         match e {
@@ -206,7 +199,10 @@ impl<S> From<base::Error> for HandshakeError<S> {
 }
 
 pub enum MidHandshakeTlsStream<S> {
-    Server(secure_transport::MidHandshakeSslStream<S>),
+    Server(
+        secure_transport::MidHandshakeSslStream<S>,
+        Option<SecCertificate>,
+    ),
     Client(secure_transport::MidHandshakeClientBuilder<S>),
 }
 
@@ -216,7 +212,7 @@ where
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            MidHandshakeTlsStream::Server(ref s) => s.fmt(fmt),
+            MidHandshakeTlsStream::Server(ref s, _) => s.fmt(fmt),
             MidHandshakeTlsStream::Client(ref s) => s.fmt(fmt),
         }
     }
@@ -228,26 +224,31 @@ where
 {
     pub fn get_ref(&self) -> &S {
         match *self {
-            MidHandshakeTlsStream::Server(ref s) => s.get_ref(),
+            MidHandshakeTlsStream::Server(ref s, _) => s.get_ref(),
             MidHandshakeTlsStream::Client(ref s) => s.get_ref(),
         }
     }
 
     pub fn get_mut(&mut self) -> &mut S {
         match *self {
-            MidHandshakeTlsStream::Server(ref mut s) => s.get_mut(),
+            MidHandshakeTlsStream::Server(ref mut s, _) => s.get_mut(),
             MidHandshakeTlsStream::Client(ref mut s) => s.get_mut(),
         }
     }
 
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
         match self {
-            MidHandshakeTlsStream::Server(s) => match s.handshake() {
-                Ok(s) => Ok(TlsStream(s)),
-                Err(e) => Err(e.into()),
+            MidHandshakeTlsStream::Server(s, cert) => match s.handshake() {
+                Ok(stream) => Ok(TlsStream { stream, cert }),
+                Err(secure_transport::HandshakeError::Failure(e)) => {
+                    Err(HandshakeError::Failure(Error(e)))
+                }
+                Err(secure_transport::HandshakeError::Interrupted(s)) => Err(
+                    HandshakeError::WouldBlock(MidHandshakeTlsStream::Server(s, cert)),
+                ),
             },
             MidHandshakeTlsStream::Client(s) => match s.handshake() {
-                Ok(s) => Ok(TlsStream(s)),
+                Ok(stream) => Ok(TlsStream { stream, cert: None }),
                 Err(e) => Err(e.into()),
             },
         }
@@ -302,7 +303,7 @@ impl TlsConnector {
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
 
         match builder.handshake(domain, stream) {
-            Ok(s) => Ok(TlsStream(s)),
+            Ok(stream) => Ok(TlsStream { stream, cert: None }),
             Err(e) => Err(e.into()),
         }
     }
@@ -337,36 +338,45 @@ impl TlsAcceptor {
             ctx.set_protocol_version_max(convert_protocol(max))?;
         }
         ctx.set_certificate(&self.identity.identity, &self.identity.chain)?;
+        let cert = Some(self.identity.identity.certificate()?);
         match ctx.handshake(stream) {
-            Ok(s) => Ok(TlsStream(s)),
-            Err(e) => Err(e.into()),
+            Ok(stream) => Ok(TlsStream { stream, cert }),
+            Err(secure_transport::HandshakeError::Failure(e)) => {
+                Err(HandshakeError::Failure(Error(e)))
+            }
+            Err(secure_transport::HandshakeError::Interrupted(s)) => Err(
+                HandshakeError::WouldBlock(MidHandshakeTlsStream::Server(s, cert)),
+            ),
         }
     }
 }
 
-pub struct TlsStream<S>(secure_transport::SslStream<S>);
+pub struct TlsStream<S> {
+    stream: secure_transport::SslStream<S>,
+    cert: Option<SecCertificate>,
+}
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, fmt)
+        fmt::Debug::fmt(&self.stream, fmt)
     }
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
-        self.0.get_ref()
+        self.stream.get_ref()
     }
 
     pub fn get_mut(&mut self) -> &mut S {
-        self.0.get_mut()
+        self.stream.get_mut()
     }
 
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
-        Ok(self.0.context().buffered_read_size()?)
+        Ok(self.stream.context().buffered_read_size()?)
     }
 
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
-        let trust = match self.0.context().peer_trust2()? {
+        let trust = match self.stream.context().peer_trust2()? {
             Some(trust) => trust,
             None => return Ok(None),
         };
@@ -375,24 +385,154 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(trust.certificate_at_index(0).map(Certificate))
     }
 
+    #[cfg(target_os = "ios")]
+    pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {
+        Ok(None)
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {
+        let cert = match self.cert {
+            Some(ref cert) => cert.clone(),
+            None => match self.peer_certificate()? {
+                Some(cert) => cert.0,
+                None => return Ok(None),
+            },
+        };
+
+        let property = match cert
+            .properties(Some(&[CertificateOid::x509_v1_signature_algorithm()]))
+            .ok()
+            .and_then(|p| p.get(CertificateOid::x509_v1_signature_algorithm()))
+        {
+            Some(property) => property,
+            None => return Ok(None),
+        };
+
+        let section = match property.get() {
+            PropertyType::Section(section) => section,
+            _ => return Ok(None),
+        };
+
+        let algorithm = match section
+            .iter()
+            .filter(|p| p.label().to_string() == "Algorithm")
+            .next()
+        {
+            Some(property) => property,
+            None => return Ok(None),
+        };
+
+        let algorithm = match algorithm.get() {
+            PropertyType::String(algorithm) => algorithm,
+            _ => return Ok(None),
+        };
+
+        let digest = match &*algorithm.to_string() {
+            // MD5
+            "1.2.840.113549.2.5" | "1.2.840.113549.1.1.4" | "1.3.14.3.2.3" => Digest::Sha256,
+            // SHA-1
+            "1.3.14.3.2.26"
+            | "1.3.14.3.2.15"
+            | "1.2.840.113549.1.1.5"
+            | "1.3.14.3.2.29"
+            | "1.2.840.10040.4.3"
+            | "1.3.14.3.2.13"
+            | "1.2.840.10045.4.1" => Digest::Sha256,
+            // SHA-224
+            "2.16.840.1.101.3.4.2.4"
+            | "1.2.840.113549.1.1.14"
+            | "2.16.840.1.101.3.4.3.1"
+            | "1.2.840.10045.4.3.1" => Digest::Sha224,
+            // SHA-256
+            "2.16.840.1.101.3.4.2.1" | "1.2.840.113549.1.1.11" | "1.2.840.10045.4.3.2" => {
+                Digest::Sha256
+            }
+            // SHA-384
+            "2.16.840.1.101.3.4.2.2" | "1.2.840.113549.1.1.12" | "1.2.840.10045.4.3.3" => {
+                Digest::Sha384
+            }
+            // SHA-512
+            "2.16.840.1.101.3.4.2.3" | "1.2.840.113549.1.1.13" | "1.2.840.10045.4.3.4" => {
+                Digest::Sha512
+            }
+            _ => return Ok(None),
+        };
+
+        let der = cert.to_der();
+        Ok(Some(digest.hash(&der)))
+    }
+
     pub fn shutdown(&mut self) -> io::Result<()> {
-        self.0.close()?;
+        self.stream.close()?;
         Ok(())
     }
 }
 
 impl<S: io::Read + io::Write> io::Read for TlsStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
+        self.stream.read(buf)
     }
 }
 
 impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        self.stream.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        self.stream.flush()
     }
+}
+
+enum Digest {
+    Sha224,
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
+impl Digest {
+    fn hash(&self, data: &[u8]) -> Vec<u8> {
+        unsafe {
+            assert!(data.len() <= CC_LONG::max_value() as usize);
+            match *self {
+                Digest::Sha224 => {
+                    let mut buf = [0; CC_SHA224_DIGEST_LENGTH];
+                    CC_SHA224(data.as_ptr(), data.len() as CC_LONG, buf.as_mut_ptr());
+                    buf.to_vec()
+                }
+                Digest::Sha256 => {
+                    let mut buf = [0; CC_SHA256_DIGEST_LENGTH];
+                    CC_SHA256(data.as_ptr(), data.len() as CC_LONG, buf.as_mut_ptr());
+                    buf.to_vec()
+                }
+                Digest::Sha384 => {
+                    let mut buf = [0; CC_SHA384_DIGEST_LENGTH];
+                    CC_SHA384(data.as_ptr(), data.len() as CC_LONG, buf.as_mut_ptr());
+                    buf.to_vec()
+                }
+                Digest::Sha512 => {
+                    let mut buf = [0; CC_SHA512_DIGEST_LENGTH];
+                    CC_SHA512(data.as_ptr(), data.len() as CC_LONG, buf.as_mut_ptr());
+                    buf.to_vec()
+                }
+            }
+        }
+    }
+}
+
+// FIXME ideally we'd pull these in from elsewhere
+const CC_SHA224_DIGEST_LENGTH: usize = 28;
+const CC_SHA256_DIGEST_LENGTH: usize = 32;
+const CC_SHA384_DIGEST_LENGTH: usize = 48;
+const CC_SHA512_DIGEST_LENGTH: usize = 64;
+#[allow(non_camel_case_types)]
+type CC_LONG = u32;
+
+extern "C" {
+    fn CC_SHA224(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    fn CC_SHA256(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    fn CC_SHA384(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    fn CC_SHA512(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
 }

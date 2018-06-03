@@ -151,6 +151,11 @@ impl Certificate {
         let cert = X509::from_pem(buf)?;
         Ok(Certificate(cert))
     }
+
+    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+        let der = self.0.to_der()?;
+        Ok(der)
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);
@@ -302,8 +307,20 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
+    pub fn get_ref(&self) -> &S {
+        self.0.get_ref()
+    }
+
+    pub fn get_mut(&mut self) -> &mut S {
+        self.0.get_mut()
+    }
+
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
         Ok(self.0.ssl().pending())
+    }
+
+    pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
+        Ok(self.0.ssl().peer_certificate().map(Certificate))
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {
@@ -314,14 +331,6 @@ impl<S: io::Read + io::Write> TlsStream<S> {
                 .into_io_error()
                 .unwrap_or_else(|e| io::Error::new(io::ErrorKind::Other, e))),
         }
-    }
-
-    pub fn get_ref(&self) -> &S {
-        self.0.get_ref()
-    }
-
-    pub fn get_mut(&mut self) -> &mut S {
-        self.0.get_mut()
     }
 }
 

@@ -100,6 +100,9 @@
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 extern crate lazy_static;
 
+#[cfg(test)]
+extern crate hex;
+
 use std::any::Any;
 use std::error;
 use std::fmt;
@@ -624,6 +627,13 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// Returns the peer's leaf certificate, if available.
     pub fn peer_certificate(&self) -> Result<Option<Certificate>> {
         Ok(self.0.peer_certificate()?.map(Certificate))
+    }
+
+    /// Returns the tls-server-end-point channel binding data as defined in [RFC 5929].
+    ///
+    /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
+    pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>> {
+        Ok(self.0.tls_server_end_point()?)
     }
 
     /// Shuts down the TLS session.

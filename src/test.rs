@@ -1,3 +1,4 @@
+use hex;
 #[allow(unused_imports)]
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -322,6 +323,52 @@ mod tests {
 
         p!(socket.write_all(b"hello"));
         p!(socket.shutdown());
+
+        p!(j.join());
+    }
+
+    #[test]
+    #[cfg_attr(target_os = "ios", ignore)]
+    fn tls_server_end_point() {
+        let expected = "4712b939fbcb42a6b5101b42139a25b14f81b418facabd378746f12f85cc6544";
+
+        let buf = include_bytes!("../test/identity.p12");
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::new(identity));
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let mut socket = p!(builder.accept(socket));
+
+            let binding = socket.tls_server_end_point().unwrap().unwrap();
+            assert_eq!(hex::encode(binding), expected);
+
+            let mut buf = [0; 5];
+            p!(socket.read_exact(&mut buf));
+            assert_eq!(&buf, b"hello");
+
+            p!(socket.write_all(b"world"));
+        });
+
+        let root_ca = include_bytes!("../test/root-ca.der");
+        let root_ca = Certificate::from_der(root_ca).unwrap();
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let builder = p!(TlsConnector::builder()
+            .add_root_certificate(root_ca)
+            .build());
+        let mut socket = p!(builder.connect("foobar.com", socket));
+
+        let binding = socket.tls_server_end_point().unwrap().unwrap();
+        assert_eq!(hex::encode(binding), expected);
+
+        p!(socket.write_all(b"hello"));
+        let mut buf = vec![];
+        p!(socket.read_to_end(&mut buf));
+        assert_eq!(buf, b"world");
 
         p!(j.join());
     }

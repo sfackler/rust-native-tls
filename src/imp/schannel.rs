@@ -1,6 +1,6 @@
 extern crate schannel;
 
-use self::schannel::cert_context::CertContext;
+use self::schannel::cert_context::{CertContext, HashAlgorithm};
 use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
@@ -292,6 +292,31 @@ impl<S: io::Read + io::Write> TlsStream<S> {
             Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => Ok(None),
             Err(e) => Err(Error(e)),
         }
+    }
+
+    pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {
+        let cert = if self.0.is_server() {
+            self.0.certificate()
+        } else {
+            self.0.peer_certificate()
+        };
+
+        let cert = match cert {
+            Ok(cert) => cert,
+            Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => return Ok(None),
+            Err(e) => return Err(Error(e)),
+        };
+
+        let signature_algorithms = cert.sign_hash_algorithms()?;
+        let hash = match signature_algorithms.rsplit('/').next().unwrap() {
+            "MD5" | "SHA1" | "SHA256" => HashAlgorithm::sha256(),
+            "SHA384" => HashAlgorithm::sha384(),
+            "SHA512" => HashAlgorithm::sha512(),
+            _ => return Ok(None),
+        };
+
+        let digest = cert.fingerprint(hash)?;
+        Ok(Some(digest))
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {

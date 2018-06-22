@@ -6,12 +6,6 @@
 //! experience on all platforms with a cross-platform API that deals with all
 //! the underlying details for you.
 //!
-//! ```toml
-//! # Cargo.toml
-//! [dependencies]
-//! native-tls = "0.1"
-//! ```
-//!
 //! # How is this implemented?
 //!
 //! This crate uses SChannel on Windows (via the `schannel` crate), Secure
@@ -32,7 +26,7 @@
 //!
 //! * TLS/SSL client communication
 //! * TLS/SSL server communication
-//! * PKCS#12 encoded server identities
+//! * PKCS#12 encoded identities
 //! * Secure-by-default for client and server
 //!     * Includes hostname verification for clients
 //! * Supports asynchronous I/O for both the server and the client
@@ -150,9 +144,9 @@ impl fmt::Debug for Error {
     }
 }
 
-impl<T: Into<imp::Error>> From<T> for Error {
-    fn from(err: T) -> Error {
-        Error(err.into())
+impl From<imp::Error> for Error {
+    fn from(err: imp::Error) -> Error {
+        Error(err)
     }
 }
 
@@ -375,9 +369,8 @@ impl TlsConnectorBuilder {
     ///
     /// # Warning
     ///
-    /// You should think very carefully before using this method. If invalid
-    /// certificates are trusted, *any* certificate for *any* site will be
-    /// trusted for use. This includes expired certificates. This introduces
+    /// You should think very carefully before using this method. If invalid certificates are trusted, *any*
+    /// certificate for *any* site will be trusted for use. This includes expired certificates. This introduces
     /// significant vulnerabilities, and should only be used as a last resort.
     pub fn danger_accept_invalid_certs(
         &mut self,
@@ -401,10 +394,9 @@ impl TlsConnectorBuilder {
     ///
     /// # Warning
     ///
-    /// You should think very carefully before using this method. If invalid
-    /// hostnames are trusted, *any* valid certificate for *any* will be trusted
-    /// for use. This introduces significant vulnerabilities, and should only be
-    /// used as a last resort.
+    /// You should think very carefully before using this method. If invalid hostnames are trusted, *any* valid
+    /// certificate for *any* site will be trusted for use. This introduces significant vulnerabilities, and should
+    /// only be used as a last resort.
     pub fn danger_accept_invalid_hostnames(
         &mut self,
         accept_invalid_hostnames: bool,

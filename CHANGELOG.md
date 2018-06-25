@@ -1,0 +1,42 @@
+# Change Log
+
+## [Unreleased]
+
+### Added
+
+* The `openssl_probe` crate is now used with the OpenSSL backend so that trusted root certificates
+    will automatically be detected when statically linking to OpenSSL.
+* Added `Certificate::to_der` to serialize an X509 certificate to DER.
+* Added `TlsConnectorBuilder::danger_accept_invalid_certs` to disable certificate verification.
+* Added `TlsAcceptor::new` and `TlsConnector::new` to easily create an acceptor/connector with
+    default settings.
+* Added `TlsStream::peer_certificate` to obtain the peer's leaf certificate.
+* Added `TlsStream::tls_server_end_point` to retrieve RFC 5929 tls-server-end-point channel binding
+    data.
+
+### Changed
+
+* Upgraded to `openssl` 0.10 and `security-framework` 0.2.
+* `Pkcs12` has been renamed to `Identity`, and `Pkcs12::from_der` has been renamed to
+    `Identity::from_pkcs12`.
+* `HandshakeError::Interrupted` has been renamed to `HandshakeError::WouldBlock`.
+* `TlsConnectorBuilder` and `TlsAcceptorBuilder` are now "traditional"-style builders. Their methods
+    are now infallible and return `&mut Self` to allow them to be chained together.
+* `supported_protocols` has been replaced by `min_protocol_version` and `max_protocol_version` on
+    `TlsConnectorBuilder` and `TlsAcceptorBuilder`.
+* SNI and hostname verification are now configured separately via `TlsConnectorBuilder::use_sni` and
+    `TlsConnectorBuilder::danger_accept_invalid_hostnames`. They replace the
+    `TlsConnector::danger_connect_without_providing_domain_for_certificate_verification_and_server_name_indication`
+    method, which has been removed.
+
+### Removed
+
+* The backend-specific extension traits have been removed. We want to avoid exposing the specific
+    version of the backend library in the public API to provide more flexibility.
+
+## Older
+
+Look at the [release tags] for information about older releases.
+
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.1.5...master
+[release tags]: https://github.com/sfackler/rust-native-tls/releases

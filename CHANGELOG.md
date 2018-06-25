@@ -6,6 +6,7 @@
 
 * The `openssl_probe` crate is now used with the OpenSSL backend so that trusted root certificates
     will automatically be detected when statically linking to OpenSSL.
+* Root certificates are now automatically loaded from the Android trust root.
 * Added `Certificate::to_der` to serialize an X509 certificate to DER.
 * Added `TlsConnectorBuilder::danger_accept_invalid_certs` to disable certificate verification.
 * Added `TlsAcceptor::new` and `TlsConnector::new` to easily create an acceptor/connector with

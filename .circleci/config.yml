@@ -37,11 +37,11 @@ jobs:
   openssl-1.1.0:
     <<: *JOB
     docker:
-      - image: rust:1.26.0-stretch
+      - image: rust:1.21.0-stretch
   openssl-1.0.2:
     <<: *JOB
     docker:
-      - image: rust:1.26.0-jessie
+      - image: rust:1.21.0-jessie
 
 workflows:
   version: 2

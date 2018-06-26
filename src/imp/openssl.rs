@@ -92,6 +92,23 @@ fn init_trust() {
     ONCE.call_once(|| openssl_probe::init_ssl_cert_env_vars());
 }
 
+#[cfg(target_os = "android")]
+fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Error> {
+    use std::fs;
+
+    if let Ok(dir) = fs::read_dir("/system/etc/security/cacerts") {
+        let certs = dir
+            .filter_map(|r| r.ok())
+            .filter_map(|e| fs::read(e.path()).ok())
+            .filter_map(|b| X509::from_pem(&b).ok());
+        for cert in certs {
+            connector.cert_store_mut().add_cert(cert)?;
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum Error {
     Normal(ErrorStack),
@@ -247,21 +264,8 @@ impl TlsConnector {
             connector.cert_store_mut().add_cert((cert.0).0.clone())?;
         }
 
-        // Add android root certs
         #[cfg(target_os = "android")]
-        {
-            use std::fs;
-
-            if let Ok(dir) = fs::read_dir("/system/etc/security/cacerts") {
-                let certs = dir
-                    .filter_map(|r| r.ok())
-                    .filter_map(|e| fs::read(e.path()).ok())
-                    .filter_map(|b| X509::from_pem(&b).ok());
-                for cert in certs {
-                    connector.cert_store_mut().add_cert(cert)?;
-                }
-            }
-        }
+        load_android_root_certs(&mut connector)?;
 
         Ok(TlsConnector {
             connector: connector.build(),

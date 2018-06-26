@@ -251,21 +251,17 @@ impl TlsConnector {
         #[cfg(target_os = "android")]
         {
             use std::fs;
-            use std::io::Read;
 
-            if let Ok(certs) = fs::read_dir("/system/etc/security/cacerts") {
-                for entry in certs.filter_map(|r| r.ok()).filter(|e| e.path().is_file()) {
-                    let mut cert = String::new();
-                    if let Ok(_) = fs::File::open(entry.path())
-                        .and_then(|mut f| f.read_to_string(&mut cert)) {
-                        if let Ok(cert) = X509::from_pem(cert.as_bytes()) {
-                            connector.cert_store_mut().add_cert(cert)?;
-                        }
-                    }
+            if let Ok(dir) = fs::read_dir("/system/etc/security/cacerts") {
+                let certs = dir
+                    .filter_map(|r| r.ok())
+                    .filter_map(|e| fs::read(e.path()).ok())
+                    .filter_map(|b| X509::from_pem(&b).ok());
+                for cert in certs {
+                    connector.cert_store_mut().add_cert(cert)?;
                 }
             }
         }
-
 
         Ok(TlsConnector {
             connector: connector.build(),

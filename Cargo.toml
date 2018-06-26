@@ -16,7 +16,7 @@ libc = "0.2"
 tempfile = "3.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = "0.1.12"
+schannel = "0.1.13"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 openssl = "0.10.9"
@@ -25,6 +25,3 @@ openssl-probe = "0.1"
 
 [dev-dependencies]
 hex = "0.3"
-
-[patch.crates-io]
-schannel = { git = "https://github.com/steffengy/schannel-rs" }

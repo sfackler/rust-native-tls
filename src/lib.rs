@@ -87,7 +87,7 @@
 //!     }
 //! }
 //! ```
-#![doc(html_root_url = "https://docs.rs/native-tls/0.1.5")]
+#![doc(html_root_url = "https://docs.rs/native-tls/0.2")]
 #![warn(missing_docs)]
 
 #[macro_use]

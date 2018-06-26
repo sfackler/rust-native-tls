@@ -1,11 +1,10 @@
 [package]
 name = "native-tls"
-version = "0.1.5"
+version = "0.2.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A wrapper over a platform's native TLS implementation"
 repository = "https://github.com/sfackler/rust-native-tls"
-documentation = "https://docs.rs/native-tls/0.1.4/native_tls"
 readme = "README.md"
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]

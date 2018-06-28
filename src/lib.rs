@@ -323,6 +323,7 @@ pub struct TlsConnectorBuilder {
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
     use_sni: bool,
+    alpn: Vec<String>,
 }
 
 impl TlsConnectorBuilder {
@@ -405,6 +406,17 @@ impl TlsConnectorBuilder {
         self
     }
 
+    /// Request specific protocols through ALPN (Application-Layer Protocol Negotiation).
+    ///
+    /// Defaults to none
+    pub fn request_protocols(
+        &mut self,
+        protocols: &[&str],
+    ) -> &mut TlsConnectorBuilder {
+        self.alpn = protocols.iter().map(|s| s.to_string()).collect();
+        self
+    }
+
     /// Creates a new `TlsConnector`.
     pub fn build(&self) -> Result<TlsConnector> {
         let connector = imp::TlsConnector::new(self)?;
@@ -450,6 +462,7 @@ impl TlsConnector {
             use_sni: true,
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
+            alpn: vec![],
         }
     }
 
@@ -626,6 +639,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>> {
         Ok(self.0.tls_server_end_point()?)
+    }
+
+    /// Returns the negotiated protocols
+    pub fn negotiated_protocols(&self) -> Result<Vec<String>> {
+        Ok(self.0.negotiated_protocols()?)
     }
 
     /// Shuts down the TLS session.

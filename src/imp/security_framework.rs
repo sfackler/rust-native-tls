@@ -264,6 +264,7 @@ pub struct TlsConnector {
     use_sni: bool,
     danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
+    alpn: Vec<String>,
 }
 
 impl TlsConnector {
@@ -280,6 +281,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             danger_accept_invalid_hostnames: builder.accept_invalid_hostnames,
             danger_accept_invalid_certs: builder.accept_invalid_certs,
+            alpn: builder.alpn.clone(),
         })
     }
 
@@ -301,6 +303,10 @@ impl TlsConnector {
         builder.use_sni(self.use_sni);
         builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
+
+        if self.alpn.len() > 0 {
+            builder.alpn_protocols(&self.alpn.iter().map(AsRef::as_ref).collect::<Vec<_>>());
+        }
 
         match builder.handshake(domain, stream) {
             Ok(stream) => Ok(TlsStream { stream, cert: None }),
@@ -383,6 +389,10 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         trust.evaluate()?;
 
         Ok(trust.certificate_at_index(0).map(Certificate))
+    }
+
+    pub fn negotiated_protocols(&self) -> Result<Vec<String>, Error> {
+        self.stream.context().alpn_protocols().map_err(|e| Error::from(e))
     }
 
     #[cfg(target_os = "ios")]

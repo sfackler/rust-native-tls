@@ -19,7 +19,7 @@ the [`openssl`] crate) on all other platforms.
 ```toml
 # Cargo.toml
 [dependencies]
-native-tls = "0.1"
+native-tls = "0.2"
 ```
 
 ## Usage

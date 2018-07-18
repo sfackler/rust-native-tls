@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.2.0]
+
 ### Added
 
 * The `openssl_probe` crate is now used with the OpenSSL backend so that trusted root certificates
@@ -39,5 +41,6 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.1.5...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.0...master
+[v0.2.0]: https://github.com/sfackler/rust-native-tls/compare/v0.1.5...v0.2.0
 [release tags]: https://github.com/sfackler/rust-native-tls/releases

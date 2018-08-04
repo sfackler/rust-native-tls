@@ -7,6 +7,9 @@ description = "A wrapper over a platform's native TLS implementation"
 repository = "https://github.com/sfackler/rust-native-tls"
 readme = "README.md"
 
+[features]
+vendored = ["openssl/vendored"]
+
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 security-framework = "0.2.1"
 security-framework-sys = "0.2.1"
@@ -18,7 +21,7 @@ tempfile = "3.0"
 schannel = "0.1.13"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl = "0.10.9"
+openssl = "0.10.11"
 openssl-sys = "0.9.30"
 openssl-probe = "0.1"
 

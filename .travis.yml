@@ -22,6 +22,3 @@ script:
     else
       cargo test;
     fi
-- if [ -z "$TEST_IOS" ]; then
-      rustdoc --test README.md -L target/debug/deps -L target/debug;
-    fi;

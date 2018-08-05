@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [v0.2.1]
+
+### Added
+
+* The `vendored` Cargo feature will cause the crate to compile and statically link to a vendored
+    copy of OpenSSL on platforms that use that backend.
+
 ## [v0.2.0]
 
 ### Added
@@ -41,6 +48,7 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.0...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.1...master
+[v0.2.1]: https://github.com/sfackler/rust-native-tls/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/sfackler/rust-native-tls/compare/v0.1.5...v0.2.0
 [release tags]: https://github.com/sfackler/rust-native-tls/releases

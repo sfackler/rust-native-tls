@@ -109,6 +109,9 @@ use std::fmt;
 use std::io;
 use std::result;
 
+#[cfg(target_os = "android")]
+#[macro_use]
+extern crate log;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[path = "imp/security_framework.rs"]
 mod imp;

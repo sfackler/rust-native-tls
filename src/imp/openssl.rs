@@ -103,7 +103,7 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
             .filter_map(|b| X509::from_pem(&b).ok());
         for cert in certs {
             if let Err(err) = connector.cert_store_mut().add_cert(cert) {
-                eprintln!("load_android_root_certs error: {:?}", err);
+                debug!("load_android_root_certs error: {:?}", err);
             }
         }
     }

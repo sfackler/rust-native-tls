@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [v0.2.2]
+
+### Fixed
+
+* Failure to load a root certificate on Android now logs a message rather than producing an error.
+* Fixed ordering of the certificate chain in the OpenSSL backend.
+
 ## [v0.2.1]
 
 ### Added
@@ -48,7 +55,8 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.1...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.2...master
+[v0.2.2]: https://github.com/sfackler/rust-native-tls/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/sfackler/rust-native-tls/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/sfackler/rust-native-tls/compare/v0.1.5...v0.2.0
 [release tags]: https://github.com/sfackler/rust-native-tls/releases

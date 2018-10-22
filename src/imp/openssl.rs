@@ -255,7 +255,7 @@ impl TlsConnector {
             connector.set_certificate(&(identity.0).0.cert)?;
             connector.set_private_key(&(identity.0).0.pkey)?;
             if let Some(ref chain) = (identity.0).0.chain {
-                for cert in chain {
+                for cert in chain.iter().rev() {
                     connector.add_extra_chain_cert(cert.to_owned())?;
                 }
             }
@@ -304,7 +304,7 @@ impl TlsAcceptor {
         acceptor.set_private_key(&(builder.identity.0).0.pkey)?;
         acceptor.set_certificate(&(builder.identity.0).0.cert)?;
         if let Some(ref chain) = (builder.identity.0).0.chain {
-            for cert in chain {
+            for cert in chain.iter().rev() {
                 acceptor.add_extra_chain_cert(cert.to_owned())?;
             }
         }

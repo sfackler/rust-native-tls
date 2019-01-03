@@ -266,6 +266,18 @@ impl TlsConnector {
             connector.cert_store_mut().add_cert((cert.0).0.clone())?;
         }
 
+        if !builder.alpn_protocols.is_empty() {
+            // A common set will be "h2" + "http/1.1", which will
+            // use a little less that 16 bytes...
+            let mut bytes = Vec::with_capacity(16);
+            for proto in &builder.alpn_protocols {
+                bytes.push(proto.len());
+                bytes.extend_from_slice(proto.as_bytes());
+            }
+
+            connector.set_alpn_protos(&bytes)?;
+        }
+
         #[cfg(target_os = "android")]
         load_android_root_certs(&mut connector)?;
 
@@ -376,6 +388,16 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         let digest = cert.digest(md)?;
 
         Ok(Some(digest.to_vec()))
+    }
+
+    pub fn selected_alpn_protocol(&self) -> Option<&str> {
+        self
+            .0
+            .ssl()
+            .selected_alpn_protocol()
+            .and_then(|bytes| {
+                ::std::str::from_utf8(bytes).ok()
+            })
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {

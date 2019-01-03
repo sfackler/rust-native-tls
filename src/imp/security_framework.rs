@@ -463,6 +463,10 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(Some(digest.hash(&der)))
     }
 
+    pub fn selected_alpn_protocol(&self) -> Option<&str> {
+        None
+    }
+
     pub fn shutdown(&mut self) -> io::Result<()> {
         self.stream.close()?;
         Ok(())

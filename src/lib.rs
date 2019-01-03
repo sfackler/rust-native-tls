@@ -329,6 +329,7 @@ pub struct TlsConnectorBuilder {
     min_protocol: Option<Protocol>,
     max_protocol: Option<Protocol>,
     root_certificates: Vec<Certificate>,
+    alpn_protocols: Vec<String>,
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
     use_sni: bool,
@@ -414,6 +415,26 @@ impl TlsConnectorBuilder {
         self
     }
 
+    /// Sets requested protocols to use through ALPN.
+    ///
+    /// Defaults to an empty list.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use native_tls::TlsConnector;
+    ///
+    /// let mut builder = TlsConnector::builder();
+    /// builder.alpn_protocols(&["h2", "http/1.1"]);
+    /// ```
+    pub fn alpn_protocols(
+        &mut self,
+        protocols: &[&str],
+    ) -> &mut TlsConnectorBuilder {
+        self.alpn_protocols = procotols.iter().map(Into::into).collect();
+        self
+    }
+
     /// Creates a new `TlsConnector`.
     pub fn build(&self) -> Result<TlsConnector> {
         let connector = imp::TlsConnector::new(self)?;
@@ -456,6 +477,7 @@ impl TlsConnector {
             min_protocol: Some(Protocol::Tlsv10),
             max_protocol: None,
             root_certificates: vec![],
+            request_protocols: vec![],
             use_sni: true,
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
@@ -635,6 +657,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// [RFC 5929]: https://tools.ietf.org/html/rfc5929
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>> {
         Ok(self.0.tls_server_end_point()?)
+    }
+
+    /// Returns the selected ALPN protocol string, if availale.
+    pub fn selected_alpn_protocol(&self) -> Option<&str> {
+        self.0.selected_alpn_protocol()
     }
 
     /// Shuts down the TLS session.

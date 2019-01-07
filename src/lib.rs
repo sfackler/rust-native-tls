@@ -118,7 +118,11 @@ mod imp;
 #[cfg(target_os = "windows")]
 #[path = "imp/schannel.rs"]
 mod imp;
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(feature = "mbedtls")]
+#[path = "imp/mbedtls.rs"]
+mod imp;
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios", feature = "mbedtls")))]
 #[path = "imp/openssl.rs"]
 mod imp;
 

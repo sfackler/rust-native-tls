@@ -263,7 +263,9 @@ impl TlsConnector {
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
 
         for cert in &builder.root_certificates {
-            connector.cert_store_mut().add_cert((cert.0).0.clone())?;
+            if let Err(err) = connector.cert_store_mut().add_cert((cert.0).0.clone()) {
+                debug!("add_cert error: {:?}", err);
+            }
         }
 
         #[cfg(target_os = "android")]

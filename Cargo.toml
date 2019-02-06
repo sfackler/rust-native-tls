@@ -20,7 +20,7 @@ libc = "0.2"
 tempfile = "3.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = "0.1.13"
+schannel = {path = "../schannel-rs"}
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 log = "0.4.5"

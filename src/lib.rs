@@ -206,6 +206,12 @@ impl Certificate {
         let der = self.0.to_der()?;
         Ok(der)
     }
+
+    /// Returns der encoded SubjectPublicKeyInfo.
+    pub fn public_key_der(&self) -> Result<Vec<u8>> {
+        let der = self.0.public_key_der()?;
+        Ok(der)
+    }
 }
 
 /// A TLS stream which has been interrupted midway through the handshake process.

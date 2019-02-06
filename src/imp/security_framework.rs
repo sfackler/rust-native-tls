@@ -1,8 +1,17 @@
+extern crate core_foundation;
+extern crate core_foundation_sys;
 extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;
 extern crate tempfile;
 
+use self::core_foundation::base::TCFType;
+use self::core_foundation_sys::base::{CFComparisonResult, CFRelease};
+use self::core_foundation_sys::data::{CFDataGetBytePtr, CFDataGetLength};
+use self::core_foundation_sys::dictionary::{CFDictionaryGetValueIfPresent, CFDictionaryRef};
+use self::core_foundation_sys::error::CFErrorRef;
+use self::core_foundation_sys::number::{kCFNumberSInt32Type, CFNumberGetValue};
+use self::core_foundation_sys::string::{CFStringCompareFlags, CFStringRef};
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
@@ -10,11 +19,19 @@ use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOpti
 use self::security_framework::secure_transport::{
     self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
 };
-use self::security_framework_sys::base::errSecIO;
+use self::security_framework_sys::base::{errSecIO, SecKeyRef, SecPolicyRef};
+use self::security_framework_sys::item::*;
+use self::security_framework_sys::key::{SecKeyCopyAttributes, SecKeyCopyExternalRepresentation};
+use self::security_framework_sys::policy::SecPolicyCreateBasicX509;
+use self::security_framework_sys::trust::{
+    SecTrustCopyPublicKey, SecTrustCreateWithCertificates, SecTrustEvaluate, SecTrustRef,
+    SecTrustResultType,
+};
 use self::tempfile::TempDir;
 use std::error;
 use std::fmt;
 use std::io;
+use std::ptr;
 use std::sync::Mutex;
 use std::sync::{Once, ONCE_INIT};
 
@@ -173,6 +190,77 @@ impl Certificate {
 
     pub fn to_der(&self) -> Result<Vec<u8>, Error> {
         Ok(self.0.to_der())
+    }
+
+    pub fn public_key_der(&self) -> Result<Vec<u8>, Error> {
+        unsafe {
+            let k = self.copy_public_key_from_certificate();
+            let mut error: CFErrorRef = std::ptr::null_mut();
+            let public_key_data = SecKeyCopyExternalRepresentation(k, &mut error);
+            if public_key_data == ptr::null_mut() {
+                CFRelease(k as _);
+                return Err(Error::from(base::Error::from_code(0)));
+            }
+            let public_key_attributes = SecKeyCopyAttributes(k);
+
+            let mut public_key_type: *const std::os::raw::c_void = ptr::null();
+            CFDictionaryGetValueIfPresent(
+                public_key_attributes,
+                kSecAttrKeyType as _,
+                &mut public_key_type as _,
+            );
+            let mut public_keysize: *const std::os::raw::c_void = ptr::null();
+            CFDictionaryGetValueIfPresent(
+                public_key_attributes,
+                kSecAttrKeySizeInBits as _,
+                &mut public_keysize as *mut *const std::os::raw::c_void,
+            );
+            CFRelease(public_key_attributes as _);
+            let mut public_keysize_val: u32 = 0;
+            let public_keysize_val_ptr: *mut u32 = &mut public_keysize_val;
+            CFNumberGetValue(
+                public_keysize as _,
+                kCFNumberSInt32Type,
+                public_keysize_val_ptr as _,
+            );
+            let hdr_bytes = get_asn1_header_bytes(public_key_type as _, public_keysize_val);
+            if hdr_bytes.len() == 0 {
+                return Err(Error::from(base::Error::from_code(0)));
+            }
+            CFRelease(k as _);
+            let key_data_len = CFDataGetLength(public_key_data) as usize;
+            let key_data_slice = std::slice::from_raw_parts(
+                CFDataGetBytePtr(public_key_data) as *const u8,
+                key_data_len,
+            );
+            let mut out = Vec::with_capacity(hdr_bytes.len() + key_data_len);
+            out.extend_from_slice(hdr_bytes);
+            out.extend_from_slice(key_data_slice);
+
+            CFRelease(public_key_data as _);
+            Ok(out)
+        }
+    }
+
+    fn copy_public_key_from_certificate(&self) -> SecKeyRef {
+        unsafe {
+            // Create an X509 trust using the using the certificate
+            let mut trust: SecTrustRef = ptr::null_mut();
+            let policy: SecPolicyRef = SecPolicyCreateBasicX509();
+            SecTrustCreateWithCertificates(
+                self.0.as_concrete_TypeRef() as _,
+                policy as _,
+                &mut trust,
+            );
+
+            // Get a public key reference for the certificate from the trust
+            let mut result: SecTrustResultType = 0;
+            SecTrustEvaluate(trust, &mut result);
+            let public_key = SecTrustCopyPublicKey(trust);
+            CFRelease(policy as _);
+            CFRelease(trust as _);
+            public_key
+        }
     }
 }
 
@@ -535,4 +623,47 @@ extern "C" {
     fn CC_SHA256(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
     fn CC_SHA384(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
     fn CC_SHA512(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    fn CFStringCompare(
+        theString1: CFStringRef,
+        theString2: CFStringRef,
+        compareOptions: CFStringCompareFlags,
+    ) -> CFComparisonResult;
 }
+
+fn get_asn1_header_bytes(pkt: CFStringRef, ksz: u32) -> &'static [u8] {
+    unsafe {
+        if CFStringCompare(pkt, kSecAttrKeyTypeRSA, 0) as i64 == 0 && ksz == 2048 {
+            return &RSA_2048_ASN1_HEADER;
+        }
+        if CFStringCompare(pkt, kSecAttrKeyTypeRSA, 0) as i64 == 0 && ksz == 4096 {
+            return &RSA_4096_ASN1_HEADER;
+        }
+        if CFStringCompare(pkt, kSecAttrKeyTypeECSECPrimeRandom, 0) as i64 == 0 && ksz == 256 {
+            return &EC_DSA_SECP_256_R1_ASN1_HEADER;
+        }
+        if CFStringCompare(pkt, kSecAttrKeyTypeECSECPrimeRandom, 0) as i64 == 0 && ksz == 384 {
+            return &EC_DSA_SECP_384_R1_ASN1_HEADER;
+        }
+    }
+    &[]
+}
+
+const RSA_2048_ASN1_HEADER: [u8; 24] = [
+    0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
+    0x01, 0x05, 0x00, 0x03, 0x82, 0x01, 0x0f, 0x00,
+];
+
+const RSA_4096_ASN1_HEADER: [u8; 24] = [
+    0x30, 0x82, 0x02, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
+    0x01, 0x05, 0x00, 0x03, 0x82, 0x02, 0x0f, 0x00,
+];
+
+const EC_DSA_SECP_256_R1_ASN1_HEADER: [u8; 26] = [
+    0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a,
+    0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
+];
+
+const EC_DSA_SECP_384_R1_ASN1_HEADER: [u8; 23] = [
+    0x30, 0x76, 0x30, 0x10, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x05, 0x2b,
+    0x81, 0x04, 0x00, 0x22, 0x03, 0x62, 0x00,
+];

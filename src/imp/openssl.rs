@@ -177,6 +177,12 @@ impl Certificate {
         let der = self.0.to_der()?;
         Ok(der)
     }
+
+    pub fn public_key_der(&self) -> Result<Vec<u8>, Error> {
+        let pk = self.0.public_key()?;
+        let der = pk.public_key_to_der()?;
+        Ok(der)
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);

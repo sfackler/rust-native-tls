@@ -11,8 +11,8 @@ readme = "README.md"
 vendored = ["openssl/vendored"]
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = {path = "../rust-security-framework/security-framework"}
-security-framework-sys = {path = "../rust-security-framework/security-framework-sys", features = ["OSX_10_13"]}
+security-framework = {git = "https://github.com/SergejJurecko/rust-security-framework"}
+security-framework-sys = {git = "https://github.com/SergejJurecko/rust-security-framework", features = ["OSX_10_13"]}
 core-foundation-sys = "0.6.2"
 core-foundation = "0.6.3"
 lazy_static = "1.0"

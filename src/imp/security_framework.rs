@@ -8,17 +8,17 @@ extern crate tempfile;
 use self::core_foundation::base::TCFType;
 use self::core_foundation_sys::base::{CFComparisonResult, CFRelease};
 use self::core_foundation_sys::data::{CFDataGetBytePtr, CFDataGetLength};
-use self::core_foundation_sys::dictionary::{CFDictionaryGetValueIfPresent, CFDictionaryRef};
+use self::core_foundation_sys::dictionary::CFDictionaryGetValueIfPresent;
 use self::core_foundation_sys::error::CFErrorRef;
 use self::core_foundation_sys::number::{kCFNumberSInt32Type, CFNumberGetValue};
 use self::core_foundation_sys::string::{CFStringCompareFlags, CFStringRef};
-use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
 use self::security_framework::secure_transport::{
     self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
 };
+use self::security_framework::{base, trust::SecTrust};
 use self::security_framework_sys::base::{errSecIO, SecKeyRef, SecPolicyRef};
 use self::security_framework_sys::item::*;
 use self::security_framework_sys::key::{SecKeyCopyAttributes, SecKeyCopyExternalRepresentation};
@@ -192,6 +192,8 @@ impl Certificate {
         Ok(self.0.to_der())
     }
 
+    // Ported from TrustKit pinning implementation
+    // https://github.com/datatheorem/TrustKit/blob/master/TrustKit/Pinning/TSKSPKIHashCache.m
     pub fn public_key_der(&self) -> Result<Vec<u8>, Error> {
         unsafe {
             let k = self.copy_public_key_from_certificate();
@@ -439,6 +441,23 @@ impl TlsAcceptor {
     }
 }
 
+pub struct ChainIterator {
+    trust: Option<SecTrust>,
+    pos: usize,
+}
+impl<'a> Iterator for ChainIterator {
+    type Item = Certificate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(trust) = self.trust.as_ref() {
+            let pos = self.pos;
+            self.pos += 1;
+            return trust.certificate_at_index(pos as _).map(Certificate);
+        }
+        None
+    }
+}
+
 pub struct TlsStream<S> {
     stream: secure_transport::SslStream<S>,
     cert: Option<SecCertificate>,
@@ -471,6 +490,23 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         trust.evaluate()?;
 
         Ok(trust.certificate_at_index(0).map(Certificate))
+    }
+
+    pub fn certificate_chain(&self) -> Result<ChainIterator, Error> {
+        let trust = match self.stream.context().peer_trust2()? {
+            Some(trust) => trust,
+            None => {
+                return Ok(ChainIterator {
+                    trust: None,
+                    pos: 0,
+                });
+            }
+        };
+        trust.evaluate()?;
+        Ok(ChainIterator {
+            trust: Some(trust),
+            pos: 0,
+        })
     }
 
     #[cfg(target_os = "ios")]

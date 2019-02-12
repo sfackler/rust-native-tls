@@ -1,7 +1,7 @@
 extern crate schannel;
 
 use self::schannel::cert_context::{CertContext, HashAlgorithm};
-use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
+use self::schannel::cert_store::{CertAdd, CertStore, Certs, Memory, PfxImportOptions};
 use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
 use std::error;
@@ -89,7 +89,8 @@ impl Identity {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "No identity found in PKCS #12 archive",
-                ).into());
+                )
+                .into());
             }
         };
 
@@ -115,7 +116,8 @@ impl Certificate {
             Err(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "PEM representation contains non-UTF-8 bytes",
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -153,7 +155,7 @@ where
 
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
-            Ok(s) => Ok(TlsStream(s)),
+            Ok(s) => Ok(TlsStream(s, None)),
             Err(e) => Err(e.into()),
         }
     }
@@ -231,7 +233,7 @@ impl TlsConnector {
             builder.verify_callback(|_| Ok(()));
         }
         match builder.connect(cred, stream) {
-            Ok(s) => Ok(TlsStream(s)),
+            Ok(s) => Ok(TlsStream(s, None)),
             Err(e) => Err(e.into()),
         }
     }
@@ -263,13 +265,28 @@ impl TlsAcceptor {
         // FIXME we're probably missing the certificate chain?
         let cred = builder.acquire(Direction::Inbound)?;
         match tls_stream::Builder::new().accept(cred, stream) {
-            Ok(s) => Ok(TlsStream(s)),
+            Ok(s) => Ok(TlsStream(s, None)),
             Err(e) => Err(e.into()),
         }
     }
 }
 
-pub struct TlsStream<S>(tls_stream::TlsStream<S>);
+pub struct ChainIterator<'a, S: 'a> {
+    certs: Option<Certs<'a>>,
+    _stream: &'a TlsStream<S>,
+}
+impl<'a, S> Iterator for ChainIterator<'a, S> {
+    type Item = Certificate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(certs) = self.certs.as_mut() {
+            return certs.next().map(Certificate);
+        }
+        None
+    }
+}
+
+pub struct TlsStream<S>(tls_stream::TlsStream<S>, Option<CertStore>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
@@ -296,6 +313,24 @@ impl<S: io::Read + io::Write> TlsStream<S> {
             Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => Ok(None),
             Err(e) => Err(Error(e)),
         }
+    }
+
+    pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>, Error> {
+        if self.1.is_none() {
+            match self.0.peer_certificate() {
+                Ok(cert) => {
+                    self.1 = cert.cert_store();
+                }
+                Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => {
+                    self.1 = None;
+                }
+                Err(e) => return Err(Error(e)),
+            }
+        }
+        Ok(ChainIterator {
+            certs: self.1.as_ref().map(|c| c.certs()),
+            _stream: self,
+        })
     }
 
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {

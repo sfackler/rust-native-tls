@@ -369,7 +369,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(self.0.ssl().peer_certificate().map(Certificate))
     }
 
-    pub fn certificate_chain(&self) -> Result<ChainIterator<S>, Error> {
+    pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>, Error> {
         Ok(ChainIterator(
             self.0.ssl().peer_cert_chain().map(|stack| stack.iter()),
             self,

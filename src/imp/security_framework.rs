@@ -493,7 +493,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(trust.certificate_at_index(0).map(Certificate))
     }
 
-    pub fn certificate_chain(&self) -> Result<ChainIterator<S>, Error> {
+    pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>, Error> {
         let trust = match self.stream.context().peer_trust2()? {
             Some(trust) => trust,
             None => {

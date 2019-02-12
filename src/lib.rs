@@ -214,8 +214,10 @@ impl Certificate {
     }
 }
 
-pub struct ChainIterator(imp::ChainIterator);
-impl Iterator for ChainIterator {
+/// An iterator over a certificate chain.
+pub struct ChainIterator<'a, S: 'a>(imp::ChainIterator<'a, S>);
+
+impl<'a, S> Iterator for ChainIterator<'a, S> {
     type Item = Certificate;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -646,7 +648,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     /// Returns an iterator over certificate chain, if available.
-    pub fn certificate_chain(&self) -> Result<ChainIterator> {
+    pub fn certificate_chain(&self) -> Result<ChainIterator<S>> {
         Ok(ChainIterator(self.0.certificate_chain()?))
     }
 

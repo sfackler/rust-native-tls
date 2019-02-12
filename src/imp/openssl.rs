@@ -9,7 +9,8 @@ use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::{X509, X509VerifyResult};
+use self::openssl::stack;
+use self::openssl::x509::{X509VerifyResult, X509};
 use std::error;
 use std::fmt;
 use std::io;
@@ -330,6 +331,19 @@ impl TlsAcceptor {
     }
 }
 
+pub struct ChainIterator<'a, S: 'a>(Option<stack::Iter<'a, X509>>, &'a TlsStream<S>);
+
+impl<'a, S> Iterator for ChainIterator<'a, S> {
+    type Item = Certificate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(i) = self.0.as_mut() {
+            return i.next().map(|c| Certificate(c.to_owned()));
+        }
+        None
+    }
+}
+
 pub struct TlsStream<S>(ssl::SslStream<S>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
@@ -353,6 +367,13 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
         Ok(self.0.ssl().peer_certificate().map(Certificate))
+    }
+
+    pub fn certificate_chain(&self) -> Result<ChainIterator<S>, Error> {
+        Ok(ChainIterator(
+            self.0.ssl().peer_cert_chain().map(|stack| stack.iter()),
+            self,
+        ))
     }
 
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {

@@ -441,11 +441,12 @@ impl TlsAcceptor {
     }
 }
 
-pub struct ChainIterator {
+pub struct ChainIterator<'a, S: 'a> {
     trust: Option<SecTrust>,
     pos: usize,
+    _stream: &'a TlsStream<S>,
 }
-impl<'a> Iterator for ChainIterator {
+impl<'a, S> Iterator for ChainIterator<'a, S> {
     type Item = Certificate;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -492,13 +493,14 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(trust.certificate_at_index(0).map(Certificate))
     }
 
-    pub fn certificate_chain(&self) -> Result<ChainIterator, Error> {
+    pub fn certificate_chain(&self) -> Result<ChainIterator<S>, Error> {
         let trust = match self.stream.context().peer_trust2()? {
             Some(trust) => trust,
             None => {
                 return Ok(ChainIterator {
                     trust: None,
                     pos: 0,
+                    _stream: self,
                 });
             }
         };
@@ -506,6 +508,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(ChainIterator {
             trust: Some(trust),
             pos: 0,
+            _stream: self,
         })
     }
 

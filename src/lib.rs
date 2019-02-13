@@ -207,9 +207,9 @@ impl Certificate {
         Ok(der)
     }
 
-    /// Returns der encoded SubjectPublicKeyInfo.
-    pub fn public_key_der(&self) -> Result<Vec<u8>> {
-        let der = self.0.public_key_der()?;
+    /// Returns der encoded subjectPublicKeyInfo.
+    pub fn public_key_info_der(&self) -> Result<Vec<u8>> {
+        let der = self.0.public_key_info_der()?;
         Ok(der)
     }
 }

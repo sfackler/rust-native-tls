@@ -125,7 +125,7 @@ impl Certificate {
         Ok(self.0.to_der().to_vec())
     }
 
-    pub fn public_key_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn public_key_info_der(&self) -> Result<Vec<u8>, Error> {
         Ok(self.0.subject_public_key_info_der()?)
     }
 }

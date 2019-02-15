@@ -286,29 +286,32 @@ impl<'a, S> Iterator for ChainIterator<'a, S> {
     }
 }
 
-pub struct TlsStream<S>(tls_stream::TlsStream<S>, Option<CertStore>);
+pub struct TlsStream<S> {
+    stream: tls_stream::TlsStream<S>,
+    store: Option<CertStore>,
+}
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, fmt)
+        fmt::Debug::fmt(&self.stream, fmt)
     }
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
-        self.0.get_ref()
+        self.stream.get_ref()
     }
 
     pub fn get_mut(&mut self) -> &mut S {
-        self.0.get_mut()
+        self.stream.get_mut()
     }
 
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
-        Ok(self.0.get_buf().len())
+        Ok(self.stream.get_buf().len())
     }
 
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
-        match self.0.peer_certificate() {
+        match self.stream.peer_certificate() {
             Ok(cert) => Ok(Some(Certificate(cert))),
             Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => Ok(None),
             Err(e) => Err(Error(e)),
@@ -316,28 +319,28 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>, Error> {
-        if self.1.is_none() {
-            match self.0.peer_certificate() {
+        if self.store.is_none() {
+            match self.stream.peer_certificate() {
                 Ok(cert) => {
-                    self.1 = cert.cert_store();
+                    self.store = cert.cert_store();
                 }
                 Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => {
-                    self.1 = None;
+                    self.store = None;
                 }
                 Err(e) => return Err(Error(e)),
             }
         }
         Ok(ChainIterator {
-            certs: self.1.as_ref().map(|c| c.certs()),
+            certs: self.store.as_ref().map(|c| c.certs()),
             _stream: self,
         })
     }
 
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {
-        let cert = if self.0.is_server() {
-            self.0.certificate()
+        let cert = if self.stream.is_server() {
+            self.stream.certificate()
         } else {
-            self.0.peer_certificate()
+            self.stream.peer_certificate()
         };
 
         let cert = match cert {
@@ -359,23 +362,23 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {
-        self.0.shutdown()?;
+        self.stream.shutdown()?;
         Ok(())
     }
 }
 
 impl<S: io::Read + io::Write> io::Read for TlsStream<S> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
+        self.stream.read(buf)
     }
 }
 
 impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        self.stream.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        self.stream.flush()
     }
 }

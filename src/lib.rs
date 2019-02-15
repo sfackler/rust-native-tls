@@ -647,7 +647,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(self.0.peer_certificate()?.map(Certificate))
     }
 
-    /// Returns an iterator over certificate chain, if available.
+    /// Returns an iterator over certificate chain. It may be an empty iterator if chain not available.
     pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>> {
         Ok(ChainIterator(self.0.certificate_chain()?))
     }

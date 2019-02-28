@@ -11,8 +11,8 @@ readme = "README.md"
 vendored = ["openssl/vendored"]
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = {git = "https://github.com/sergejjurecko/rust-security-framework/", features = ["OSX_10_12"]}
-security-framework-sys = {git = "https://github.com/sergejjurecko/rust-security-framework/", features = ["OSX_10_12"]}
+security-framework = {version = "0.2.4-beta.2", features = ["OSX_10_12"]}
+security-framework-sys = {version = "0.2.4-beta.2", features = ["OSX_10_12"]}
 core-foundation-sys = "0.6.2"
 core-foundation = "0.6.3"
 lazy_static = "1.0"
@@ -20,7 +20,7 @@ libc = "0.2"
 tempfile = "3.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = {git = "https://github.com/SergejJurecko/schannel-rs"}
+schannel = {version = "0.1.15"}
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 log = "0.4.5"

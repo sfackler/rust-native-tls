@@ -155,7 +155,10 @@ where
 
     pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
         match self.0.handshake() {
-            Ok(s) => Ok(TlsStream(s, None)),
+            Ok(stream) => Ok(TlsStream {
+                stream,
+                store: None,
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -233,7 +236,10 @@ impl TlsConnector {
             builder.verify_callback(|_| Ok(()));
         }
         match builder.connect(cred, stream) {
-            Ok(s) => Ok(TlsStream(s, None)),
+            Ok(stream) => Ok(TlsStream {
+                stream,
+                store: None,
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -265,7 +271,10 @@ impl TlsAcceptor {
         // FIXME we're probably missing the certificate chain?
         let cred = builder.acquire(Direction::Inbound)?;
         match tls_stream::Builder::new().accept(cred, stream) {
-            Ok(s) => Ok(TlsStream(s, None)),
+            Ok(stream) => Ok(TlsStream {
+                stream,
+                store: None,
+            }),
             Err(e) => Err(e.into()),
         }
     }

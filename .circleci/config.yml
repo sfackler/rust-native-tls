@@ -1,51 +1,71 @@
-restore_registry: &RESTORE_REGISTRY
-  restore_cache:
-    key: registry
-save_registry: &SAVE_REGISTRY
-  save_cache:
-    key: registry-{{ .BuildNum }}
-    paths:
-    - /usr/local/cargo/registry/index
-deps_key: &DEPS_KEY
-  key: deps-{{ checksum "~/rust-version" }}-{{ checksum "~/openssl-version" }}-{{ checksum "Cargo.lock" }}
-restore_deps: &RESTORE_DEPS
-  restore_cache:
-    <<: *DEPS_KEY
-save_deps: &SAVE_DEPS
-  save_cache:
-    <<: *DEPS_KEY
-    paths:
-    - target
-    - /usr/local/cargo/registry/cache
-job: &JOB
-  environment:
-    RUSTFLAGS: -D warnings
-  steps:
-    - checkout
-    - *RESTORE_REGISTRY
-    - run: cargo generate-lockfile
-    - *SAVE_REGISTRY
-    - run: rustc --version > ~/rust-version
-    - run: openssl version > ~/openssl-version
-    - *RESTORE_DEPS
-    - run: cargo test
-    - run: rustdoc --test README.md -L target/debug/deps -L target/debug
-    - *SAVE_DEPS
+version: 2.1
 
-version: 2
 jobs:
-  openssl-1.1.0:
-    <<: *JOB
+  linux:
+    parameters:
+      image:
+        type: string
     docker:
-      - image: rust:1.21.0-stretch
-  openssl-1.0.2:
-    <<: *JOB
-    docker:
-      - image: rust:1.21.0-jessie
+      - image: rust:<< parameters.image >>
+    environment:
+      RUST_BACKTRACE: 1
+      RUSTFLAGS: -D warnings
+    steps:
+      - checkout
+      - restore_cache:
+          key: registry
+      - run: cargo generate-lockfile
+      - save_cache:
+          key: registry-{{ .BuildNum }}
+          paths:
+            - /usr/local/cargo/registry/index
+      - restore_cache:
+          key: deps-<< parameters.image >>-{{ checksum "Cargo.lock" }}
+      - run: cargo test
+      - run: rustdoc --test README.md -L target/debug/deps -L target/debug
+      - save_cache:
+          key: deps-<< parameters.image >>-{{ checksum "Cargo.lock" }}
+          paths:
+            - /usr/local/cargo/registry/cache
+            - target
+
+  macos:
+    parameters:
+      version:
+        type: string
+    macos:
+      xcode: "9.0"
+    environment:
+      RUST_BACKTRACE: 1
+      RUSTFLAGS: -D warnings
+    steps:
+      - checkout
+      - run: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain << parameters.version >>
+      - run: ln -s ~/.cargo/bin/* /usr/local/bin
+      - restore_cache:
+          key: macos-registry
+      - run: cargo generate-lockfile
+      - save_cache:
+          key: macos-registry-{{ .BuildNum }}
+          paths:
+            - ~/.cargo/registry/index
+      - restore_cache:
+          key: macos-deps-<< parameters.version >>
+      - run: cargo test
+      - save_cache:
+          key: macos-deps-<< parameters.version >>
+          paths:
+            - ~/.cargo/registry/cache
+            - target
 
 workflows:
-  version: 2
-  tests:
+  test:
     jobs:
-      - openssl-1.1.0
-      - openssl-1.0.2
+      - linux:
+          name: openssl-1.1.0
+          image: 1.26.2-stretch
+      - linux:
+          name: openssl-1.0.2
+          image: 1.26.2-jessie
+      - macos:
+          version: 1.26.2

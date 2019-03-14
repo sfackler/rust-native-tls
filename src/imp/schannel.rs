@@ -101,7 +101,7 @@ impl Identity {
         Identity::from_store(store)
     }
 
-    fn from_system() -> Result<Identity, Error> {
+    pub fn from_system() -> Result<Identity, Error> {
         let store = CertStore::open_local_machine("my")?;
         Identity::from_store(store)
     }
@@ -200,15 +200,7 @@ pub struct TlsConnector {
 
 impl TlsConnector {
     pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
-        let mut cert = if builder.use_system_identity {
-            Identity::from_system().ok().map(|i| i.cert)
-        } else {
-            None
-        };
-
-        if cert.is_none() {
-            cert = builder.identity.as_ref().map(|i| i.0.cert.clone());
-        }
+        let cert = builder.identity.as_ref().map(|i| i.0.cert.clone());
 
         let mut roots = Memory::new()?.into_store();
         for cert in &builder.root_certificates {

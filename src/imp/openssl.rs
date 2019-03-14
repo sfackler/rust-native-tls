@@ -115,6 +115,7 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
 pub enum Error {
     Normal(ErrorStack),
     Ssl(ssl::Error, X509VerifyResult),
+    Unsupported
 }
 
 impl error::Error for Error {
@@ -122,13 +123,16 @@ impl error::Error for Error {
         match *self {
             Error::Normal(ref e) => error::Error::description(e),
             Error::Ssl(ref e, _) => error::Error::description(e),
+            Error::Unsupported => "Unsupported",
         }
     }
 
+    #[allow(deprecated)]
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             Error::Normal(ref e) => error::Error::cause(e),
             Error::Ssl(ref e, _) => error::Error::cause(e),
+            Error::Unsupported => None
         }
     }
 }
@@ -139,6 +143,7 @@ impl fmt::Display for Error {
             Error::Normal(ref e) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, X509VerifyResult::OK) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, v) => write!(fmt, "{} ({})", e, v),
+            Error::Unsupported => write!(fmt, "Unsupported"),
         }
     }
 }
@@ -156,6 +161,10 @@ impl Identity {
         let pkcs12 = Pkcs12::from_der(buf)?;
         let parsed = pkcs12.parse(pass)?;
         Ok(Identity(parsed))
+    }
+
+    pub fn from_system() -> Result<Identity, Error> {
+        Err(Error::Unsupported)
     }
 }
 

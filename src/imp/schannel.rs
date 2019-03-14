@@ -38,6 +38,7 @@ impl error::Error for Error {
         error::Error::description(&self.0)
     }
 
+    #[allow(deprecated)]
     fn cause(&self) -> Option<&error::Error> {
         error::Error::cause(&self.0)
     }
@@ -66,8 +67,7 @@ pub struct Identity {
 }
 
 impl Identity {
-    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
-        let store = PfxImportOptions::new().password(pass).import(buf)?;
+    fn from_store(store: CertStore) -> Result<Identity, Error> {
         let mut identity = None;
 
         for cert in store.certs() {
@@ -94,6 +94,16 @@ impl Identity {
         };
 
         Ok(Identity { cert: identity })
+    }
+
+    pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
+        let store = PfxImportOptions::new().password(pass).import(buf)?;
+        Identity::from_store(store)
+    }
+
+    fn from_system() -> Result<Identity, Error> {
+        let store = CertStore::open_local_machine("my")?;
+        Identity::from_store(store)
     }
 }
 
@@ -190,7 +200,16 @@ pub struct TlsConnector {
 
 impl TlsConnector {
     pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
-        let cert = builder.identity.as_ref().map(|i| i.0.cert.clone());
+        let mut cert = if builder.use_system_identity {
+            Identity::from_system().ok().map(|i| i.cert)
+        } else {
+            None
+        };
+
+        if cert.is_none() {
+            cert = builder.identity.as_ref().map(|i| i.0.cert.clone());
+        }
+
         let mut roots = Memory::new()?.into_store();
         for cert in &builder.root_certificates {
             roots.add_cert(&(cert.0).0, CertAdd::ReplaceExisting)?;

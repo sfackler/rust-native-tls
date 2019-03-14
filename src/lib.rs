@@ -136,6 +136,7 @@ impl error::Error for Error {
         error::Error::description(&self.0)
     }
 
+    #[allow(deprecated)]
     fn cause(&self) -> Option<&error::Error> {
         error::Error::cause(&self.0)
     }
@@ -332,12 +333,20 @@ pub struct TlsConnectorBuilder {
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
     use_sni: bool,
+    use_system_identity: bool,
 }
 
 impl TlsConnectorBuilder {
     /// Sets the identity to be used for client certificate authentication.
     pub fn identity(&mut self, identity: Identity) -> &mut TlsConnectorBuilder {
         self.identity = Some(identity);
+        self
+    }
+
+    /// Use system certificate store (if available) for identity
+    /// If there is no system store or no identity available fall back to PKCS12 identity
+    pub fn use_system_identity(&mut self, use_system_identity: bool) -> &mut TlsConnectorBuilder {
+        self.use_system_identity = use_system_identity;
         self
     }
 
@@ -459,6 +468,7 @@ impl TlsConnector {
             use_sni: true,
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
+            use_system_identity: false,
         }
     }
 

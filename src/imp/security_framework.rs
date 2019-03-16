@@ -48,7 +48,7 @@ fn convert_protocol(protocol: Protocol) -> SslProtocol {
     }
 }
 
-pub struct Error(base::Error::from_code(0));
+pub struct Error(base::Error);
 
 impl error::Error for Error {
     fn description(&self) -> &str {
@@ -108,7 +108,7 @@ impl Identity {
     }
 
     pub fn from_system() -> Result<Identity, Error> {
-        Err(Error))
+        Err(Error(base::Error::from_code(errSecParam)))
     }
 
     #[cfg(not(target_os = "ios"))]

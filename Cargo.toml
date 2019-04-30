@@ -1,6 +1,6 @@
 [package]
 name = "native-tls"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "A wrapper over a platform's native TLS implementation"
@@ -11,10 +11,15 @@ readme = "README.md"
 vendored = ["openssl/vendored"]
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+<<<<<<< HEAD
 security-framework = {version = "0.3.0", features = ["OSX_10_12"]}
 security-framework-sys = {version = "0.3.0", features = ["OSX_10_12"]}
 core-foundation-sys = "0.6.2"
 core-foundation = "0.6.3"
+=======
+security-framework = "0.3.1"
+security-framework-sys = "0.3.1"
+>>>>>>> 4a4f36cf1dea11ce5df3c607bf67149a050a4bae
 lazy_static = "1.0"
 libc = "0.2"
 tempfile = "3.0"

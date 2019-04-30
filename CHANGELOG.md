@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [v0.2.3]
+
+### Fixed
+
+* Adding an already-trusted certificate to the root certificate set no longer triggers an error
+    with OpenSSL.
+
+### Updated
+
+* Updated security-framework to 0.3.
+
 ## [v0.2.2]
 
 ### Fixed
@@ -55,7 +66,8 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.2...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.3...master
+[v0.2.3]: https://github.com/sfackler/rust-native-tls/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/sfackler/rust-native-tls/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/sfackler/rust-native-tls/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/sfackler/rust-native-tls/compare/v0.1.5...v0.2.0

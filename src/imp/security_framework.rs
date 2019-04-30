@@ -1,5 +1,3 @@
-extern crate core_foundation;
-extern crate core_foundation_sys;
 extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;

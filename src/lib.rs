@@ -206,6 +206,23 @@ impl Certificate {
         let der = self.0.to_der()?;
         Ok(der)
     }
+
+    /// Returns der encoded subjectPublicKeyInfo.
+    pub fn public_key_info_der(&self) -> Result<Vec<u8>> {
+        let der = self.0.public_key_info_der()?;
+        Ok(der)
+    }
+}
+
+/// An iterator over a certificate chain.
+pub struct ChainIterator<'a, S: 'a>(imp::ChainIterator<'a, S>);
+
+impl<'a, S> Iterator for ChainIterator<'a, S> {
+    type Item = Certificate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(Certificate)
+    }
 }
 
 /// A TLS stream which has been interrupted midway through the handshake process.
@@ -628,6 +645,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     /// Returns the peer's leaf certificate, if available.
     pub fn peer_certificate(&self) -> Result<Option<Certificate>> {
         Ok(self.0.peer_certificate()?.map(Certificate))
+    }
+
+    /// Returns an iterator over certificate chain. It may be an empty iterator if chain not available.
+    pub fn certificate_chain(&mut self) -> Result<ChainIterator<S>> {
+        Ok(ChainIterator(self.0.certificate_chain()?))
     }
 
     /// Returns the tls-server-end-point channel binding data as defined in [RFC 5929].

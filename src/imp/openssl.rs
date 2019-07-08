@@ -111,6 +111,28 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
     Ok(())
 }
 
+pub fn with_probed_system_ca_list(connector: &mut SslContextBuilder) -> Result<(), Error> {
+    extern crate openssl_sys;
+    use std::ptr;
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let probe = openssl_probe::probe();
+
+    let file = probe.cert_file.map(|p| CString::new(p.into_os_string().as_bytes()).expect("no NULL in path"));
+    let path = probe.cert_dir.map(|p| CString::new(p.into_os_string().as_bytes()).expect("no NULL in path"));
+    if file.is_some() || path.is_some() {
+        unsafe {
+            if openssl_sys::SSL_CTX_load_verify_locations(connector.as_ptr(),
+                                                          file.as_ref().map_or(ptr::null(), |s|s.as_ptr()) as *const _,
+                                                          path.as_ref().map_or(ptr::null(), |s|s.as_ptr()) as *const _) <= 0 {
+                panic!("Unable to set OpenSSL certificate store path {:?}", openssl::error::ErrorStack::get())
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum Error {
     Normal(ErrorStack),
@@ -270,6 +292,9 @@ impl TlsConnector {
 
         #[cfg(target_os = "android")]
         load_android_root_certs(&mut connector)?;
+
+        #[cfg(not(target_os = "android"))]
+        with_probed_system_ca_list(&mut connector)?;
 
         Ok(TlsConnector {
             connector: connector.build(),

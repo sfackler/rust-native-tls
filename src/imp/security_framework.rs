@@ -24,6 +24,8 @@ use self::security_framework::os::macos::certificate::{PropertyType, SecCertific
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate_oids::CertificateOid;
 #[cfg(not(target_os = "ios"))]
+use self::security_framework::os::macos::identity::SecIdentityExt;
+#[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::import_export::{
     ImportOptions, Pkcs12ImportOptionsExt, SecItems,
 };
@@ -82,6 +84,33 @@ pub struct Identity {
 }
 
 impl Identity {
+    pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        let dir = TempDir::new().unwrap();
+        let keychain = keychain::CreateOptions::new()
+                           .password("password")
+                           .create(dir.path().join("identity.keychain"))?;
+
+        let mut items = SecItems::default();
+
+        ImportOptions::new()
+            .filename("key.pem")
+            .items(&mut items)
+            .keychain(&keychain)
+            .import(&key)?;
+
+        ImportOptions::new()
+            .filename("chain.pem")
+            .items(&mut items)
+            .keychain(&keychain)
+            .import(&pem)?;
+
+        let ident = SecIdentity::with_certificate(&[keychain], &items.certificates[0])?;
+        Ok(Identity {
+            identity: ident,
+            chain: items.certificates
+        })
+    }
+
     pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
         let mut imports = Identity::import_options(buf, pass)?;
         let import = imports.pop().unwrap();

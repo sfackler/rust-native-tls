@@ -1,8 +1,9 @@
 extern crate schannel;
 
-use self::schannel::cert_context::{CertContext, HashAlgorithm};
+use self::schannel::cert_context::{CertContext, HashAlgorithm, KeySpec};
 use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
+use self::schannel::crypt_prov::{AcquireOptions, ProviderType};
 use self::schannel::tls_stream;
 use std::error;
 use std::fmt;
@@ -95,6 +96,41 @@ impl Identity {
         };
 
         Ok(Identity { cert: identity })
+    }
+
+    pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        let mut store = Memory::new()?.into_store();
+        let mut cert_iter = crate::pem::PemBlock::new(pem).into_iter();
+        let leaf = cert_iter.next().unwrap();
+        let cert = CertContext::from_pem(std::str::from_utf8(leaf).unwrap()).unwrap();
+
+        let mut options = AcquireOptions::new();
+        options.container("schannel");
+        let type_ = ProviderType::rsa_full();
+
+        let mut container = match options.acquire(type_) {
+            Ok(container) => container,
+            Err(_) => options.new_keyset(true).acquire(type_).unwrap(),
+        };
+        let key = crate::pem::pem_to_der(key, Some(crate::pem::PEM_PRIVATE_KEY)).unwrap();
+        container.import()
+            .import_pkcs8(&key)
+            .unwrap();
+
+        cert.set_key_prov_info()
+            .container("schannel")
+            .type_(type_)
+            .keep_open(true)
+            .key_spec(KeySpec::key_exchange())
+            .set()
+            .unwrap();
+        let mut context = store.add_cert(&cert, CertAdd::Always)?;
+
+        for int_cert in cert_iter {
+            let certificate = Certificate::from_pem(int_cert)?;
+            context = store.add_cert(&certificate.0, schannel::cert_store::CertAdd::Always)?;
+        }
+        Ok(Identity{cert: context})
     }
 }
 

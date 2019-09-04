@@ -65,4 +65,4 @@ workflows:
           name: openssl
           image: 1.30.0-stretch
       - macos:
-          version: 1.26.2
+          version: 1.30.0

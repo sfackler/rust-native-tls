@@ -62,10 +62,7 @@ workflows:
   test:
     jobs:
       - linux:
-          name: openssl-1.1.0
-          image: 1.26.2-stretch
-      - linux:
-          name: openssl-1.0.2
-          image: 1.26.2-jessie
+          name: openssl
+          image: 1.30.0-stretch
       - macos:
-          version: 1.26.2
+          version: 1.30.0

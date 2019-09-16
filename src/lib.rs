@@ -220,10 +220,7 @@ where
     }
 }
 
-impl<S> MidHandshakeTlsStream<S>
-where
-    S: io::Read + io::Write,
-{
+impl<S> MidHandshakeTlsStream<S> {
     /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
@@ -233,7 +230,12 @@ where
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
     }
+}
 
+impl<S> MidHandshakeTlsStream<S>
+where
+    S: io::Read + io::Write,
+{
     /// Restarts the handshake process.
     ///
     /// If the handshake completes successfully then the negotiated stream is
@@ -608,7 +610,7 @@ impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
     }
 }
 
-impl<S: io::Read + io::Write> TlsStream<S> {
+impl<S> TlsStream<S> {
     /// Returns a shared reference to the inner stream.
     pub fn get_ref(&self) -> &S {
         self.0.get_ref()
@@ -618,7 +620,9 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
     }
+}
 
+impl<S: io::Read + io::Write> TlsStream<S> {
     /// Returns the number of bytes that can be read without resulting in any
     /// network calls.
     pub fn buffered_read_size(&self) -> Result<usize> {

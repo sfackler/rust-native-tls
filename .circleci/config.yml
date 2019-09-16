@@ -63,6 +63,6 @@ workflows:
     jobs:
       - linux:
           name: openssl
-          image: 1.30.0-stretch
+          image: 1.32.0-stretch
       - macos:
-          version: 1.30.0
+          version: 1.32.0

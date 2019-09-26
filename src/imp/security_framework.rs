@@ -56,7 +56,7 @@ impl error::Error for Error {
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        error::Error::cause(&self.0)
+        error::Error::source(&self.0)
     }
 }
 

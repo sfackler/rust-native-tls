@@ -39,7 +39,7 @@ impl error::Error for Error {
     }
 
     fn cause(&self) -> Option<&error::Error> {
-        error::Error::cause(&self.0)
+        error::Error::source(&self.0)
     }
 }
 
@@ -89,7 +89,8 @@ impl Identity {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "No identity found in PKCS #12 archive",
-                ).into());
+                )
+                .into());
             }
         };
 
@@ -115,7 +116,8 @@ impl Certificate {
             Err(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "PEM representation contains non-UTF-8 bytes",
-            ).into()),
+            )
+            .into()),
         }
     }
 

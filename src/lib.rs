@@ -136,8 +136,8 @@ impl error::Error for Error {
         error::Error::description(&self.0)
     }
 
-    fn cause(&self) -> Option<&error::Error> {
-        error::Error::cause(&self.0)
+    fn cause(&self) -> Option<&dyn error::Error> {
+        error::Error::source(&self.0)
     }
 }
 
@@ -272,7 +272,7 @@ where
         "handshake error"
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             HandshakeError::Failure(ref e) => Some(e),
             HandshakeError::WouldBlock(_) => None,

@@ -9,11 +9,11 @@ use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::{X509, X509VerifyResult};
+use self::openssl::x509::{X509VerifyResult, X509};
 use std::error;
 use std::fmt;
 use std::io;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
@@ -88,8 +88,8 @@ fn supported_protocols(
 }
 
 fn init_trust() {
-    static ONCE: Once = ONCE_INIT;
-    ONCE.call_once(|| openssl_probe::init_ssl_cert_env_vars());
+    static ONCE: Once = Once::new();
+    ONCE.call_once(openssl_probe::init_ssl_cert_env_vars);
 }
 
 #[cfg(target_os = "android")]
@@ -125,10 +125,10 @@ impl error::Error for Error {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
-            Error::Normal(ref e) => error::Error::cause(e),
-            Error::Ssl(ref e, _) => error::Error::cause(e),
+            Error::Normal(ref e) => error::Error::source(e),
+            Error::Ssl(ref e, _) => error::Error::source(e),
         }
     }
 }

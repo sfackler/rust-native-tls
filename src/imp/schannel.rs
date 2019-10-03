@@ -61,6 +61,7 @@ impl From<io::Error> for Error {
     }
 }
 
+#[derive(Clone)]
 pub struct Identity {
     cert: CertContext,
 }

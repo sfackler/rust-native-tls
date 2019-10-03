@@ -4,7 +4,7 @@ extern crate openssl_probe;
 use self::openssl::error::ErrorStack;
 use self::openssl::hash::MessageDigest;
 use self::openssl::nid::Nid;
-use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
+use self::openssl::pkcs12::Pkcs12;
 use self::openssl::pkey::PKey;
 use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,

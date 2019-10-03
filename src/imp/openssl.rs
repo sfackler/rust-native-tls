@@ -4,7 +4,8 @@ extern crate openssl_probe;
 use self::openssl::error::ErrorStack;
 use self::openssl::hash::MessageDigest;
 use self::openssl::nid::Nid;
-use self::openssl::pkcs12::{ParsedPkcs12, Pkcs12};
+use self::openssl::pkcs12::Pkcs12;
+use self::openssl::pkey::PKey;
 use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
@@ -16,6 +17,7 @@ use std::io;
 use std::sync::{Once, ONCE_INIT};
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use self::openssl::pkey::Private;
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -149,13 +151,22 @@ impl From<ErrorStack> for Error {
     }
 }
 
-pub struct Identity(ParsedPkcs12);
+#[derive(Clone)]
+pub struct Identity {
+    pkey: PKey<Private>,
+    cert: X509,
+    chain: Vec<X509>,
+}
 
 impl Identity {
     pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
         let pkcs12 = Pkcs12::from_der(buf)?;
         let parsed = pkcs12.parse(pass)?;
-        Ok(Identity(parsed))
+        Ok(Identity {
+            pkey: parsed.pkey,
+            cert: parsed.cert,
+            chain: parsed.chain.into_iter().flat_map(|x| x).collect(),
+        })
     }
 }
 
@@ -252,12 +263,10 @@ impl TlsConnector {
 
         let mut connector = SslConnector::builder(SslMethod::tls())?;
         if let Some(ref identity) = builder.identity {
-            connector.set_certificate(&(identity.0).0.cert)?;
-            connector.set_private_key(&(identity.0).0.pkey)?;
-            if let Some(ref chain) = (identity.0).0.chain {
-                for cert in chain.iter().rev() {
-                    connector.add_extra_chain_cert(cert.to_owned())?;
-                }
+            connector.set_certificate(&identity.0.cert)?;
+            connector.set_private_key(&identity.0.pkey)?;
+            for cert in identity.0.chain.iter().rev() {
+                connector.add_extra_chain_cert(cert.to_owned())?;
             }
         }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
@@ -303,12 +312,10 @@ pub struct TlsAcceptor(SslAcceptor);
 impl TlsAcceptor {
     pub fn new(builder: &TlsAcceptorBuilder) -> Result<TlsAcceptor, Error> {
         let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-        acceptor.set_private_key(&(builder.identity.0).0.pkey)?;
-        acceptor.set_certificate(&(builder.identity.0).0.cert)?;
-        if let Some(ref chain) = (builder.identity.0).0.chain {
-            for cert in chain.iter().rev() {
-                acceptor.add_extra_chain_cert(cert.to_owned())?;
-            }
+        acceptor.set_private_key(&builder.identity.0.pkey)?;
+        acceptor.set_certificate(&builder.identity.0.cert)?;
+        for cert in builder.identity.0.chain.iter().rev() {
+            acceptor.add_extra_chain_cert(cert.to_owned())?;
         }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut acceptor)?;
 

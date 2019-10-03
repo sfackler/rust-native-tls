@@ -163,6 +163,7 @@ impl From<imp::Error> for Error {
 ///
 /// An identity is an X509 certificate along with its corresponding private key and chain of certificates to a trusted
 /// root.
+#[derive(Clone)]
 pub struct Identity(imp::Identity);
 
 impl Identity {

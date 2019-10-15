@@ -208,7 +208,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
-            expect_custom_cn: builder.expect_custom_cn,
+            expect_custom_cn: builder.expect_custom_cn.clone(),
         })
     }
 

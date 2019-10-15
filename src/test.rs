@@ -61,7 +61,7 @@ mod tests {
 
         // The certificate is for *.s3.amazonaws.com which "bucket_name" matches to
         let builder = p!(TlsConnector::builder()
-            .expect_custom_cn("example_bucket.s3.amazonaws.com")
+            .expect_custom_cn("example-bucket.s3.amazonaws.com")
             .build());
         let s = p!(TcpStream::connect("example.bucket.s3.amazonaws.com:443"));
         builder.connect("example.bucket.s3.amazonaws.com", s).unwrap();

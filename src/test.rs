@@ -51,6 +51,23 @@ mod tests {
     }
 
     #[test]
+    fn connect_custom_cn() {
+        // The certificate is for *.s3.amazonaws.com;
+        // a 2-level subdomain "bucket.name" doesn't match the wildcard
+        let builder = p!(TlsConnector::builder()
+            .build());
+        let s = p!(TcpStream::connect("example.bucket.s3.amazonaws.com:443"));
+        builder.connect("example.bucket.s3.amazonaws.com", s).is_err();
+
+        // The certificate is for *.s3.amazonaws.com which "bucket_name" matches to
+        let builder = p!(TlsConnector::builder()
+            .expect_custom_cn("example_bucket.s3.amazonaws.com")
+            .build());
+        let s = p!(TcpStream::connect("example.bucket.s3.amazonaws.com:443"));
+        builder.connect("example.bucket.s3.amazonaws.com", s).unwrap();
+    }
+
+    #[test]
     fn server() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));

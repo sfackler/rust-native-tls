@@ -334,6 +334,7 @@ pub struct TlsConnectorBuilder {
     root_certificates: Vec<Certificate>,
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
+    expect_custom_cn: Option<String>,
     use_sni: bool,
 }
 
@@ -400,6 +401,26 @@ impl TlsConnectorBuilder {
         self
     }
 
+    /// Sets an expected CN the hostname validation is performed against.
+    ///
+    /// CN (Common Name) is the name that the identifies the connected server.
+    /// Its integrity is verified via PKI-based chain of trust, but it is up to the client
+    /// to check that CN matches the expected; i.e. that the connection is made to the
+    /// intended server, and not to a man-in-the-middle one.
+    /// This is automatically done unless `danger_accept_invalid_hostnames` is set.
+    ///
+    /// The default value is the domain name name of the server,
+    /// which is the normal usage in the context of HTTPS.
+    ///
+    /// In some cases, you might need to perform the hostname validation against a custom CN.
+    /// Use only if you know what you are doing.
+    ///
+    /// This value is ignored if `danger_accept_invalid_hostnames` is set.
+    pub fn expect_custom_cn(&mut self, cn: impl Into<String>) -> &mut TlsConnectorBuilder {
+        self.expect_custom_cn = Some(cn.into());
+        self
+    }
+
     /// Controls the use of hostname verification.
     ///
     /// Defaults to `false`.
@@ -462,6 +483,7 @@ impl TlsConnector {
             use_sni: true,
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
+            expect_custom_cn: None,
         }
     }
 

@@ -139,6 +139,10 @@ impl error::Error for Error {
     fn cause(&self) -> Option<&error::Error> {
         error::Error::cause(&self.0)
     }
+
+    fn source(&self) -> Option<&error::Error + 'static> {
+        error::Error::source(&self.0)
+    }
 }
 
 impl fmt::Display for Error {

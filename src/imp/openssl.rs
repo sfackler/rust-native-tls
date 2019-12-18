@@ -133,6 +133,13 @@ impl error::Error for Error {
             Error::Ssl(ref e, _) => error::Error::cause(e),
         }
     }
+
+    fn source(&self) -> Option<&error::Error + 'static> {
+        match *self {
+            Error::Normal(ref e) => Some(e),
+            Error::Ssl(ref e, _) => Some(e),
+        }
+    }
 }
 
 impl fmt::Display for Error {

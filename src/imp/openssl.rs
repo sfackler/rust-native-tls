@@ -168,6 +168,16 @@ impl Identity {
             chain: parsed.chain.into_iter().flat_map(|x| x).collect(),
         })
     }
+
+    pub fn from_pems(pkey_buf: &[u8], cert_buf: &[u8], chain_buf: Vec<&[u8]>) -> Result<Identity, Error> {        
+        let pkey = PKey::private_key_from_pem(pkey_buf)?;
+        let cert = X509::from_pem(cert_buf)?;
+        Ok(Identity {
+            pkey,
+            cert,
+            chain: chain_buf.into_iter().map(|b| X509::from_pem(b).unwrap()).collect(),
+        })
+    }
 }
 
 #[derive(Clone)]

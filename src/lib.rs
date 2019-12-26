@@ -183,6 +183,18 @@ impl Identity {
         let identity = imp::Identity::from_pkcs12(der, password)?;
         Ok(Identity(identity))
     }
+
+    /// Create an idenity from three individual PEM files
+    /// 
+    /// This is a setup as provided by 'LetsEncrypt' including the following files 
+    /// - cert.pem 
+    /// - fullchain.pem 
+    /// - privkey.pem 
+    /// 
+    pub fn from_pems(pkey: &[u8], cert: &[u8], chain: Vec<&[u8]>) -> Result<Identity> {
+        let identity = imp::Identity::from_pems(pkey, cert, chain)?;
+        Ok(Identity(identity))
+    }
 }
 
 /// An X509 certificate.

@@ -91,8 +91,7 @@ impl Identity {
         let dir = TempDir::new().unwrap();
         let keychain = keychain::CreateOptions::new()
                            .password("password")
-                           .create(dir.path().join("identity.keychain"))
-                           .unwrap();
+                           .create(dir.path().join("identity.keychain"))?;
 
         let mut items = SecItems::default();
 

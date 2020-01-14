@@ -171,12 +171,17 @@ impl Identity {
 
     pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let pkey = PKey::private_key_from_pem(key)?;
-        let mut cert_chain = pem::PemBlock::new(buf).map(|buf| X509::from_pem(buf).unwrap());
+        let mut cert_chain = vec!();
+        for buf in pem::PemBlock::new(buf) {
+            cert_chain.push(X509::from_pem(buf)?);
+        }
+        let mut cert_chain = cert_chain.into_iter();
         let cert = cert_chain.next();
         let chain = cert_chain.collect();
         Ok(Identity {
             pkey,
-            cert: cert.expect("need identity cert"),
+            // an identity must have at least one certificate, the leaf cert
+            cert: cert.expect("at least one certificate must be provided to create an identity"),
             chain: chain,
         })
     }

@@ -101,8 +101,8 @@ impl Identity {
     pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let mut store = Memory::new()?.into_store();
         let mut cert_iter = crate::pem::PemBlock::new(pem).into_iter();
-        let leaf = cert_iter.next().unwrap();
-        let cert = CertContext::from_pem(std::str::from_utf8(leaf).unwrap()).unwrap();
+        let leaf = cert_iter.next().expect("at least one certificate must be provided to create an identity");
+        let cert = CertContext::from_pem(std::str::from_utf8(leaf).map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "leaf cert contains invalid utf8"))?)?;
 
         let mut options = AcquireOptions::new();
         options.container("schannel");
@@ -110,20 +110,18 @@ impl Identity {
 
         let mut container = match options.acquire(type_) {
             Ok(container) => container,
-            Err(_) => options.new_keyset(true).acquire(type_).unwrap(),
+            Err(_) => options.new_keyset(true).acquire(type_)?,
         };
-        let key = crate::pem::pem_to_der(key, Some(crate::pem::PEM_PRIVATE_KEY)).unwrap();
+        let key = crate::pem::pem_to_der(key, Some(crate::pem::PEM_PRIVATE_KEY)).expect("invalid PKCS8 key provided");
         container.import()
-            .import_pkcs8(&key)
-            .unwrap();
+            .import_pkcs8(&key)?;
 
         cert.set_key_prov_info()
             .container("schannel")
             .type_(type_)
             .keep_open(true)
             .key_spec(KeySpec::key_exchange())
-            .set()
-            .unwrap();
+            .set()?;
         let mut context = store.add_cert(&cert, CertAdd::Always)?;
 
         for int_cert in cert_iter {

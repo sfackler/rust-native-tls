@@ -10,7 +10,7 @@ use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::{X509VerifyResult, X509};
+use self::openssl::x509::{X509, X509VerifyResult};
 use std::error;
 use std::fmt;
 use std::io;
@@ -155,7 +155,7 @@ impl From<ErrorStack> for Error {
 pub struct Identity {
     pkey: PKey<Private>,
     cert: X509,
-    chain: Option<Vec<X509>>,
+    chain: Vec<X509>,
 }
 
 impl Identity {
@@ -165,19 +165,19 @@ impl Identity {
         Ok(Identity {
             pkey: parsed.pkey,
             cert: parsed.cert,
-            chain: parsed.chain.map(|stack| stack.into_iter().collect()),
+            chain: parsed.chain.into_iter().flat_map(|x| x).collect(),
         })
     }
 
     pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let pkey = PKey::private_key_from_pem(key)?;
-        let p_block = pem::PemBlock::new(buf);
-        let mut chain: Vec<X509> = p_block.map(|buf| X509::from_pem(buf).unwrap()).collect();
-        let cert = chain.pop();
+        let mut cert_chain = pem::PemBlock::new(buf).map(|buf| X509::from_pem(buf).unwrap());
+        let cert = cert_chain.next();
+        let chain = cert_chain.collect();
         Ok(Identity {
             pkey,
             cert: cert.expect("need identity cert"),
-            chain: Some(chain),
+            chain: chain,
         })
     }
 }
@@ -277,10 +277,11 @@ impl TlsConnector {
         if let Some(ref identity) = builder.identity {
             connector.set_certificate(&identity.0.cert)?;
             connector.set_private_key(&identity.0.pkey)?;
-            if let Some(ref chain) = identity.0.chain {
-                for cert in chain.iter().rev() {
-                    connector.add_extra_chain_cert(cert.to_owned())?;
-                }
+            for cert in identity.0.chain.iter() {
+                // https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_extra_chain_cert.html
+                // specifies that "When sending a certificate chain, extra chain certificates are
+                // sent in order following the end entity certificate."
+                connector.add_extra_chain_cert(cert.to_owned())?;
             }
         }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
@@ -328,10 +329,11 @@ impl TlsAcceptor {
         let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
         acceptor.set_private_key(&builder.identity.0.pkey)?;
         acceptor.set_certificate(&builder.identity.0.cert)?;
-        if let Some(ref chain) = builder.identity.0.chain {
-            for cert in chain.iter().rev() {
-                acceptor.add_extra_chain_cert(cert.to_owned())?;
-            }
+        for cert in builder.identity.0.chain.iter() {
+            // https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_extra_chain_cert.html
+            // specifies that "When sending a certificate chain, extra chain certificates are
+            // sent in order following the end entity certificate."
+            acceptor.add_extra_chain_cert(cert.to_owned())?;
         }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut acceptor)?;
 

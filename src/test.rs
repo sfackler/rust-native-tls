@@ -383,6 +383,7 @@ mod tests {
         let cert = include_bytes!("../test/cert.pem");
 
         let ident = Identity::from_pkcs8(cert, key).unwrap();
+        let ident2 = ident.clone();
         let builder = p!(TlsAcceptor::new(ident));
 
         let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -404,6 +405,13 @@ mod tests {
 
         let socket = p!(TcpStream::connect(("localhost", port)));
         let mut builder = TlsConnector::builder();
+        // FIXME
+        // This checks that we can successfully add a certificate on the client side.
+        // Unfortunately, we can not request client certificates through the API of this library,
+        // otherwise we could check in the server thread that
+        // socket.peer_certificate().unwrap().is_some()
+        builder.identity(ident2);
+
         builder.add_root_certificate(root_ca);
         let builder = p!(builder.build());
         let mut socket = p!(builder.connect("foobar.com", socket));

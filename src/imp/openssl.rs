@@ -15,7 +15,6 @@ use std::error;
 use std::fmt;
 use std::io;
 use std::sync::{Once, ONCE_INIT};
-use pem;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
@@ -171,11 +170,7 @@ impl Identity {
 
     pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let pkey = PKey::private_key_from_pem(key)?;
-        let mut cert_chain = vec!();
-        for buf in pem::PemBlock::new(buf) {
-            cert_chain.push(X509::from_pem(buf)?);
-        }
-        let mut cert_chain = cert_chain.into_iter();
+        let mut cert_chain = X509::stack_from_pem(buf)?.into_iter();
         let cert = cert_chain.next();
         let chain = cert_chain.collect();
         Ok(Identity {

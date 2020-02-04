@@ -112,9 +112,8 @@ impl Identity {
             Ok(container) => container,
             Err(_) => options.new_keyset(true).acquire(type_)?,
         };
-        let key = crate::pem::pem_to_der(key, Some(crate::pem::PEM_PRIVATE_KEY)).expect("invalid PKCS8 key provided");
         container.import()
-            .import_pkcs8(&key)?;
+            .import_pkcs8_pem(&key)?;
 
         cert.set_key_prov_info()
             .container("schannel")

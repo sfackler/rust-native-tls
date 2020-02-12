@@ -1,39 +1,4 @@
 #![allow(unused)]
-use rustc_serialize::base64::{self, FromBase64, ToBase64};
-
-/// Type of the various `PEM_*` constants supplied to `pem_to_der` / `der_to_pem`.
-pub struct PemGuard {
-    begin: &'static str,
-    end: &'static str,
-}
-
-macro_rules! pem_guard {
-    ($n:expr) => {
-        &PemGuard {
-            begin: concat!("-----BEGIN ", $n, "-----"),
-            end: concat!("-----END ", $n, "-----"),
-        }
-    }
-}
-
-// Ref. RFC7468, although these are not universally respected.
-pub const PEM_CERTIFICATE: &'static PemGuard = pem_guard!("CERTIFICATE");
-pub const PEM_CERTIFICATE_REQUEST: &'static PemGuard = pem_guard!("CERTIFICATE REQUEST");
-pub const PEM_ENCRYPTED_PRIVATE_KEY: &'static PemGuard = pem_guard!("ENCRYPTED PRIVATE KEY");
-pub const PEM_PRIVATE_KEY: &'static PemGuard = pem_guard!("PRIVATE KEY");
-pub const PEM_PUBLIC_KEY: &'static PemGuard = pem_guard!("PUBLIC KEY");
-pub const PEM_CMS: &'static PemGuard = pem_guard!("CMS");
-
-const BASE64_PEM_WRAP: usize = 64;
-
-lazy_static!{
-    static ref BASE64_PEM: base64::Config = base64::Config {
-        char_set: base64::CharacterSet::Standard,
-        newline: base64::Newline::LF,
-        pad: true,
-        line_length: Some(BASE64_PEM_WRAP),
-    };
-}
 
 /// Split data by PEM guard lines
 pub struct PemBlock<'a> {

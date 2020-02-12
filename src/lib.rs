@@ -27,7 +27,7 @@
 //! * TLS/SSL client communication
 //! * TLS/SSL server communication
 //! * PKCS#12 encoded identities
-//! * PKCS#8  encoded identities
+//! * X.509/PKCS#8 encoded identities
 //! * Secure-by-default for client and server
 //!     * Includes hostname verification for clients
 //! * Supports asynchronous I/O for both the server and the client
@@ -98,12 +98,12 @@
 #![warn(missing_docs)]
 
 #[macro_use]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 extern crate lazy_static;
 
 #[cfg(test)]
 extern crate hex;
 
-extern crate rustc_serialize;
 mod pem;
 
 use std::any::Any;

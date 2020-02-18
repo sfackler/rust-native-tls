@@ -26,7 +26,7 @@ native-tls = "0.2"
 
 An example client looks like:
 
-```rust
+```rust,ignore
 extern crate native_tls;
 
 use native_tls::TlsConnector;
@@ -48,7 +48,7 @@ fn main() {
 
 To accept connections as a server from remote clients:
 
-```rust,no_run
+```rust,ignore
 extern crate native_tls;
 
 use native_tls::{Identity, TlsAcceptor, TlsStream};

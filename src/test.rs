@@ -423,4 +423,77 @@ mod tests {
 
         p!(j.join());
     }
+    #[test]
+    fn two_servers() {
+        let key = include_bytes!("../test/key.pem");
+        let cert = include_bytes!("../test/cert.pem");
+        let identity = p!(Identity::from_pkcs8(cert, key));
+        let builder = TlsAcceptor::builder(identity);
+        let builder = p!(builder.build());
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let mut socket = p!(builder.accept(socket));
+
+            let mut buf = [0; 5];
+            p!(socket.read_exact(&mut buf));
+            assert_eq!(&buf, b"hello");
+
+            p!(socket.write_all(b"world"));
+        });
+
+        let key = include_bytes!("../test/key2.pem");
+        let cert = include_bytes!("../test/cert2.pem");
+        let identity = p!(Identity::from_pkcs8(cert, key));
+        let builder = TlsAcceptor::builder(identity);
+        let builder = p!(builder.build());
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port2 = p!(listener.local_addr()).port();
+
+        let j2 = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let mut socket = p!(builder.accept(socket));
+
+            let mut buf = [0; 5];
+            p!(socket.read_exact(&mut buf));
+            assert_eq!(&buf, b"hello");
+
+            p!(socket.write_all(b"world"));
+        });
+
+        let root_ca = include_bytes!("../test/root-ca.pem");
+        let root_ca = p!(Certificate::from_pem(root_ca));
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let mut builder = TlsConnector::builder();
+        builder.add_root_certificate(root_ca);
+        let builder = p!(builder.build());
+        let mut socket = p!(builder.connect("foobar.com", socket));
+
+        p!(socket.write_all(b"hello"));
+        let mut buf = vec![];
+        p!(socket.read_to_end(&mut buf));
+        assert_eq!(buf, b"world");
+
+        let root_ca = include_bytes!("../test/cert2.pem");
+        let root_ca = p!(Certificate::from_pem(root_ca));
+
+        let socket = p!(TcpStream::connect(("localhost", port2)));
+        let mut builder = TlsConnector::builder();
+        builder.add_root_certificate(root_ca);
+        let builder = p!(builder.build());
+        let mut socket = p!(builder.connect("foobar.com", socket));
+
+        p!(socket.write_all(b"hello"));
+        let mut buf = vec![];
+        p!(socket.read_to_end(&mut buf));
+        assert_eq!(buf, b"world");
+
+        p!(j.join());
+        p!(j2.join());
+    }
 }

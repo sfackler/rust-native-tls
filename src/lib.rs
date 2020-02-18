@@ -104,8 +104,6 @@ extern crate lazy_static;
 #[cfg(test)]
 extern crate hex;
 
-mod pem;
-
 use std::any::Any;
 use std::error;
 use std::fmt;

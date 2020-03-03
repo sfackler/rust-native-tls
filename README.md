@@ -7,7 +7,7 @@
 An abstraction over platform-specific TLS implementations.
 
 Specifically, this crate uses SChannel on Windows (via the [`schannel`] crate),
-Secure Transport on OSX (via the [`security-framework`] crate), and OpenSSL (via
+Secure Transport on macOS (via the [`security-framework`] crate), and OpenSSL (via
 the [`openssl`] crate) on all other platforms.
 
 [`schannel`]: https://crates.io/crates/schannel

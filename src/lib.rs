@@ -136,8 +136,12 @@ impl error::Error for Error {
         error::Error::description(&self.0)
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         error::Error::cause(&self.0)
+    }
+
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        error::Error::source(&self.0)
     }
 }
 

@@ -9,7 +9,6 @@ jobs:
       - image: rust:<< parameters.image >>
     environment:
       RUST_BACKTRACE: 1
-      RUSTFLAGS: -D warnings
     steps:
       - checkout
       - restore_cache:
@@ -37,7 +36,6 @@ jobs:
       xcode: "9.0"
     environment:
       RUST_BACKTRACE: 1
-      RUSTFLAGS: -D warnings
     steps:
       - checkout
       - run: curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain << parameters.version >>
@@ -63,6 +61,6 @@ workflows:
     jobs:
       - linux:
           name: openssl
-          image: 1.32.0-stretch
+          image: 1.37.0-stretch
       - macos:
-          version: 1.32.0
+          version: 1.37.0

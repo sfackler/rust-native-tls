@@ -11,8 +11,8 @@ readme = "README.md"
 vendored = ["openssl/vendored"]
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = "0.4.1"
-security-framework-sys = "0.4.1"
+security-framework = { version = "0.4.4", features = ["alpn"] }
+security-framework-sys = "0.4.3"
 lazy_static = "1.0"
 libc = "0.2"
 tempfile = "3.0"

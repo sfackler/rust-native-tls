@@ -186,6 +186,7 @@ pub struct TlsConnector {
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
     disable_built_in_roots: bool,
+    alpn: Vec<Vec<u8>>,
 }
 
 impl TlsConnector {
@@ -205,6 +206,7 @@ impl TlsConnector {
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
             disable_built_in_roots: builder.disable_built_in_roots,
+            alpn: builder.alpn.clone(),
         })
     }
 
@@ -248,6 +250,9 @@ impl TlsConnector {
                     "unable to find any user-specified roots in the final cert chain",
                 ))
             });
+        }
+        if !self.alpn.is_empty() {
+            builder.request_application_protocols(&self.alpn.iter().map(AsRef::as_ref).collect::<Vec<_>>());
         }
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
@@ -317,6 +322,10 @@ impl<S: io::Read + io::Write> TlsStream<S> {
             Err(ref e) if e.raw_os_error() == Some(SEC_E_NO_CREDENTIALS as i32) => Ok(None),
             Err(e) => Err(Error(e)),
         }
+    }
+
+    pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>, Error> {
+        Ok(self.0.negotiated_application_protocol()?)
     }
 
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {

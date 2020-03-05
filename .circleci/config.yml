@@ -34,7 +34,7 @@ jobs:
       version:
         type: string
     macos:
-      xcode: "9.0"
+      xcode: "10.0.0"
     environment:
       RUST_BACKTRACE: 1
       RUSTFLAGS: -D warnings

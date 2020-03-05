@@ -274,6 +274,18 @@ impl TlsConnector {
             }
         }
 
+        if !builder.alpn.is_empty() {
+            // Wire format is each alpn preceded by its length as a byte.
+            let mut alpn_wire_format = Vec::with_capacity(
+                builder.alpn.iter().map(Vec::len).sum::<usize>() + builder.alpn.len(),
+            );
+            for alpn in &builder.alpn {
+                alpn_wire_format.push(alpn.len() as u8);
+                alpn_wire_format.extend(alpn);
+            }
+            connector.set_alpn_protos(&alpn_wire_format)?;
+        }
+
         #[cfg(target_os = "android")]
         load_android_root_certs(&mut connector)?;
 
@@ -353,6 +365,10 @@ impl<S: io::Read + io::Write> TlsStream<S> {
 
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
         Ok(self.0.ssl().peer_certificate().map(Certificate))
+    }
+
+    pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>, Error> {
+        Ok(self.0.ssl().selected_alpn_protocol().map(|alpn| alpn.to_vec()))
     }
 
     pub fn tls_server_end_point(&self) -> Result<Option<Vec<u8>>, Error> {

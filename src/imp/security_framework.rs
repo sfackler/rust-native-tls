@@ -16,7 +16,7 @@ use std::error;
 use std::fmt;
 use std::io;
 use std::sync::Mutex;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate::{PropertyType, SecCertificateExt};
@@ -31,7 +31,7 @@ use self::security_framework_sys::base::errSecParam;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
-static SET_AT_EXIT: Once = ONCE_INIT;
+static SET_AT_EXIT: Once = Once::new();
 
 #[cfg(not(target_os = "ios"))]
 lazy_static! {
@@ -51,12 +51,8 @@ fn convert_protocol(protocol: Protocol) -> SslProtocol {
 pub struct Error(base::Error);
 
 impl error::Error for Error {
-    fn description(&self) -> &str {
-        error::Error::description(&self.0)
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        error::Error::cause(&self.0)
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        error::Error::source(&self.0)
     }
 }
 
@@ -97,7 +93,7 @@ impl Identity {
         let identity_cert = identity.certificate()?.to_der();
 
         Ok(Identity {
-            identity: identity,
+            identity,
             chain: import
                 .cert_chain
                 .unwrap_or(vec![])

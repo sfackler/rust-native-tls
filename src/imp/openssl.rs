@@ -14,7 +14,7 @@ use self::openssl::x509::{X509, X509VerifyResult};
 use std::error;
 use std::fmt;
 use std::io;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 use self::openssl::pkey::Private;
@@ -90,7 +90,7 @@ fn supported_protocols(
 }
 
 fn init_trust() {
-    static ONCE: Once = ONCE_INIT;
+    static ONCE: Once = Once::new();
     ONCE.call_once(|| openssl_probe::init_ssl_cert_env_vars());
 }
 
@@ -120,17 +120,10 @@ pub enum Error {
 }
 
 impl error::Error for Error {
-    fn description(&self) -> &str {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
-            Error::Normal(ref e) => error::Error::description(e),
-            Error::Ssl(ref e, _) => error::Error::description(e),
-        }
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        match *self {
-            Error::Normal(ref e) => error::Error::cause(e),
-            Error::Ssl(ref e, _) => error::Error::cause(e),
+            Error::Normal(ref e) => error::Error::source(e),
+            Error::Ssl(ref e, _) => error::Error::source(e),
         }
     }
 }

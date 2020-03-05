@@ -132,12 +132,8 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Error(imp::Error);
 
 impl error::Error for Error {
-    fn description(&self) -> &str {
-        error::Error::description(&self.0)
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        error::Error::cause(&self.0)
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        error::Error::source(&self.0)
     }
 }
 
@@ -271,11 +267,7 @@ impl<S> error::Error for HandshakeError<S>
 where
     S: Any + fmt::Debug,
 {
-    fn description(&self) -> &str {
-        "handshake error"
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
             HandshakeError::Failure(ref e) => Some(e),
             HandshakeError::WouldBlock(_) => None,

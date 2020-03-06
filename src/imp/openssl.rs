@@ -248,6 +248,7 @@ pub struct TlsConnector {
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
+    expect_custom_cn: Option<String>,
 }
 
 impl TlsConnector {
@@ -278,6 +279,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
+            expect_custom_cn: builder.expect_custom_cn.clone(),
         })
     }
 
@@ -290,11 +292,14 @@ impl TlsConnector {
             .configure()?
             .use_server_name_indication(self.use_sni)
             .verify_hostname(!self.accept_invalid_hostnames);
+
         if self.accept_invalid_certs {
             ssl.set_verify(SslVerifyMode::NONE);
         }
 
-        let s = ssl.connect(domain, stream)?;
+        let expected_cn = self.expect_custom_cn.as_ref().map(|s| &**s).unwrap_or(domain);
+
+        let s = ssl.connect(expected_cn, stream)?;
         Ok(TlsStream(s))
     }
 }

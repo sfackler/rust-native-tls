@@ -185,6 +185,7 @@ pub struct TlsConnector {
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
+    expect_custom_cn: Option<String>,
 }
 
 impl TlsConnector {
@@ -203,6 +204,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
+            expect_custom_cn: builder.expect_custom_cn.clone(),
         })
     }
 
@@ -217,9 +219,10 @@ impl TlsConnector {
         }
         let cred = builder.acquire(Direction::Outbound)?;
         let mut builder = tls_stream::Builder::new();
+        let expected_cn = self.expect_custom_cn.as_ref().map(|s| &**s).unwrap_or(domain);
         builder
             .cert_store(self.roots.clone())
-            .domain(domain)
+            .domain(expected_cn)
             .use_sni(self.use_sni)
             .accept_invalid_hostnames(self.accept_invalid_hostnames);
         if self.accept_invalid_certs {

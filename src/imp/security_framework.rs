@@ -262,6 +262,7 @@ pub struct TlsConnector {
     use_sni: bool,
     danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
+    expect_custom_cn: Option<String>,
 }
 
 impl TlsConnector {
@@ -278,6 +279,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             danger_accept_invalid_hostnames: builder.accept_invalid_hostnames,
             danger_accept_invalid_certs: builder.accept_invalid_certs,
+            expect_custom_cn: builder.expect_custom_cn.clone(),
         })
     }
 
@@ -299,8 +301,9 @@ impl TlsConnector {
         builder.use_sni(self.use_sni);
         builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
+        let expected_cn = self.expect_custom_cn.as_ref().map(|s| &**s).unwrap_or(domain);
 
-        match builder.handshake(domain, stream) {
+        match builder.handshake(expected_cn, stream) {
             Ok(stream) => Ok(TlsStream { stream, cert: None }),
             Err(e) => Err(e.into()),
         }

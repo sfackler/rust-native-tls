@@ -185,6 +185,7 @@ pub struct TlsConnector {
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
+    disable_built_in_roots: bool,
 }
 
 impl TlsConnector {
@@ -203,6 +204,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
+            disable_built_in_roots: builder.disable_built_in_roots,
         })
     }
 
@@ -224,6 +226,28 @@ impl TlsConnector {
             .accept_invalid_hostnames(self.accept_invalid_hostnames);
         if self.accept_invalid_certs {
             builder.verify_callback(|_| Ok(()));
+        } else if self.disable_built_in_roots {
+            let roots_copy = self.roots.clone();
+            builder.verify_callback(move |res| {
+                if let Err(err) = res.result() {
+                    // Propagate previous error encountered during normal cert validation.
+                    return Err(err);
+                }
+
+                if let Some(chain) = res.chain() {
+                    if chain
+                        .certificates()
+                        .any(|cert| roots_copy.certs().any(|root_cert| root_cert == cert))
+                    {
+                        return Ok(());
+                    }
+                }
+
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "unable to find any user-specified roots in the final cert chain",
+                ))
+            });
         }
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),

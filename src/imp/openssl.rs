@@ -10,7 +10,7 @@ use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::{X509, X509VerifyResult};
+use self::openssl::x509::{X509, store::X509StoreBuilder, X509VerifyResult};
 use std::error;
 use std::fmt;
 use std::io;
@@ -263,6 +263,10 @@ impl TlsConnector {
             }
         }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
+
+        if builder.disable_built_in_roots {
+            connector.set_cert_store(X509StoreBuilder::new()?.build());
+        }
 
         for cert in &builder.root_certificates {
             if let Err(err) = connector.cert_store_mut().add_cert((cert.0).0.clone()) {

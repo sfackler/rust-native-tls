@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [v0.2.4]
+
+### Added
+
+* Added a `Clone` implementation for `Identity`.
+
+### Updated
+
+* Updated security-framework to 0.4.
+
 ## [v0.2.3]
 
 ### Fixed
@@ -66,7 +76,8 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.3...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.4...master
+[v0.2.4]: https://github.com/sfackler/rust-native-tls/compare/v0.2.3...v0.2.4
 [v0.2.3]: https://github.com/sfackler/rust-native-tls/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/sfackler/rust-native-tls/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/sfackler/rust-native-tls/compare/v0.2.0...v0.2.1

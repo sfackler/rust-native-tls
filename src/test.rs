@@ -1,4 +1,5 @@
 use hex;
+
 #[allow(unused_imports)]
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -17,6 +18,14 @@ macro_rules! p {
 
 // This nested mod is needed for ios testing with rust-test-ios
 mod tests {
+    #[cfg(feature = "alpn")]
+    extern crate tokio;
+    #[cfg(feature = "alpn")]
+    extern crate tokio_rustls;
+    #[cfg(feature = "alpn")]
+    extern crate openssl;
+
+
     use super::*;
 
     #[test]
@@ -371,5 +380,117 @@ mod tests {
         assert_eq!(buf, b"world");
 
         p!(j.join());
+    }
+
+    #[cfg(feature = "alpn")]
+    #[test]
+    fn test_alpn_from_str() {
+        let alpn = ApplicationProtocols::from(&["h2", "dot", "webrtc"]);
+        assert_eq!(alpn.len(), 3);
+        assert_eq!(format!("{:?}", alpn), format!("{:?}", &["h2", "dot", "webrtc"]));
+    }
+
+    #[cfg(feature = "alpn")]
+    #[test]
+    fn test_alpn_from_bytes() {
+        use std::convert::TryFrom;
+
+        let data: &[&[u8]] = &[b"h2", b"dot", b"webrtc"];
+        let alpn = ApplicationProtocols::try_from(data);
+        assert!(alpn.is_ok());
+        let alpn = alpn.unwrap();
+        assert_eq!(format!("{:?}", alpn), format!("{:?}", &["h2", "dot", "webrtc"]) );
+
+        let data: &[&[u8]] = &[b"h2", b"dot", b"webrtc", b"\xe2\x82\x28"];
+        let alpn = ApplicationProtocols::try_from(data);
+
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        {
+            assert!(alpn.is_err());
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+        {
+            assert!(alpn.is_ok());
+            let alpn = alpn.unwrap();
+            assert_eq!(format!("{:?}", alpn), r##"["h2", "dot", "webrtc", 0xe28228]"##.to_string());
+        }
+    }
+
+    #[cfg(feature = "alpn")]
+    #[tokio::test(core_threads = 2)]
+    async fn test_alpn() {
+        use openssl::pkcs12::Pkcs12;
+        use openssl::pkcs12::ParsedPkcs12;
+
+        use tokio_rustls::rustls;
+
+        use std::io;
+        use std::fs;
+        use std::path::Path;
+        use std::result::Result;
+
+        fn loads_pkcs12<P: AsRef<Path>, S: AsRef<str>>(key_path: P, password: S) -> Result<ParsedPkcs12, Box<dyn std::error::Error>> {
+            let pkcs12_data = fs::read(key_path)?;
+            let pkcs12_key = Pkcs12::from_der(&pkcs12_data)?;
+            let key = pkcs12_key.parse(password.as_ref())?;
+
+            Ok(key)
+        }
+
+        pub fn load_certs<P: AsRef<Path>>(path: P) -> Result<Vec<rustls::Certificate>, io::Error> {
+            rustls::internal::pemfile::certs(&mut io::BufReader::new(fs::File::open(path)?))
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))
+        }
+        
+        async fn run_forever(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
+            let pkcs12 = loads_pkcs12("./test/identity.p12", "mypass").unwrap();
+            let pkey = rustls::PrivateKey(pkcs12.pkey.private_key_to_der().unwrap());
+            let mut certs = load_certs("./test/cert.pem").unwrap();
+            certs.append(&mut load_certs("./test/cert.pem").unwrap());
+
+            let mut config = rustls::ServerConfig::new(rustls::NoClientAuth::new());
+            config.set_protocols(&[b"h2".to_vec(), b"dot".to_vec(), b"http/1.1".to_vec()]);
+            config.set_single_cert(certs, pkey).unwrap();
+            let config = std::sync::Arc::new(config);
+            let acceptor = tokio_rustls::TlsAcceptor::from(config);
+
+            let mut listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            
+            let (tcp_stream, _peer_addr) = listener.accept().await.unwrap();
+
+            let tls_stream = acceptor.accept(tcp_stream).await.unwrap();
+            let (_, session) = tls_stream.get_ref();
+            let alpn: Option<&[u8]> = tokio_rustls::rustls::Session::get_alpn_protocol(session);
+            assert_eq!(alpn, Some("h2".as_bytes()));
+            Ok(())
+        }
+
+        let listener = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(run_forever(listener));
+
+        // ----- Client ------
+        let root_ca = include_bytes!("../test/root-ca.der");
+        let root_ca = Certificate::from_der(root_ca).unwrap();
+
+        let tls_connector = TlsConnector::builder()
+            .use_sni(true)
+            // .min_protocol_version(Some(Protocol::Tlsv12))
+            // .max_protocol_version(Some(Protocol::Tlsv12))
+            .alpn_protocols(&["h2", "dot", "http/1.1"])
+            .add_root_certificate(root_ca)
+            .danger_accept_invalid_certs(true)
+            // .danger_accept_invalid_hostnames(true)
+            .build()
+            .unwrap();
+        let tcp_stream = std::net::TcpStream::connect(("localhost", port)).unwrap();
+
+        let tls_stream = tls_connector
+            .connect("foobar.com", tcp_stream)
+            .unwrap();
+
+        let negotiated_alpn: Vec<u8> = tls_stream.negotiated_alpn().unwrap().unwrap().into_inner();
+        assert_eq!(&negotiated_alpn, b"h2");
     }
 }

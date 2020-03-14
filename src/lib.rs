@@ -122,6 +122,59 @@ mod imp;
 #[path = "imp/openssl.rs"]
 mod imp;
 
+#[cfg(feature = "alpn")]
+pub use self::alpn::*;
+
+#[cfg(feature = "alpn")]
+mod alpn {
+    pub use super::imp::ApplicationProtocols;
+    pub use super::imp::ApplicationProtocolIter;
+
+    /// Application-Layer Protocol
+    pub struct ApplicationProtocol<T: AsRef<[u8]>> {
+        inner: T,
+    }
+
+    impl<T: AsRef<[u8]>> ApplicationProtocol<T> {
+        /// Constructs a ApplicationProtocol.
+        pub fn new(inner: T) -> Self {
+            Self { inner }
+        }
+
+        /// Converts a ApplicationProtocol to a byte slice
+        pub fn as_bytes(&self) -> &[u8] {
+            self.inner.as_ref()
+        }
+
+        /// Unwraps the value.
+        pub fn into_inner(self) -> T {
+            self.inner
+        }
+    }
+
+    impl<T: AsRef<[u8]>> std::fmt::Debug for ApplicationProtocol<T> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match std::str::from_utf8(self.inner.as_ref()) {
+                Ok(s) => std::fmt::Debug::fmt(&s, f),
+                Err(_) => {
+                    let mut hex = String::new();
+                    for n in self.inner.as_ref().iter() {
+                        hex.push_str(format!("{:x}", n).as_str());
+                    }
+                    write!(f, "0x{}", hex)
+                }
+            }
+        }
+    }
+
+    impl std::fmt::Debug for ApplicationProtocols {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let protos = self.iter().collect::<Vec<_>>();
+            write!(f, "{:?}", protos)
+        }
+    }
+}
+
 #[cfg(test)]
 mod test;
 
@@ -327,6 +380,9 @@ pub struct TlsConnectorBuilder {
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
     use_sni: bool,
+
+    #[cfg(feature = "alpn")]
+    alpn: Option<ApplicationProtocols>,
 }
 
 impl TlsConnectorBuilder {
@@ -409,6 +465,13 @@ impl TlsConnectorBuilder {
         self
     }
 
+    #[cfg(feature = "alpn")]
+    /// Configures the set of protocols used for ALPN.
+    pub fn alpn_protocols<P: Into<ApplicationProtocols>>(&mut self, protocols: P) -> &mut TlsConnectorBuilder {
+        self.alpn = Some(protocols.into());
+        self
+    }
+
     /// Creates a new `TlsConnector`.
     pub fn build(&self) -> Result<TlsConnector> {
         let connector = imp::TlsConnector::new(self)?;
@@ -454,6 +517,8 @@ impl TlsConnector {
             use_sni: true,
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
+            #[cfg(feature = "alpn")]
+            alpn: None,
         }
     }
 
@@ -616,6 +681,12 @@ impl<S> TlsStream<S> {
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
+    /// Return application protocol
+    #[cfg(feature = "alpn")]
+    pub fn negotiated_alpn(&self) -> Result<Option<ApplicationProtocol<Vec<u8>>>> {
+        self.0.negotiated_alpn().map_err(|e| Error(e) )
+    }
+
     /// Returns the number of bytes that can be read without resulting in any
     /// network calls.
     pub fn buffered_read_size(&self) -> Result<usize> {

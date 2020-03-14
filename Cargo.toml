@@ -6,25 +6,39 @@ license = "MIT/Apache-2.0"
 description = "A wrapper over a platform's native TLS implementation"
 repository = "https://github.com/sfackler/rust-native-tls"
 readme = "README.md"
+edition = "2018"
 
 [features]
+default = [ ]
 vendored = ["openssl/vendored"]
+alpn = [ "security-framework/alpn", "security-framework-sys/OSX_10_13" ]
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-security-framework = "0.4.1"
-security-framework-sys = "0.4.1"
-lazy_static = "1.0"
+security-framework = "=0.4.0"
+security-framework-sys = "=0.4.0"
+lazy_static = "1.4"
 libc = "0.2"
-tempfile = "3.0"
+tempfile = "3.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = "0.1.16"
+schannel = "0.1.18"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-log = "0.4.5"
+log = "0.4"
 openssl = "0.10.25"
 openssl-sys = "0.9.30"
 openssl-probe = "0.1"
 
+
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+openssl = { version = "0.10.25", features = ["vendored"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+openssl = "=0.10.25"
+openssl-sys = "0.9.30"
+openssl-probe = "0.1"
+
 [dev-dependencies]
-hex = "0.3"
+hex = "0.4"
+tokio   = { version = "0.2", features = [ "macros", "tcp", "io-util", "rt-threaded", "dns"] }
+tokio-rustls = "0.13"

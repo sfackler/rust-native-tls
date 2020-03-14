@@ -16,8 +16,12 @@ use std::fmt;
 use std::io;
 use std::sync::Once;
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 use self::openssl::pkey::Private;
+
+#[cfg(feature = "alpn")]
+use crate::ApplicationProtocol;
+
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -262,6 +266,7 @@ impl TlsConnector {
                 connector.add_extra_chain_cert(cert.to_owned())?;
             }
         }
+
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
 
         for cert in &builder.root_certificates {
@@ -272,6 +277,15 @@ impl TlsConnector {
 
         #[cfg(target_os = "android")]
         load_android_root_certs(&mut connector)?;
+
+        #[cfg(feature = "alpn")]
+        {
+            if let Some(alpn) = &builder.alpn {
+                if !alpn.is_empty() {
+                    connector.set_alpn_protos(alpn.as_ref())?;
+                }
+            }
+        }
 
         Ok(TlsConnector {
             connector: connector.build(),
@@ -340,6 +354,15 @@ impl<S> TlsStream<S> {
     pub fn get_mut(&mut self) -> &mut S {
         self.0.get_mut()
     }
+
+    #[cfg(feature = "alpn")]
+    pub fn negotiated_alpn(&self) -> Result<Option<ApplicationProtocol<Vec<u8>>>, Error> {
+        let ssl = self.0.ssl();
+        match ssl.selected_alpn_protocol() {
+            Some(proto) => Ok(Some(ApplicationProtocol::new(proto.to_vec()))),
+            None => Ok(None),
+        }
+    }
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
@@ -406,5 +429,206 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
+    }
+}
+
+
+#[cfg(feature = "alpn")]
+pub use self::alpn::*;
+
+#[cfg(feature = "alpn")]
+mod alpn {
+    use crate::ApplicationProtocol;
+
+    /// Application-Layer Protocol list
+    #[derive(Clone)]
+    pub struct ApplicationProtocols {
+        inner: Vec<u8>,
+    }
+
+    impl ApplicationProtocols {
+        /// Returns the number of protocols.
+        pub fn len(&self) -> usize {
+            let mut n = 0usize;
+            let mut idx = 0usize;
+            loop {
+                if idx >= self.inner.len() {
+                    break;
+                }
+
+                let len = self.inner[idx] as usize;
+                idx += len + 1;
+                n += 1;
+            }
+
+            n
+        }
+
+        /// Returns true if the protocols is empty.
+        pub fn is_empty(&self) -> bool {
+            self.len() == 0
+        }
+
+        /// Returns an iterator over the protocols.
+        pub fn iter<'a>(&'a self) -> ApplicationProtocolIter<'a> {
+            ApplicationProtocolIter { protos: &self.inner, index: 0 }
+        }
+
+        /// Unwraps the value.
+        pub fn into_inner(self) -> Vec<u8> {
+            self.inner
+        }
+    }
+
+    impl AsRef<[u8]> for ApplicationProtocols {
+        #[inline]
+        fn as_ref(&self) -> &[u8] {
+            &self.inner
+        }
+    }
+
+    /// Immutable ApplicationProtocol iterator
+    pub struct ApplicationProtocolIter<'a> {
+        protos: &'a [u8],
+        index: usize,
+    }
+
+    impl<'a> Iterator for ApplicationProtocolIter<'a> {
+        type Item = ApplicationProtocol<&'a [u8]>;
+
+        fn count(self) -> usize {
+            self.protos.len()
+        }
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let protos = &self.protos;
+            
+            if self.index >= protos.len() {
+                return None;
+            }
+
+            let item = {
+                let len = protos[self.index] as usize;
+                let start = self.index + 1;
+                let end = start + len;
+                let proto = &protos[start..end];
+                self.index += len + 1;
+
+                proto
+            };
+            
+            Some(ApplicationProtocol::new(item))
+        }
+    }
+
+
+    fn from_str<T: AsRef<[P]>, P: AsRef<str>>(protos: T) -> ApplicationProtocols {
+        let protos = protos.as_ref();
+        let inner = {
+            let capacity = protos.len();
+            protos.iter().fold(Vec::with_capacity(capacity), |mut acc, proto| {
+                let proto = proto.as_ref().as_bytes();
+                let len = proto.len();
+
+                if len > 0 && len <= std::u8::MAX as usize {
+                    acc.push(len as u8);
+                    acc.extend_from_slice(proto);
+                }
+
+                acc
+            })
+        };
+        
+        ApplicationProtocols { inner }
+    }
+
+    fn try_from_slice<T: AsRef<[P]>, P: AsRef<[u8]>>(protos: T) -> Result<ApplicationProtocols, std::str::Utf8Error> {
+        let protos = protos.as_ref();
+        let inner = {
+            let capacity = protos.len();
+            protos.iter().fold(Vec::with_capacity(capacity), |mut acc, proto| {
+                let proto = proto.as_ref();
+                let len = proto.len();
+
+                if len > 0 && len <= std::u8::MAX as usize {
+                    acc.push(len as u8);
+                    acc.extend_from_slice(proto);
+                }
+
+                acc
+            })
+        };
+
+        Ok(ApplicationProtocols { inner })
+    }
+
+    impl From<Vec<String>> for ApplicationProtocols {
+        fn from(protos: Vec<String>) -> Self {
+            from_str(protos)
+        }
+    }
+
+    impl From<&[&str]> for ApplicationProtocols {
+        fn from(protos: &[&str]) -> Self {
+            from_str(protos)
+        }
+    }
+
+    macro_rules! str_impls {
+        ($($N:literal)+) => {
+            $(
+                impl From<&[&str; $N]> for ApplicationProtocols {
+                    fn from(protos: &[&str; $N]) -> Self {
+                        from_str(protos)
+                    }
+                }
+            )+
+        }
+    }
+
+    str_impls! {
+         0  1  2  3  4  5  6  7  8  9
+        10 11 12 13 14 15 16 17 18 19
+        20 21 22 23 24 25 26 27 28 29
+        30 31 32
+    }
+
+
+
+    impl std::convert::TryFrom<Vec<Vec<u8>>> for ApplicationProtocols {
+        type Error = std::str::Utf8Error;
+
+        fn try_from(protos: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
+            try_from_slice(protos)
+        }
+    }
+
+    impl std::convert::TryFrom<&[&[u8]]> for ApplicationProtocols {
+        type Error = std::str::Utf8Error;
+
+        fn try_from(protos: &[&[u8]]) -> Result<Self, Self::Error> {
+            try_from_slice(protos)
+        }
+    }
+
+    macro_rules! slice_impls {
+        ($($N:literal)+) => {
+            $(
+                impl std::convert::TryFrom<&[&[u8]; $N]> for ApplicationProtocols {
+                    type Error = std::str::Utf8Error;
+
+                    fn try_from(protos: &[&[u8]; $N]) -> Result<Self, Self::Error> {
+                        try_from_slice(protos)
+                    }
+                }
+            )+
+        }
+    }
+
+    slice_impls! {
+         0  1  2  3  4  5  6  7  8  9
+        10 11 12 13 14 15 16 17 18 19
+        20 21 22 23 24 25 26 27 28 29
+        30 31 32
     }
 }

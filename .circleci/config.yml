@@ -22,6 +22,8 @@ jobs:
       - restore_cache:
           key: deps-<< parameters.image >>-{{ checksum "Cargo.lock" }}
       - run: cargo test
+      - run: rm -rf target/debug/deps/libnative_tls-*
+      - run: cargo test --features "alpn"
       - run: rustdoc --test README.md -L target/debug/deps -L target/debug
       - save_cache:
           key: deps-<< parameters.image >>-{{ checksum "Cargo.lock" }}
@@ -52,6 +54,7 @@ jobs:
       - restore_cache:
           key: macos-deps-<< parameters.version >>
       - run: cargo test
+      - run: cargo test --features "alpn"
       - save_cache:
           key: macos-deps-<< parameters.version >>
           paths:
@@ -63,6 +66,6 @@ workflows:
     jobs:
       - linux:
           name: openssl
-          image: 1.37.0
+          image: 1.39.0
       - macos:
-          version: 1.37.0
+          version: 1.39.0

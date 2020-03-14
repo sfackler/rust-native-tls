@@ -9,7 +9,10 @@ use std::fmt;
 use std::io;
 use std::str;
 
-use {TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{TlsAcceptorBuilder, TlsConnectorBuilder};
+#[cfg(feature = "alpn")]
+use crate::ApplicationProtocol;
+
 
 const SEC_E_NO_CREDENTIALS: u32 = 0x8009030E;
 
@@ -20,7 +23,7 @@ static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Tls12,
 ];
 
-fn convert_protocols(min: Option<::Protocol>, max: Option<::Protocol>) -> &'static [Protocol] {
+fn convert_protocols(min: Option<crate::Protocol>, max: Option<crate::Protocol>) -> &'static [Protocol] {
     let mut protocols = PROTOCOLS;
     if let Some(p) = max.and_then(|max| protocols.get(..max as usize)) {
         protocols = p;
@@ -180,11 +183,13 @@ impl<S> From<io::Error> for HandshakeError<S> {
 pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,
-    min_protocol: Option<::Protocol>,
-    max_protocol: Option<::Protocol>,
+    min_protocol: Option<crate::Protocol>,
+    max_protocol: Option<crate::Protocol>,
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
+    #[cfg(feature = "alpn")]
+    alpn: Option<ApplicationProtocols>,
 }
 
 impl TlsConnector {
@@ -203,6 +208,8 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
+            #[cfg(feature = "alpn")]
+            alpn: builder.alpn.clone(),
         })
     }
 
@@ -222,6 +229,17 @@ impl TlsConnector {
             .domain(domain)
             .use_sni(self.use_sni)
             .accept_invalid_hostnames(self.accept_invalid_hostnames);
+        
+        #[cfg(feature = "alpn")]
+        {
+            if let Some(alpn) = &self.alpn {
+                let alpns: Vec<&[u8]> = alpn.iter().map(|proto| proto.into_inner()).collect();
+                if !alpns.is_empty() {
+                    builder.request_application_protocols(&alpns);
+                }
+            }
+        }
+
         if self.accept_invalid_certs {
             builder.verify_callback(|_| Ok(()));
         }
@@ -235,8 +253,8 @@ impl TlsConnector {
 #[derive(Clone)]
 pub struct TlsAcceptor {
     cert: CertContext,
-    min_protocol: Option<::Protocol>,
-    max_protocol: Option<::Protocol>,
+    min_protocol: Option<crate::Protocol>,
+    max_protocol: Option<crate::Protocol>,
 }
 
 impl TlsAcceptor {
@@ -283,6 +301,14 @@ impl<S> TlsStream<S> {
 }
 
 impl<S: io::Read + io::Write> TlsStream<S> {
+    #[cfg(feature = "alpn")]
+    pub fn negotiated_alpn(&self) -> Result<Option<ApplicationProtocol<Vec<u8>>>, Error> {
+        match self.0.negotiated_application_protocol()? {
+            Some(proto) => Ok(Some(ApplicationProtocol::new(proto))),
+            None => Ok(None),
+        }
+    }
+
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
         Ok(self.0.get_buf().len())
     }
@@ -339,5 +365,162 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
+    }
+}
+
+#[cfg(feature = "alpn")]
+pub use self::alpn::*;
+
+#[cfg(feature = "alpn")]
+mod alpn {
+    use crate::ApplicationProtocol;
+
+    /// Application-Layer Protocol list
+    #[derive(Clone)]
+    pub struct ApplicationProtocols {
+        inner: Vec<Vec<u8>>,
+    }
+
+
+    impl ApplicationProtocols {
+        /// Returns the number of protocols.
+        pub fn len(&self) -> usize {
+            self.inner.len()
+        }
+
+        /// Returns true if the protocols is empty.
+        pub fn is_empty(&self) -> bool {
+            self.len() == 0
+        }
+
+        /// Returns an iterator over the protocols.
+        pub fn iter<'a>(&'a self) -> ApplicationProtocolIter<'a> {
+            ApplicationProtocolIter { protos: &self.inner, index: 0 }
+        }
+
+        /// Unwraps the value.
+        pub fn into_inner(self) -> Vec<Vec<u8>> {
+            self.inner
+        }
+    }
+
+    impl AsRef<[Vec<u8>]> for ApplicationProtocols {
+        #[inline]
+        fn as_ref(&self) -> &[Vec<u8>] {
+            &self.inner
+        }
+    }
+
+    /// Immutable ApplicationProtocol iterator
+    pub struct ApplicationProtocolIter<'a> {
+        protos: &'a [Vec<u8>],
+        index: usize,
+    }
+
+    impl<'a> Iterator for ApplicationProtocolIter<'a> {
+        type Item = ApplicationProtocol<&'a [u8]>;
+
+        fn count(self) -> usize {
+            self.protos.len()
+        }
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let protos = &self.protos;
+            
+            if self.index >= protos.len() {
+                return None;
+            }
+
+            let item = &protos[self.index].as_ref();
+            self.index += 1;
+            
+            Some(ApplicationProtocol::new(item))
+        }
+    }
+
+
+    fn from_str<T: AsRef<[P]>, P: AsRef<str>>(protos: T) -> ApplicationProtocols {
+        let protos = protos.as_ref();
+        let inner = protos.iter().map(|proto| proto.as_ref().as_bytes().to_vec()).collect();
+
+        ApplicationProtocols { inner }
+    }
+
+    fn try_from_slice<T: AsRef<[P]>, P: AsRef<[u8]>>(protos: T) -> Result<ApplicationProtocols, std::str::Utf8Error> {
+        let protos = protos.as_ref();
+        let inner = protos.iter().map(|proto| proto.as_ref().to_vec()).collect();
+
+        Ok(ApplicationProtocols { inner })
+    }
+
+    impl From<Vec<String>> for ApplicationProtocols {
+        fn from(protos: Vec<String>) -> Self {
+            let inner = protos.into_iter().map(|proto| proto.into_bytes()).collect();
+            Self { inner }
+        }
+    }
+
+    impl From<&[&str]> for ApplicationProtocols {
+        fn from(protos: &[&str]) -> Self {
+            from_str(protos)
+        }
+    }
+
+    macro_rules! str_impls {
+        ($($N:literal)+) => {
+            $(
+                impl From<&[&str; $N]> for ApplicationProtocols {
+                    fn from(protos: &[&str; $N]) -> Self {
+                        from_str(protos)
+                    }
+                }
+            )+
+        }
+    }
+
+    str_impls! {
+         0  1  2  3  4  5  6  7  8  9
+        10 11 12 13 14 15 16 17 18 19
+        20 21 22 23 24 25 26 27 28 29
+        30 31 32
+    }
+
+
+
+    impl std::convert::TryFrom<Vec<Vec<u8>>> for ApplicationProtocols {
+        type Error = std::str::Utf8Error;
+
+        fn try_from(protos: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
+            Ok(Self { inner: protos })
+        }
+    }
+
+    impl std::convert::TryFrom<&[&[u8]]> for ApplicationProtocols {
+        type Error = std::str::Utf8Error;
+
+        fn try_from(protos: &[&[u8]]) -> Result<Self, Self::Error> {
+            try_from_slice(protos)
+        }
+    }
+
+    macro_rules! slice_impls {
+        ($($N:literal)+) => {
+            $(
+                impl std::convert::TryFrom<&[&[u8]; $N]> for ApplicationProtocols {
+                    type Error = std::str::Utf8Error;
+
+                    fn try_from(protos: &[&[u8]; $N]) -> Result<Self, Self::Error> {
+                        try_from_slice(protos)
+                    }
+                }
+            )+
+        }
+    }
+
+    slice_impls! {
+         0  1  2  3  4  5  6  7  8  9
+        10 11 12 13 14 15 16 17 18 19
+        20 21 22 23 24 25 26 27 28 29
+        30 31 32
     }
 }

@@ -5,6 +5,7 @@ extern crate tempfile;
 
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
+use self::security_framework::cipher_suite::CipherSuite;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
 use self::security_framework::secure_transport::{
@@ -12,6 +13,7 @@ use self::security_framework::secure_transport::{
 };
 use self::security_framework_sys::base::{errSecIO, errSecParam};
 use self::tempfile::TempDir;
+use std::collections::HashSet;
 use std::error;
 use std::fmt;
 use std::io;
@@ -30,13 +32,441 @@ use self::security_framework::os::macos::import_export::{
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use {
+    CipherSuiteSet, Protocol, TlsAcceptorBuilder, TlsBulkEncryptionAlgorithm, TlsConnectorBuilder,
+    TlsHashAlgorithm, TlsKeyExchangeAlgorithm, TlsSignatureAlgorithm,
+};
 
 static SET_AT_EXIT: Once = Once::new();
 
 #[cfg(not(target_os = "ios"))]
 lazy_static! {
     static ref TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, TempDir)>> = Mutex::new(None);
+}
+
+const CIPHERS_3DES: &[CipherSuite] = &[
+    CipherSuite::TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::SSL_RSA_WITH_3DES_EDE_CBC_MD5,
+];
+
+const CIPHERS_AES_128: &[CipherSuite] = &[
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,
+];
+
+const CIPHERS_AES_256: &[CipherSuite] = &[
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,
+];
+
+const CIPHERS_DES: &[CipherSuite] = &[
+    CipherSuite::SSL_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DH_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DH_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_MD5,
+];
+
+const CIPHERS_DH_EPHEM: &[CipherSuite] = &[
+    CipherSuite::SSL_DHE_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_GCM_SHA384,
+];
+
+const CIPHERS_DSS: &[CipherSuite] = &[
+    CipherSuite::SSL_DH_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_GCM_SHA384,
+];
+
+const CIPHERS_ECDHE: &[CipherSuite] = &[
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+];
+
+const CIPHERS_ECDSA: &[CipherSuite] = &[
+    CipherSuite::TLS_ECDH_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,
+];
+
+const CIPHERS_MD5: &[CipherSuite] = &[
+    CipherSuite::SSL_RSA_WITH_RC4_128_MD5,
+    CipherSuite::TLS_RSA_WITH_RC4_128_MD5,
+    CipherSuite::SSL_RSA_WITH_RC2_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_IDEA_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_3DES_EDE_CBC_MD5,
+];
+
+const CIPHERS_RC2: &[CipherSuite] = &[CipherSuite::SSL_RSA_WITH_RC2_CBC_MD5];
+
+const CIPHERS_RC4: &[CipherSuite] = &[
+    CipherSuite::SSL_RSA_WITH_RC4_128_MD5,
+    CipherSuite::SSL_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_RSA_WITH_RC4_128_MD5,
+    CipherSuite::TLS_RSA_WITH_RC4_128_SHA,
+];
+
+const CIPHERS_RSA_KEYX: &[CipherSuite] = &[
+    CipherSuite::SSL_RSA_WITH_RC4_128_MD5,
+    CipherSuite::SSL_RSA_WITH_RC4_128_SHA,
+    CipherSuite::SSL_RSA_WITH_IDEA_CBC_SHA,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_RC4_128_MD5,
+    CipherSuite::TLS_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::SSL_RSA_WITH_RC2_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_IDEA_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_3DES_EDE_CBC_MD5,
+];
+
+const CIPHERS_RSA_SIGN: &[CipherSuite] = &[
+    CipherSuite::SSL_RSA_WITH_RC4_128_MD5,
+    CipherSuite::SSL_RSA_WITH_RC4_128_SHA,
+    CipherSuite::SSL_RSA_WITH_IDEA_CBC_SHA,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DH_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_RC4_128_MD5,
+    CipherSuite::TLS_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::SSL_RSA_WITH_RC2_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_IDEA_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_MD5,
+    CipherSuite::SSL_RSA_WITH_3DES_EDE_CBC_MD5,
+];
+
+const CIPHERS_SHA1: &[CipherSuite] = &[
+    CipherSuite::SSL_RSA_WITH_RC4_128_SHA,
+    CipherSuite::SSL_RSA_WITH_IDEA_CBC_SHA,
+    CipherSuite::SSL_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DH_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DH_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_DSS_WITH_DES_CBC_SHA,
+    CipherSuite::SSL_DHE_RSA_WITH_DES_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+    CipherSuite::TLS_RSA_WITH_RC4_128_SHA,
+    CipherSuite::TLS_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
+    CipherSuite::TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+];
+
+const CIPHERS_SHA256: &[CipherSuite] = &[
+    CipherSuite::TLS_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+    CipherSuite::TLS_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_DSS_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_DH_anon_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,
+];
+
+const CIPHERS_SHA384: &[CipherSuite] = &[
+    CipherSuite::TLS_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DH_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DHE_DSS_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_DH_DSS_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,
+    CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    CipherSuite::TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,
+];
+
+fn key_exchange_alg_to_cipher_suites(alg: &TlsKeyExchangeAlgorithm) -> &'static [CipherSuite] {
+    match alg {
+        TlsKeyExchangeAlgorithm::Dhe => CIPHERS_DH_EPHEM,
+        TlsKeyExchangeAlgorithm::Ecdhe => CIPHERS_ECDHE,
+        TlsKeyExchangeAlgorithm::Rsa => CIPHERS_RSA_KEYX,
+        TlsKeyExchangeAlgorithm::__NonExhaustive => unreachable!(),
+    }
+}
+
+fn signature_alg_to_cipher_suites(alg: &TlsSignatureAlgorithm) -> &'static [CipherSuite] {
+    match alg {
+        TlsSignatureAlgorithm::Dss => CIPHERS_DSS,
+        TlsSignatureAlgorithm::Ecdsa => CIPHERS_ECDSA,
+        TlsSignatureAlgorithm::Rsa => CIPHERS_RSA_SIGN,
+        TlsSignatureAlgorithm::__NonExhaustive => unreachable!(),
+    }
+}
+
+fn bulk_encryption_alg_to_cipher_suites(
+    alg: &TlsBulkEncryptionAlgorithm,
+) -> &'static [CipherSuite] {
+    match alg {
+        TlsBulkEncryptionAlgorithm::Aes128 => CIPHERS_AES_128,
+        TlsBulkEncryptionAlgorithm::Aes256 => CIPHERS_AES_256,
+        TlsBulkEncryptionAlgorithm::Des => CIPHERS_DES,
+        TlsBulkEncryptionAlgorithm::Rc2 => CIPHERS_RC2,
+        TlsBulkEncryptionAlgorithm::Rc4 => CIPHERS_RC4,
+        TlsBulkEncryptionAlgorithm::TripleDes => CIPHERS_3DES,
+        TlsBulkEncryptionAlgorithm::__NonExhaustive => unreachable!(),
+    }
+}
+
+fn hash_alg_to_cipher_suites(alg: &TlsHashAlgorithm) -> &'static [CipherSuite] {
+    match alg {
+        TlsHashAlgorithm::Md5 => CIPHERS_MD5,
+        TlsHashAlgorithm::Sha1 => CIPHERS_SHA1,
+        TlsHashAlgorithm::Sha256 => CIPHERS_SHA256,
+        TlsHashAlgorithm::Sha384 => CIPHERS_SHA384,
+        TlsHashAlgorithm::__NonExhaustive => unreachable!(),
+    }
+}
+
+fn expand_algorithms(cipher_suites: &CipherSuiteSet) -> Vec<CipherSuite> {
+    let current: HashSet<_> = cipher_suites
+        .key_exchange
+        .iter()
+        .flat_map(key_exchange_alg_to_cipher_suites)
+        .copied()
+        .collect();
+
+    let mut next = HashSet::new();
+    for suite in cipher_suites
+        .signature
+        .iter()
+        .flat_map(signature_alg_to_cipher_suites)
+    {
+        if current.contains(suite) {
+            next.insert(suite);
+        }
+    }
+
+    let current = next;
+    let mut next = HashSet::new();
+    for suite in cipher_suites
+        .bulk_encryption
+        .iter()
+        .flat_map(bulk_encryption_alg_to_cipher_suites)
+    {
+        if current.contains(suite) {
+            next.insert(suite);
+        }
+    }
+
+    let current = next;
+    let mut ret = Vec::new();
+    for suite in cipher_suites
+        .hash
+        .iter()
+        .flat_map(hash_alg_to_cipher_suites)
+    {
+        if current.contains(suite) {
+            ret.push(*suite);
+        }
+    }
+
+    ret
 }
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
@@ -266,6 +696,7 @@ pub struct TlsConnector {
     disable_built_in_roots: bool,
     #[cfg(feature = "alpn")]
     alpn: Vec<String>,
+    cipher_suites: Vec<CipherSuite>,
 }
 
 impl TlsConnector {
@@ -285,6 +716,10 @@ impl TlsConnector {
             disable_built_in_roots: builder.disable_built_in_roots,
             #[cfg(feature = "alpn")]
             alpn: builder.alpn.clone(),
+            cipher_suites: match &builder.cipher_suites {
+                Some(cipher_suites) => expand_algorithms(&cipher_suites),
+                None => vec![],
+            },
         })
     }
 
@@ -307,6 +742,9 @@ impl TlsConnector {
         builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
         builder.trust_anchor_certificates_only(self.disable_built_in_roots);
+        if !self.cipher_suites.is_empty() {
+            builder.whitelist_ciphers(&self.cipher_suites);
+        }
 
         #[cfg(feature = "alpn")]
         {
@@ -571,4 +1009,38 @@ extern "C" {
     fn CC_SHA256(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
     fn CC_SHA384(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
     fn CC_SHA512(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_algorithms_basic() {
+        assert_eq!(
+            expand_algorithms(&CipherSuiteSet {
+                key_exchange: vec![TlsKeyExchangeAlgorithm::Dhe, TlsKeyExchangeAlgorithm::Ecdhe],
+                signature: vec![TlsSignatureAlgorithm::Rsa],
+                bulk_encryption: vec![
+                    TlsBulkEncryptionAlgorithm::Aes128,
+                    TlsBulkEncryptionAlgorithm::Aes256,
+                ],
+                hash: vec![TlsHashAlgorithm::Sha256, TlsHashAlgorithm::Sha384],
+            })
+            .into_iter()
+            .collect::<HashSet<_>>(),
+            vec![
+                CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+                CipherSuite::TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite::TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+                CipherSuite::TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+                CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>(),
+        );
+    }
 }

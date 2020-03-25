@@ -13,18 +13,18 @@ vendored = ["openssl/vendored"]
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 security-framework = "0.4.1"
 security-framework-sys = "0.4.1"
-lazy_static = "1.0"
+lazy_static = "1.4"
 libc = "0.2"
-tempfile = "3.0"
+tempfile = "3.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-schannel = "0.1.16"
+schannel = "0.1.18"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-log = "0.4.5"
-openssl = "0.10.25"
-openssl-sys = "0.9.30"
+log = "0.4"
+openssl = "0.10.28"
+openssl-sys = "0.9.54"
 openssl-probe = "0.1"
 
 [dev-dependencies]
-hex = "0.3"
+hex = "0.4"

@@ -4,10 +4,13 @@ use self::schannel::cert_context::{CertContext, HashAlgorithm};
 use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
+use std::collections::VecDeque;
 use std::error;
 use std::fmt;
 use std::io;
 use std::str;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 
 use {TlsAcceptorBuilder, TlsConnectorBuilder};
 
@@ -19,6 +22,19 @@ static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Tls11,
     Protocol::Tls12,
 ];
+
+#[derive(Clone)]
+struct CacheEntry {
+    domain: String,
+    expiry: SystemTime,
+    credentials: SchannelCred,
+}
+
+// Number of credentials to cache.
+const CREDENTIAL_CACHE_SIZE: usize = 100;
+
+// Credentials live for 24 hours.
+const CREDENTIAL_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
 fn convert_protocols(min: Option<::Protocol>, max: Option<::Protocol>) -> &'static [Protocol] {
     let mut protocols = PROTOCOLS;
@@ -185,6 +201,8 @@ pub struct TlsConnector {
     min_protocol: Option<::Protocol>,
     max_protocol: Option<::Protocol>,
     use_sni: bool,
+    session_tickets_enabled: bool,
+    credentials_cache: Arc<Mutex<VecDeque<CacheEntry>>>,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
     disable_built_in_roots: bool,
@@ -206,6 +224,8 @@ impl TlsConnector {
             min_protocol: builder.min_protocol,
             max_protocol: builder.max_protocol,
             use_sni: builder.use_sni,
+            session_tickets_enabled: builder.session_tickets_enabled,
+            credentials_cache: Arc::new(Mutex::new(VecDeque::with_capacity(CREDENTIAL_CACHE_SIZE))),
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
             disable_built_in_roots: builder.disable_built_in_roots,
@@ -218,12 +238,7 @@ impl TlsConnector {
     where
         S: io::Read + io::Write,
     {
-        let mut builder = SchannelCred::builder();
-        builder.enabled_protocols(convert_protocols(self.min_protocol, self.max_protocol));
-        if let Some(cert) = self.cert.as_ref() {
-            builder.cert(cert.clone());
-        }
-        let cred = builder.acquire(Direction::Outbound)?;
+        let cred = self.get_credentials(domain)?;
         let mut builder = tls_stream::Builder::new();
         builder
             .cert_store(self.roots.clone())
@@ -263,10 +278,65 @@ impl TlsConnector {
                 );
             }
         }
-        match builder.connect(cred, stream) {
+        match builder.connect(cred.clone(), stream) {
             Ok(s) => Ok(TlsStream(s)),
             Err(e) => Err(e.into()),
         }
+    }
+
+    fn get_credentials(&self, domain: &str) -> io::Result<SchannelCred> {
+        if !self.session_tickets_enabled {
+            return self.make_credentials();
+        }
+
+        let mut cache = self.credentials_cache.lock().unwrap();
+
+        let cred = if let Some(found) = TlsConnector::cred_cache_pop(&mut *cache, domain) {
+            found
+        } else {
+            self.make_credentials()?
+        };
+
+        if cache.len() == CREDENTIAL_CACHE_SIZE {
+            cache.pop_front();
+        }
+
+        cache.push_back(CacheEntry {
+            domain: domain.to_owned(),
+            expiry: SystemTime::now() + CREDENTIAL_TTL,
+            credentials: cred.clone(),
+        });
+
+        Ok(cred)
+    }
+
+    fn make_credentials(&self) -> io::Result<SchannelCred> {
+        let mut builder = SchannelCred::builder();
+        builder.enabled_protocols(convert_protocols(self.min_protocol, self.max_protocol));
+        if let Some(cert) = self.cert.as_ref() {
+            builder.cert(cert.clone());
+        }
+        builder.acquire(Direction::Outbound)
+    }
+
+    fn cred_cache_pop(cache: &mut VecDeque<CacheEntry>, domain: &str) -> Option<SchannelCred> {
+        let mut found = None;
+        for i in 0..cache.len() {
+            if &cache[i].domain == domain {
+                found = Some(i);
+                break;
+            }
+        }
+
+        if let Some(idx) = found {
+            let now = SystemTime::now();
+            let entry = cache.remove(idx).unwrap();
+
+            if entry.expiry > now {
+                return Some(entry.credentials);
+            }
+        }
+        None
     }
 }
 
@@ -382,5 +452,52 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::TcpStream;
+
+    use crate::TlsConnector;
+
+    fn connect_and_assert(tls: &TlsConnector, domain: &str, port: u16, should_resume: bool) {
+        let s = TcpStream::connect((domain, port)).unwrap();
+        let stream = tls.connect(domain, s).unwrap();
+
+        assert_eq!((stream.0).0.session_resumed().unwrap(), should_resume);
+    }
+
+    #[test]
+    fn connect_no_session_ticket_resumption() {
+        let tls = TlsConnector::new().unwrap();
+        connect_and_assert(&tls, "google.com", 443, false);
+        connect_and_assert(&tls, "google.com", 443, false);
+    }
+
+    /// Expected to fail on Windows versions where RFC 5077 was not implemented (should just be
+    /// Windows 7 and below).
+    #[test]
+    fn connect_session_ticket_resumption() {
+        let mut builder = TlsConnector::builder();
+        builder.session_tickets_enabled(true);
+        let tls = builder.build().unwrap();
+
+        connect_and_assert(&tls, "google.com", 443, false);
+        connect_and_assert(&tls, "google.com", 443, true);
+    }
+
+    /// Expected to fail on Windows versions where RFC 5077 was not implemented (should just be
+    /// Windows 7 and below).
+    #[test]
+    fn connect_session_ticket_resumption_two_sites() {
+        let mut builder = TlsConnector::builder();
+        builder.session_tickets_enabled(true);
+        let tls = builder.build().unwrap();
+
+        connect_and_assert(&tls, "google.com", 443, false);
+        connect_and_assert(&tls, "mozilla.org", 443, false);
+        connect_and_assert(&tls, "google.com", 443, true);
+        connect_and_assert(&tls, "mozilla.org", 443, true);
     }
 }

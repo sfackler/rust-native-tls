@@ -261,6 +261,7 @@ pub struct TlsConnector {
     max_protocol: Option<Protocol>,
     roots: Vec<SecCertificate>,
     use_sni: bool,
+    session_tickets_enabled: bool,
     danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
     disable_built_in_roots: bool,
@@ -280,6 +281,7 @@ impl TlsConnector {
                 .map(|c| (c.0).0.clone())
                 .collect(),
             use_sni: builder.use_sni,
+            session_tickets_enabled: builder.session_tickets_enabled,
             danger_accept_invalid_hostnames: builder.accept_invalid_hostnames,
             danger_accept_invalid_certs: builder.accept_invalid_certs,
             disable_built_in_roots: builder.disable_built_in_roots,
@@ -304,6 +306,7 @@ impl TlsConnector {
         }
         builder.anchor_certificates(&self.roots);
         builder.use_sni(self.use_sni);
+        builder.enable_session_tickets(self.session_tickets_enabled);
         builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
         builder.trust_anchor_certificates_only(self.disable_built_in_roots);

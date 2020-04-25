@@ -156,6 +156,7 @@ mod tests {
         p!(j.join());
     }
     #[test]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
     fn require_peer_certificate_no_cert() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
@@ -186,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
     fn request_peer_certificate_some_cert() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));

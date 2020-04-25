@@ -310,6 +310,8 @@ impl TlsAcceptor {
 
         if let Some(client_ca_cert) = &builder.client_cert_verification_ca_cert {
             acceptor.add_client_ca((client_ca_cert.0).0.as_ref())?;
+            // below call is required if the ca is not already trusted
+            acceptor.cert_store_mut().add_cert((client_ca_cert.0).0.to_owned())?;
         }
         let verify_mode = match &builder.client_cert_verification {
             TlsClientCertificateVerification::DoNotRequestCertificate => SslVerifyMode::NONE,
@@ -317,7 +319,6 @@ impl TlsAcceptor {
             TlsClientCertificateVerification::RequireCertificate => SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT,
         };
         acceptor.set_verify(verify_mode);
-        
         for cert in builder.identity.0.chain.iter().rev() {
             acceptor.add_extra_chain_cert(cert.to_owned())?;
         }

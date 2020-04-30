@@ -262,6 +262,7 @@ pub struct TlsConnector {
     use_sni: bool,
     danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
+    disable_built_in_roots: bool,
 }
 
 impl TlsConnector {
@@ -278,6 +279,7 @@ impl TlsConnector {
             use_sni: builder.use_sni,
             danger_accept_invalid_hostnames: builder.accept_invalid_hostnames,
             danger_accept_invalid_certs: builder.accept_invalid_certs,
+            disable_built_in_roots: builder.disable_built_in_roots,
         })
     }
 
@@ -299,6 +301,7 @@ impl TlsConnector {
         builder.use_sni(self.use_sni);
         builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
+        builder.trust_anchor_certificates_only(self.disable_built_in_roots);
 
         match builder.handshake(domain, stream) {
             Ok(stream) => Ok(TlsStream { stream, cert: None }),

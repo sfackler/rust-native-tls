@@ -91,7 +91,7 @@ fn supported_protocols(
 
 fn init_trust() {
     static ONCE: Once = Once::new();
-    ONCE.call_once(|| openssl_probe::init_ssl_cert_env_vars());
+    ONCE.call_once(openssl_probe::init_ssl_cert_env_vars);
 }
 
 #[cfg(target_os = "android")]
@@ -158,7 +158,7 @@ impl Identity {
         Ok(Identity {
             pkey: parsed.pkey,
             cert: parsed.cert,
-            chain: parsed.chain.into_iter().flat_map(|x| x).collect(),
+            chain: parsed.chain.into_iter().flatten().collect(),
         })
     }
 }

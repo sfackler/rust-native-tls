@@ -380,9 +380,9 @@ pub struct TlsConnectorBuilder {
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
     use_sni: bool,
-
     #[cfg(feature = "alpn")]
     alpn: Option<ApplicationProtocols>,
+    disable_built_in_roots: bool,
 }
 
 impl TlsConnectorBuilder {
@@ -420,6 +420,14 @@ impl TlsConnectorBuilder {
     /// Defaults to an empty set.
     pub fn add_root_certificate(&mut self, cert: Certificate) -> &mut TlsConnectorBuilder {
         self.root_certificates.push(cert);
+        self
+    }
+
+    /// Controls the use of built-in system certificates during certificate validation.
+    ///
+    /// Defaults to `false` -- built-in system certs will be used.
+    pub fn disable_built_in_roots(&mut self, disable: bool) -> &mut TlsConnectorBuilder {
+        self.disable_built_in_roots = disable;
         self
     }
 
@@ -519,6 +527,7 @@ impl TlsConnector {
             accept_invalid_hostnames: false,
             #[cfg(feature = "alpn")]
             alpn: None,
+            disable_built_in_roots: false,
         }
     }
 

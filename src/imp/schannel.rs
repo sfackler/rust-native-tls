@@ -190,6 +190,7 @@ pub struct TlsConnector {
     accept_invalid_certs: bool,
     #[cfg(feature = "alpn")]
     alpn: Option<ApplicationProtocols>,
+    disable_built_in_roots: bool,
 }
 
 impl TlsConnector {
@@ -210,6 +211,7 @@ impl TlsConnector {
             accept_invalid_certs: builder.accept_invalid_certs,
             #[cfg(feature = "alpn")]
             alpn: builder.alpn.clone(),
+            disable_built_in_roots: builder.disable_built_in_roots,
         })
     }
 
@@ -242,6 +244,28 @@ impl TlsConnector {
 
         if self.accept_invalid_certs {
             builder.verify_callback(|_| Ok(()));
+        } else if self.disable_built_in_roots {
+            let roots_copy = self.roots.clone();
+            builder.verify_callback(move |res| {
+                if let Err(err) = res.result() {
+                    // Propagate previous error encountered during normal cert validation.
+                    return Err(err);
+                }
+
+                if let Some(chain) = res.chain() {
+                    if chain
+                        .certificates()
+                        .any(|cert| roots_copy.certs().any(|root_cert| root_cert == cert))
+                    {
+                        return Ok(());
+                    }
+                }
+
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "unable to find any user-specified roots in the final cert chain",
+                ))
+            });
         }
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),

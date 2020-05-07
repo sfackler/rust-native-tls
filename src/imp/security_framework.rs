@@ -268,6 +268,7 @@ pub struct TlsConnector {
     danger_accept_invalid_certs: bool,
     #[cfg(feature = "alpn")]
     alpn: Option<ApplicationProtocols>,
+    disable_built_in_roots: bool,
 }
 
 impl TlsConnector {
@@ -286,6 +287,7 @@ impl TlsConnector {
             danger_accept_invalid_certs: builder.accept_invalid_certs,
             #[cfg(feature = "alpn")]
             alpn: builder.alpn.clone(),
+            disable_built_in_roots: builder.disable_built_in_roots,
         })
     }
 
@@ -307,7 +309,6 @@ impl TlsConnector {
         builder.use_sni(self.use_sni);
         builder.danger_accept_invalid_hostnames(self.danger_accept_invalid_hostnames);
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
-        
         #[cfg(feature = "alpn")]
         {
             if let Some(alpn) = &self.alpn {
@@ -317,6 +318,7 @@ impl TlsConnector {
                 }
             }
         }
+        builder.trust_anchor_certificates_only(self.disable_built_in_roots);
         
         match builder.handshake(domain, stream) {
             Ok(stream) => Ok(TlsStream { stream, cert: None }),

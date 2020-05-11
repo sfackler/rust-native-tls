@@ -109,6 +109,8 @@ impl Identity {
 
     #[cfg(not(target_os = "ios"))]
     fn import_options(buf: &[u8], pass: &str) -> Result<Vec<ImportedIdentity>, Error> {
+        use security_framework::os::macos::import_export::Pkcs12ImportOptionsExt;
+        
         SET_AT_EXIT.call_once(|| {
             extern "C" fn atexit() {
                 *TEMP_KEYCHAIN.lock().unwrap() = None;
@@ -132,6 +134,7 @@ impl Identity {
                 keychain
             }
         };
+        
         let imports = Pkcs12ImportOptions::new()
             .passphrase(pass)
             .keychain(keychain)

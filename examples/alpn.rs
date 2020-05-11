@@ -19,13 +19,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .alpn_protocols(alpns)
         // .add_root_certificate(root_ca)
         .danger_accept_invalid_certs(true)
-        // .danger_accept_invalid_hostnames(true)
+        .danger_accept_invalid_hostnames(false)
         .build()?;
 
     println!("#2: tls connect to {:?} with alpns {:?} ...", domain, alpns);
     let tls_stream = tls_connector.connect(domain, tcp_stream)?;
 
-    println!("#3: negotiated alpn ...");
+    println!("#3: alpn negotiating ...");
     let alpn: Option<ApplicationProtocol<Vec<u8>>> = tls_stream.negotiated_alpn()?;
     println!("negotiated alpn result: {:?}", alpn);
     
@@ -36,5 +36,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(not(feature = "alpn"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("ALPN feature not enabled.");
+    println!("try run:\n\t$ cargo run --example alpn --features alpn");
     Ok(())
 }

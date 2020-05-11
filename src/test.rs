@@ -488,7 +488,7 @@ mod tests {
                 .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))
         }
         
-        async fn run_forever(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
+        async fn run_forever_with_rustls(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
             let pkcs12 = loads_pkcs12("./test/identity.p12", "mypass").unwrap();
             let pkey = rustls::PrivateKey(pkcs12.pkey.private_key_to_der().unwrap());
             let mut certs = load_certs("./test/cert.pem").unwrap();
@@ -510,10 +510,47 @@ mod tests {
             assert_eq!(alpn, Some("h2".as_bytes()));
             Ok(())
         }
+        
+        fn run_forever_with_openssl(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
+            use openssl::ssl::{SslMethod, SslAcceptor};
+
+            let pkcs12 = loads_pkcs12("./test/identity.p12", "mypass").unwrap();
+            let pkey = pkcs12.pkey.as_ref();
+            let cert = pkcs12.cert.as_ref();
+
+            let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+            acceptor.set_private_key(&pkey).unwrap();
+            acceptor.set_certificate(&cert).unwrap();
+            if let Some(mut cert_chain) = pkcs12.chain {
+                while let Some(cert) = cert_chain.pop() {
+                    acceptor.add_extra_chain_cert(cert).unwrap();
+                }
+            }
+            acceptor.check_private_key().unwrap();
+            acceptor.set_alpn_protos(b"\x02h2\x03dot\x08http/1.1").unwrap();
+
+            let acceptor = acceptor.build();
+
+            let (tcp_stream, _peer_addr) = listener.accept().unwrap();
+            let tls_stream = acceptor.accept(tcp_stream).unwrap();
+            let tls_session = tls_stream.ssl();
+            let alpn: Option<&[u8]> = tls_session.selected_alpn_protocol();
+            let right: &[u8] = b"h2";
+            assert_eq!(alpn, Some(right));
+
+            Ok(())
+        }
 
         let listener = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        tokio::spawn(run_forever(listener));
+        
+        if cfg!(target_os = "windows") || cfg!(target_os = "linux") {
+            std::thread::spawn(move || {
+                run_forever_with_openssl(listener).unwrap();
+            });
+        } else {
+            tokio::spawn(run_forever_with_rustls(listener));
+        }
 
         // ----- Client ------
         let root_ca = include_bytes!("../test/root-ca.der");

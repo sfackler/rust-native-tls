@@ -511,6 +511,7 @@ mod tests {
             Ok(())
         }
         
+        #[allow(dead_code)]
         fn run_forever_with_openssl(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
             use openssl::ssl::{SslMethod, SslAcceptor};
 
@@ -541,6 +542,7 @@ mod tests {
             Ok(())
         }
 
+        #[cfg(target_os = "windows")]
         fn run_forever_with_schannel(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
             use schannel::schannel_cred::SchannelCred;
             use schannel::schannel_cred::Protocol;
@@ -589,11 +591,15 @@ mod tests {
         let listener = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
 
-        if cfg!(target_os = "windows") {
+        #[cfg(target_os = "windows")]
+        {
             std::thread::spawn(move || {
                 run_forever_with_schannel(listener).unwrap();
             });
-        } else {
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
             tokio::spawn(run_forever_with_rustls(listener));
         }
 

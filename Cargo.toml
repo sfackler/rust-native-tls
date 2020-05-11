@@ -36,6 +36,7 @@ tokio-rustls = "0.13"
 
 [target.'cfg(target_os = "windows")'.dev-dependencies]
 openssl = { version = "0.10.25", features = ["vendored"] }
+schannel = "0.1.19"
 
 [target.'cfg(unix)'.dev-dependencies]
 openssl = "=0.10.29"

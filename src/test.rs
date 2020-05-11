@@ -541,12 +541,57 @@ mod tests {
             Ok(())
         }
 
+        fn run_forever_with_schannel(listener: std::net::TcpListener) -> Result<(), Box<dyn std::error::Error + 'static + Send>> {
+            use schannel::schannel_cred::SchannelCred;
+            use schannel::schannel_cred::Protocol;
+            use schannel::schannel_cred::Algorithm;
+            use schannel::schannel_cred::Direction;
+            use schannel::cert_context::CertContext;
+
+            let pkcs12 = loads_pkcs12("./test/identity.p12", "mypass").unwrap();
+            // let pkey = pkcs12.pkey.as_ref();
+            let cert = pkcs12.cert.as_ref();
+            let cert_der = cert.to_der().unwrap();
+
+            let mut builder = SchannelCred::builder();
+            builder.supported_algorithms(&[
+                Algorithm::Aes, Algorithm::Aes128, Algorithm::Aes256,
+                Algorithm::Ecdh, Algorithm::Ecdsa,
+                Algorithm::Mac, Algorithm::Hmac,
+                Algorithm::Sha1, Algorithm::Sha256,
+            ]);
+            builder.enabled_protocols(&[Protocol::Tls11, Protocol::Tls12]);
+            builder.cert(CertContext::new(&cert_der).unwrap());
+            if let Some(mut cert_chain) = pkcs12.chain {
+                while let Some(cert) = cert_chain.pop() {
+                    let cert_der = cert.to_der().unwrap();
+                    let cert_ctx = CertContext::new(&cert_der).unwrap();
+                    builder.cert(cert_ctx);
+                }
+            }
+
+            let acceptor = builder.acquire(Direction::Inbound).unwrap();
+
+            let (tcp_stream, _peer_addr) = listener.accept().unwrap();
+
+            let mut builder = schannel::tls_stream::Builder::new();
+            builder.domain("foobar.com");
+            builder.request_application_protocols(&[b"h2", b"dot", b"http/1.1"]);
+            builder.use_sni(true);
+            let tls_stream = builder.accept(acceptor, tcp_stream).unwrap();
+
+            let alpn: Option<Vec<u8>> = tls_stream.negotiated_application_protocol().unwrap();
+            assert_eq!(alpn, Some(vec![b'h', b'2']));
+
+            Ok(())
+        }
+
         let listener = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        
-        if cfg!(target_os = "windows") || cfg!(target_os = "linux") {
+
+        if cfg!(target_os = "windows") {
             std::thread::spawn(move || {
-                run_forever_with_openssl(listener).unwrap();
+                run_forever_with_schannel(listener).unwrap();
             });
         } else {
             tokio::spawn(run_forever_with_rustls(listener));

@@ -97,7 +97,7 @@
 #![warn(missing_docs)]
 
 #[macro_use]
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(all(not(feature = "force_ssl"), any(target_os = "macos", target_os = "ios")))]
 extern crate lazy_static;
 
 #[cfg(test)]
@@ -109,16 +109,16 @@ use std::fmt;
 use std::io;
 use std::result;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(any(feature = "force_ssl", not(any(target_os = "macos", target_os = "windows", target_os = "ios"))))]
 #[macro_use]
 extern crate log;
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(all(not(feature = "force_ssl"), any(target_os = "macos", target_os = "ios")))]
 #[path = "imp/security_framework.rs"]
 mod imp;
-#[cfg(target_os = "windows")]
+#[cfg(all(not(feature = "force_ssl"), target_os = "windows"))]
 #[path = "imp/schannel.rs"]
 mod imp;
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(any(feature = "force_ssl", not(any(target_os = "macos", target_os = "windows", target_os = "ios"))))]
 #[path = "imp/openssl.rs"]
 mod imp;
 

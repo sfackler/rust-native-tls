@@ -444,7 +444,7 @@ impl TlsConnectorBuilder {
 /// stream.read_to_end(&mut res).unwrap();
 /// println!("{}", String::from_utf8_lossy(&res));
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TlsConnector(imp::TlsConnector);
 
 impl TlsConnector {

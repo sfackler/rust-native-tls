@@ -74,7 +74,7 @@ impl From<base::Error> for Error {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Identity {
     identity: SecIdentity,
     chain: Vec<SecCertificate>,
@@ -253,7 +253,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TlsConnector {
     identity: Option<Identity>,
     min_protocol: Option<Protocol>,

@@ -91,7 +91,9 @@ fn supported_protocols(
 
 fn init_trust() {
     static ONCE: Once = Once::new();
-    ONCE.call_once(openssl_probe::init_ssl_cert_env_vars);
+    ONCE.call_once(|| {
+        openssl_probe::init_ssl_cert_env_vars();
+    });
 }
 
 #[cfg(target_os = "android")]

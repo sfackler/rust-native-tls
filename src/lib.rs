@@ -193,8 +193,8 @@ impl Certificate {
     }
 
     /// Parses a PEM-formatted X509 certificate.
-    pub fn from_pem(der: &[u8]) -> Result<Certificate> {
-        let cert = imp::Certificate::from_pem(der)?;
+    pub fn from_pem(pem: &[u8]) -> Result<Certificate> {
+        let cert = imp::Certificate::from_pem(pem)?;
         Ok(Certificate(cert))
     }
 

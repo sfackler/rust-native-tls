@@ -30,6 +30,7 @@ use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecK
 use self::security_framework_sys::base::errSecParam;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use self::security_framework::os::macos::import_export::Pkcs12ImportOptionsExt;
 
 static SET_AT_EXIT: Once = Once::new();
 

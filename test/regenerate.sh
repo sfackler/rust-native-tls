@@ -2,13 +2,12 @@
 set -eu
 
 openssl req -x509 -sha256 -days 800 -newkey rsa:2048 -nodes \
-    -config openssl.cnf \
     -subj "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd" \
+    -addext "keyUsage = keyCertSign" \
     -keyout root-key.pem \
     -out root-ca.pem
 
 openssl req -sha256 -newkey rsa:2080 -nodes \
-    -config openssl.cnf \
     -subj "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foobar.com" \
     -keyout key.pem \
     -out csr.pem

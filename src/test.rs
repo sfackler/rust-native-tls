@@ -375,7 +375,7 @@ mod tests {
     #[test]
     #[cfg_attr(target_os = "ios", ignore)]
     fn tls_server_end_point() {
-        let expected = "4712b939fbcb42a6b5101b42139a25b14f81b418facabd378746f12f85cc6544";
+        let expected = "a508908716f99d26811415db3ccdbe24d288f8656fe32481e9b960a15c6e865c";
 
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));

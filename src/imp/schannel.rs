@@ -1,8 +1,9 @@
 extern crate schannel;
 
-use self::schannel::cert_context::{CertContext, HashAlgorithm};
+use self::schannel::cert_context::{CertContext, HashAlgorithm, KeySpec};
 use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
 use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
+use self::schannel::crypt_prov::{AcquireOptions, ProviderType};
 use self::schannel::tls_stream;
 use std::error;
 use std::fmt;
@@ -91,6 +92,38 @@ impl Identity {
         };
 
         Ok(Identity { cert: identity })
+    }
+
+    pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        let mut store = Memory::new()?.into_store();
+        let mut cert_iter = pem::PemBlock::new(pem).into_iter();
+        let leaf = cert_iter.next().expect("at least one certificate must be provided to create an identity");
+        let cert = CertContext::from_pem(std::str::from_utf8(leaf).map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "leaf cert contains invalid utf8"))?)?;
+
+        let mut options = AcquireOptions::new();
+        options.container("schannel");
+        let type_ = ProviderType::rsa_full();
+
+        let mut container = match options.acquire(type_) {
+            Ok(container) => container,
+            Err(_) => options.new_keyset(true).acquire(type_)?,
+        };
+        container.import()
+            .import_pkcs8_pem(&key)?;
+
+        cert.set_key_prov_info()
+            .container("schannel")
+            .type_(type_)
+            .keep_open(true)
+            .key_spec(KeySpec::key_exchange())
+            .set()?;
+        let mut context = store.add_cert(&cert, CertAdd::Always)?;
+
+        for int_cert in cert_iter {
+            let certificate = Certificate::from_pem(int_cert)?;
+            context = store.add_cert(&certificate.0, schannel::cert_store::CertAdd::Always)?;
+        }
+        Ok(Identity{cert: context})
     }
 }
 
@@ -365,3 +398,84 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
         self.0.flush()
     }
 }
+
+
+mod pem {
+    /// Split data by PEM guard lines
+    pub struct PemBlock<'a> {
+        pem_block: &'a str,
+        cur_end: usize,
+    }
+
+    impl<'a> PemBlock<'a> {
+        pub fn new(data: &'a [u8]) -> PemBlock<'a> {
+            let s = ::std::str::from_utf8(data).unwrap();
+            PemBlock {
+                pem_block: s,
+                cur_end: s.find("-----BEGIN").unwrap_or(s.len()),
+            }
+        }
+    }
+
+    impl<'a> Iterator for PemBlock<'a> {
+        type Item = &'a [u8];
+        fn next(&mut self) -> Option<Self::Item> {
+            let last = self.pem_block.len();
+            if self.cur_end >= last {
+                return None;
+            }
+            let begin = self.cur_end;
+            let pos = self.pem_block[begin + 1..].find("-----BEGIN");
+            self.cur_end = match pos {
+                Some(end) => end + begin + 1,
+                None => last,
+            };
+            return Some(&self.pem_block[begin..self.cur_end].as_bytes());
+        }
+    }
+
+    #[test]
+    fn test_split() {
+        // Split three certs, CRLF line terminators.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n\
+            -----BEGIN SECOND-----\r\n-----END SECOND\r\n\
+            -----BEGIN THIRD-----\r\n-----END THIRD\r\n").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n" as &[u8],
+                 b"-----BEGIN SECOND-----\r\n-----END SECOND\r\n",
+                 b"-----BEGIN THIRD-----\r\n-----END THIRD\r\n"]);
+        // Split three certs, CRLF line terminators except at EOF.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n\
+            -----BEGIN SECOND-----\r\n-----END SECOND-----\r\n\
+            -----BEGIN THIRD-----\r\n-----END THIRD-----").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n" as &[u8],
+                 b"-----BEGIN SECOND-----\r\n-----END SECOND-----\r\n",
+                 b"-----BEGIN THIRD-----\r\n-----END THIRD-----"]);
+        // Split two certs, LF line terminators.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n\
+            -----BEGIN SECOND-----\n-----END SECOND\n").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8],
+                 b"-----BEGIN SECOND-----\n-----END SECOND\n"]);
+        // Split two certs, CR line terminators.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\r-----END FIRST-----\r\
+            -----BEGIN SECOND-----\r-----END SECOND\r").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\r-----END FIRST-----\r" as &[u8],
+                 b"-----BEGIN SECOND-----\r-----END SECOND\r"]);
+        // Split two certs, LF line terminators except at EOF.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n\
+            -----BEGIN SECOND-----\n-----END SECOND").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8],
+                 b"-----BEGIN SECOND-----\n-----END SECOND"]);
+        // Split a single cert, LF line terminators.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8]]);
+        // Split a single cert, LF line terminators except at EOF.
+        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----" as &[u8]]);
+        // (Don't) split garbage.
+        assert_eq!(PemBlock::new(b"junk").collect::<Vec<&[u8]>>(),
+            Vec::<&[u8]>::new());
+        assert_eq!(PemBlock::new(b"junk-----BEGIN garbage").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN garbage" as &[u8]]);
+    }
+}
+

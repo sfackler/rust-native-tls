@@ -27,6 +27,7 @@
 //! * TLS/SSL client communication
 //! * TLS/SSL server communication
 //! * PKCS#12 encoded identities
+//! * X.509/PKCS#8 encoded identities
 //! * Secure-by-default for client and server
 //!     * Includes hostname verification for clients
 //! * Supports asynchronous I/O for both the server and the client
@@ -177,6 +178,18 @@ impl Identity {
     /// ```
     pub fn from_pkcs12(der: &[u8], password: &str) -> Result<Identity> {
         let identity = imp::Identity::from_pkcs12(der, password)?;
+        Ok(Identity(identity))
+    }
+
+    /// Parses a chain of PEM encoded X509 certificates, with the leaf certificate first.
+    /// `key` is a PEM encoded PKCS #8 formatted private key for the leaf certificate.
+    ///
+    /// The certificate chain should contain any intermediate cerficates that should be sent to
+    /// clients to allow them to build a chain to a trusted root.
+    ///
+    /// A certificate chain here means a series of PEM encoded certificates concatenated together.
+    pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity> {
+        let identity = imp::Identity::from_pkcs8(pem, key)?;
         Ok(Identity(identity))
     }
 }

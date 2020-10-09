@@ -190,7 +190,7 @@ pub mod os {
     #[cfg(target_os = "windows")]
     pub mod windows {
         use crate::{imp, Identity, Result};
-        use schannel::cert_context::CertContext;
+        use schannel::RawPointer as _;
 
         /// A trait that adds some extra Windows-specific methods to the [Identity](../../struct.Identity.html).
         ///
@@ -198,17 +198,20 @@ pub mod os {
         ///
         /// ```rust,no_run
         /// use native_tls::os::windows::IdentityExt;
-        /// let identity = Identity::from_cert_context(my_context);
+        /// let hcontext: PCERT_CONTEXT = acquire_context();
+        /// let identity = unsafe { Identity::from_raw(hcontext) };
         /// ```
         pub trait IdentityExt {
-            /// Create identity from
-            /// [CertContext](https://docs.rs/schannel/latest/schannel/cert_context/struct.CertContext.html) instance
-            fn from_cert_context(cert_context: CertContext) -> Result<Identity>;
+            /// Create identity from raw PCERT_CONTEXT. It will be automatically freed
+            /// when the identity is dropped.
+            unsafe fn from_raw(cert_context: *mut ::std::os::raw::c_void) -> Result<Identity>;
         }
 
         impl IdentityExt for Identity {
-            fn from_cert_context(cert_context: CertContext) -> Result<Identity> {
-                Ok(Identity(imp::Identity::from_inner(cert_context)))
+            unsafe fn from_raw(cert_context: *mut ::std::os::raw::c_void) -> Result<Identity> {
+                Ok(Identity(imp::Identity::from_inner(
+                    schannel::cert_context::CertContext::from_ptr(cert_context),
+                )))
             }
         }
     }

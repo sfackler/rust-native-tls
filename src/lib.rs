@@ -100,6 +100,9 @@
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 extern crate lazy_static;
 
+#[cfg(target_os = "windows")]
+extern crate schannel;
+
 #[cfg(test)]
 extern crate hex;
 
@@ -178,6 +181,36 @@ impl Identity {
     pub fn from_pkcs12(der: &[u8], password: &str) -> Result<Identity> {
         let identity = imp::Identity::from_pkcs12(der, password)?;
         Ok(Identity(identity))
+    }
+}
+
+/// A module which contains OS-specific extensions
+pub mod os {
+    /// A module which contains Windows-specific extensions
+    #[cfg(target_os = "windows")]
+    pub mod windows {
+        use crate::{imp, Identity, Result};
+        use schannel::cert_context::CertContext;
+
+        /// A trait that adds some extra Windows-specific methods to the [Identity](../../struct.Identity.html).
+        ///
+        /// In order to use it import the `IdentityExt` first and call it's methods on the Identity struct:
+        ///
+        /// ```rust,no_run
+        /// use native_tls::os::windows::IdentityExt;
+        /// let identity = Identity::from_cert_context(my_context);
+        /// ```
+        pub trait IdentityExt {
+            /// Create identity from
+            /// [CertContext](https://docs.rs/schannel/latest/schannel/cert_context/struct.CertContext.html) instance
+            fn from_cert_context(cert_context: CertContext) -> Result<Identity>;
+        }
+
+        impl IdentityExt for Identity {
+            fn from_cert_context(cert_context: CertContext) -> Result<Identity> {
+                Ok(Identity(imp::Identity::from_inner(cert_context)))
+            }
+        }
     }
 }
 

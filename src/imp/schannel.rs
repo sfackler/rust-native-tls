@@ -63,6 +63,10 @@ pub struct Identity {
 }
 
 impl Identity {
+    pub(crate) fn from_inner(cert: CertContext) -> Identity {
+        Identity { cert }
+    }
+
     pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
         let store = PfxImportOptions::new().password(pass).import(buf)?;
         let mut identity = None;

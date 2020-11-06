@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [v0.2.5]
+
+### Added
+
+* Added `TlsConnectorBuilder::disable_built_in_roots` to only trust root certificates explicitly
+    added to the builder.
+
+### Updated
+
+* Updated security-framework to 2.0.
+
 ## [v0.2.4]
 
 ### Added
@@ -76,7 +87,8 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.4...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.5...master
+[v0.2.5]: https://github.com/sfackler/rust-native-tls/compare/v0.2.5...v0.2.5
 [v0.2.4]: https://github.com/sfackler/rust-native-tls/compare/v0.2.3...v0.2.4
 [v0.2.3]: https://github.com/sfackler/rust-native-tls/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/sfackler/rust-native-tls/compare/v0.2.1...v0.2.2

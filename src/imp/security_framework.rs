@@ -23,14 +23,13 @@ use self::security_framework::os::macos::certificate::{PropertyType, SecCertific
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate_oids::CertificateOid;
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::import_export::{ImportOptions, SecItems};
+use self::security_framework::os::macos::import_export::{ImportOptions, SecItems, Pkcs12ImportOptionsExt};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework_sys::base::errSecParam;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
-use self::security_framework::os::macos::import_export::Pkcs12ImportOptionsExt;
 
 static SET_AT_EXIT: Once = Once::new();
 

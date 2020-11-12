@@ -492,11 +492,30 @@ impl TlsConnector {
     }
 }
 
+/// Client certificate verification modes
+pub enum TlsClientCertificateVerification {
+    /// The server will not request certificates from the client.
+    /// 
+    /// # Warning
+    /// The client will not be able to send any certificates with this setting.
+    DoNotRequestCertificate,
+    /// The server will request a certificate from the client, then will validate 
+    /// any certificate it receives. The client may choose not to send any.
+    RequestCertificate,
+    /// The server will request a certificate from the client, then will validate 
+    /// any certificate it receives or reject the connection none are provided.
+    RequireCertificate,
+}
+
 /// A builder for `TlsAcceptor`s.
 pub struct TlsAcceptorBuilder {
     identity: Identity,
     min_protocol: Option<Protocol>,
     max_protocol: Option<Protocol>,
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    client_cert_verification: TlsClientCertificateVerification,
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    client_cert_verification_ca_cert: Option<Certificate>
 }
 
 impl TlsAcceptorBuilder {
@@ -517,6 +536,26 @@ impl TlsAcceptorBuilder {
     /// Defaults to `None`.
     pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
         self.max_protocol = protocol;
+        self
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    /// Sets the verification mode for client certificates.
+    /// 
+    /// Defaults to `TlsClientCertificateVerification::DoNotRequestCertificate`.
+    pub fn client_cert_verification(&mut self, client_cert_verification: TlsClientCertificateVerification) -> &mut TlsAcceptorBuilder {
+        self.client_cert_verification = client_cert_verification;
+        self
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    /// Sets which ca to tell the client is acceptable to send to the server.
+    /// 
+    /// A value of `None` will not tell the client it is acceptable to send certificates signed by any ca.
+    /// 
+    /// Defaults `None`.
+    pub fn client_cert_verification_ca_cert(&mut self, client_cert_verification_ca_cert: Option<Certificate>) -> &mut TlsAcceptorBuilder {
+        self.client_cert_verification_ca_cert = client_cert_verification_ca_cert;
         self
     }
 
@@ -584,6 +623,10 @@ impl TlsAcceptor {
             identity,
             min_protocol: Some(Protocol::Tlsv10),
             max_protocol: None,
+            #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+            client_cert_verification: TlsClientCertificateVerification::DoNotRequestCertificate,
+            #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+            client_cert_verification_ca_cert: None
         }
     }
 

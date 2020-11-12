@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn peer_certificate() {
+    fn no_peer_certificate() {
         let buf = include_bytes!("../test/identity.p12");
         let identity = p!(Identity::from_pkcs12(buf, "mypass"));
         let builder = p!(TlsAcceptor::new(identity));
@@ -195,6 +195,73 @@ mod tests {
         let socket = p!(builder.connect("foobar.com", socket));
 
         let cert_der = include_bytes!("../test/cert.der");
+        let cert = socket.peer_certificate().unwrap().unwrap();
+        assert_eq!(cert.to_der().unwrap(), &cert_der[..]);
+
+        p!(j.join());
+    }
+    #[test]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    fn require_peer_certificate_no_cert() {
+        let buf = include_bytes!("../test/identity.p12");
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let builder = p!(TlsAcceptor::builder(identity)
+            .client_cert_verification(TlsClientCertificateVerification::RequireCertificate)
+            .build());
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let socket = builder.accept(socket);
+            assert!(socket.is_err());
+        });
+
+        let root_ca = include_bytes!("../test/root-ca.der");
+        let root_ca = Certificate::from_der(root_ca).unwrap();
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let builder = p!(TlsConnector::builder()
+            .add_root_certificate(root_ca)
+            .build());
+        let socket = builder.connect("foobar.com", socket);
+        assert!(socket.is_err());
+
+        p!(j.join());
+    }
+
+    #[test]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    fn request_peer_certificate_some_cert() {
+        let buf = include_bytes!("../test/identity.p12");
+        let identity = p!(Identity::from_pkcs12(buf, "mypass"));
+        let root_ca = include_bytes!("../test/root-ca.der");
+        let root_ca = Certificate::from_der(root_ca).unwrap();
+        let builder = p!(TlsAcceptor::builder(identity.clone())
+            .client_cert_verification(TlsClientCertificateVerification::RequestCertificate)
+            .client_cert_verification_ca_cert(Some(root_ca.clone()))
+            .build());
+
+        let listener = p!(TcpListener::bind("0.0.0.0:0"));
+        let port = p!(listener.local_addr()).port();
+
+        let cert_der = include_bytes!("../test/cert.der");
+        let j = thread::spawn(move || {
+            let socket = p!(listener.accept()).0;
+            let socket = p!(builder.accept(socket));
+            let cert = socket.peer_certificate().unwrap().unwrap();
+            assert_eq!(cert.to_der().unwrap(), &cert_der[..]);
+        });
+
+
+        let socket = p!(TcpStream::connect(("localhost", port)));
+        let builder = p!(TlsConnector::builder()
+            .add_root_certificate(root_ca)
+            .identity(identity)
+            .build());
+        let socket = p!(builder.connect("foobar.com", socket));
+
         let cert = socket.peer_certificate().unwrap().unwrap();
         assert_eq!(cert.to_der().unwrap(), &cert_der[..]);
 

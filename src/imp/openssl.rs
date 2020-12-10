@@ -10,14 +10,14 @@ use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::{X509, store::X509StoreBuilder, X509VerifyResult};
+use self::openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
 use std::error;
 use std::fmt;
 use std::io;
 use std::sync::Once;
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 use self::openssl::pkey::Private;
+use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -305,8 +305,7 @@ impl TlsConnector {
 
 impl fmt::Debug for TlsConnector {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt
-            .debug_struct("TlsConnector")
+        fmt.debug_struct("TlsConnector")
             // n.b. SslConnector is a newtype on SslContext which implements a noop Debug so it's omitted
             .field("use_sni", &self.use_sni)
             .field("accept_invalid_hostnames", &self.accept_invalid_hostnames)

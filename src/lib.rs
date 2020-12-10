@@ -36,6 +36,12 @@
 //! * `vendored` - If enabled, the crate will compile and statically link to a
 //!     vendored copy of OpenSSL. This feature has no effect on Windows and
 //!     macOS, where OpenSSL is not used.
+//! * `force-openssl` - If enabled, the crate will always compile against
+//!     OpenSSL in any platform. Useful together with `vendored` when needing
+//!     to use a TLS certificate not accepted by the platform TLS implementation
+//!     while not being able to update the certificates to comply with
+//!     the platform rules. Set `default-features` to false to not include
+//!     the platform-specific SSL crates.
 //!
 //! # Examples
 //!
@@ -97,7 +103,10 @@
 #![warn(missing_docs)]
 
 #[macro_use]
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(all(
+    not(feature = "force-openssl"),
+    any(target_os = "macos", target_os = "ios")
+))]
 extern crate lazy_static;
 
 #[cfg(test)]
@@ -109,16 +118,25 @@ use std::fmt;
 use std::io;
 use std::result;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(any(
+    feature = "force-openssl",
+    not(any(target_os = "macos", target_os = "windows", target_os = "ios"))
+))]
 #[macro_use]
 extern crate log;
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(all(
+    not(feature = "force-openssl"),
+    any(target_os = "macos", target_os = "ios")
+))]
 #[path = "imp/security_framework.rs"]
 mod imp;
-#[cfg(target_os = "windows")]
+#[cfg(all(not(feature = "force-openssl"), target_os = "windows"))]
 #[path = "imp/schannel.rs"]
 mod imp;
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(any(
+    feature = "force-openssl",
+    not(any(target_os = "macos", target_os = "windows", target_os = "ios"))
+))]
 #[path = "imp/openssl.rs"]
 mod imp;
 

@@ -86,7 +86,8 @@ impl Identity {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "No identity found in PKCS #12 archive",
-                ).into());
+                )
+                .into());
             }
         };
 
@@ -112,7 +113,8 @@ impl Certificate {
             Err(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "PEM representation contains non-UTF-8 bytes",
-            ).into()),
+            )
+            .into()),
         }
     }
 

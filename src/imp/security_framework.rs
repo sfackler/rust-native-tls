@@ -7,7 +7,6 @@ use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
 use self::security_framework::identity::SecIdentity;
 use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
-use self::security_framework::os::macos::import_export::Pkcs12ImportOptionsExt;
 use self::security_framework::secure_transport::{
     self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
 };
@@ -25,7 +24,9 @@ use self::security_framework::os::macos::certificate::{PropertyType, SecCertific
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate_oids::CertificateOid;
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::import_export::{ImportOptions, SecItems, Pkcs12ImportOptionsExt};
+use self::security_framework::os::macos::import_export::{
+    ImportOptions, Pkcs12ImportOptionsExt, SecItems,
+};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 
@@ -306,9 +307,15 @@ impl TlsConnector {
         builder.trust_anchor_certificates_only(self.disable_built_in_roots);
 
         if !self.alpn.is_empty() {
-            builder.alpn_protocols(&self.alpn.iter().map(
-                |bytes| str::from_utf8(&bytes).expect("Security Framework only supports UTF-8 ALPN")
-            ).collect::<Vec<_>>());
+            builder.alpn_protocols(
+                &self
+                    .alpn
+                    .iter()
+                    .map(|bytes| {
+                        str::from_utf8(&bytes).expect("Security Framework only supports UTF-8 ALPN")
+                    })
+                    .collect::<Vec<_>>(),
+            );
         }
 
         match builder.handshake(domain, stream) {
@@ -408,7 +415,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
                 } else {
                     Ok(Some(protocols.into_iter().next().unwrap().into_bytes()))
                 }
-            },
+            }
             // The macOS API appears to return `errSecParam` whenever no ALPN was negotiated, both
             // when it isn't attempted and when it isn't successful.
             Err(e) if e.code() == errSecParam => Ok(None),

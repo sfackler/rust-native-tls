@@ -315,6 +315,18 @@ impl TlsConnector {
     }
 }
 
+impl fmt::Debug for TlsConnector {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt
+            .debug_struct("TlsConnector")
+            // n.b. SslConnector is a newtype on SslContext which implements a noop Debug so it's omitted
+            .field("use_sni", &self.use_sni)
+            .field("accept_invalid_hostnames", &self.accept_invalid_hostnames)
+            .field("accept_invalid_certs", &self.accept_invalid_certs)
+            .finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct TlsAcceptor(SslAcceptor);
 

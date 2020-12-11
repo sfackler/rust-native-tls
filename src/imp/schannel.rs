@@ -176,7 +176,7 @@ impl<S> From<io::Error> for HandshakeError<S> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,

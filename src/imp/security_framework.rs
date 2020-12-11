@@ -25,7 +25,7 @@ use self::security_framework::os::macos::certificate::{PropertyType, SecCertific
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate_oids::CertificateOid;
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::import_export::{ImportOptions, SecItems};
+use self::security_framework::os::macos::import_export::{ImportOptions, SecItems, Pkcs12ImportOptionsExt};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 
@@ -74,7 +74,7 @@ impl From<base::Error> for Error {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Identity {
     identity: SecIdentity,
     chain: Vec<SecCertificate>,
@@ -253,7 +253,7 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TlsConnector {
     identity: Option<Identity>,
     min_protocol: Option<Protocol>,

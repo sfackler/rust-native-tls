@@ -264,7 +264,7 @@ pub struct TlsConnector {
     danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
     disable_built_in_roots: bool,
-    alpn: Vec<Vec<u8>>,
+    alpn: Vec<String>,
 }
 
 impl TlsConnector {
@@ -307,15 +307,7 @@ impl TlsConnector {
         builder.trust_anchor_certificates_only(self.disable_built_in_roots);
 
         if !self.alpn.is_empty() {
-            builder.alpn_protocols(
-                &self
-                    .alpn
-                    .iter()
-                    .map(|bytes| {
-                        str::from_utf8(&bytes).expect("Security Framework only supports UTF-8 ALPN")
-                    })
-                    .collect::<Vec<_>>(),
-            );
+            builder.alpn_protocols(&self.alpn.iter().map(String::as_str).collect::<Vec<_>>());
         }
 
         match builder.handshake(domain, stream) {

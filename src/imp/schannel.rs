@@ -186,7 +186,7 @@ pub struct TlsConnector {
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
     disable_built_in_roots: bool,
-    alpn: Vec<Vec<u8>>,
+    alpn: Vec<String>,
 }
 
 impl TlsConnector {
@@ -252,7 +252,7 @@ impl TlsConnector {
             });
         }
         if !self.alpn.is_empty() {
-            builder.request_application_protocols(&self.alpn.iter().map(AsRef::as_ref).collect::<Vec<_>>());
+            builder.request_application_protocols(&self.alpn.iter().map(|s| s.as_bytes()).collect::<Vec<_>>());
         }
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),

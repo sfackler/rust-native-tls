@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn alpn_google_h2() {
-        let builder = p!(TlsConnector::builder().request_alpns(&[b"h2"]).build());
+        let builder = p!(TlsConnector::builder().request_alpns(&["h2"]).build());
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
 
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn alpn_google_invalid() {
-        let builder = p!(TlsConnector::builder().request_alpns(&[b"h2c"]).build());
+        let builder = p!(TlsConnector::builder().request_alpns(&["h2c"]).build());
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
 

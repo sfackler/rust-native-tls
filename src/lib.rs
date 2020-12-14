@@ -328,7 +328,7 @@ pub struct TlsConnectorBuilder {
     accept_invalid_hostnames: bool,
     use_sni: bool,
     disable_built_in_roots: bool,
-    alpn: Vec<Vec<u8>>,
+    alpn: Vec<String>,
 }
 
 impl TlsConnectorBuilder {
@@ -380,8 +380,8 @@ impl TlsConnectorBuilder {
     /// Request specific protocols through ALPN (Application-Layer Protocol Negotiation).
     ///
     /// Defaults to none
-    pub fn request_alpns(&mut self, protocols: &[&[u8]]) -> &mut TlsConnectorBuilder {
-        self.alpn = protocols.iter().map(|s| s.to_vec()).collect();
+    pub fn request_alpns(&mut self, protocols: &[&str]) -> &mut TlsConnectorBuilder {
+        self.alpn = protocols.iter().map(|s| (*s).to_owned()).collect();
         self
     }
 

@@ -655,8 +655,11 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     /// Returns the negotiated ALPN protocols
-    pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>> {
-        Ok(self.0.negotiated_alpn()?)
+    pub fn negotiated_alpn(&self) -> Result<Option<String>> {
+        Ok(self
+            .0
+            .negotiated_alpn()?
+            .map(|bytes| String::from_utf8(bytes).unwrap())) //negotiated_alpn always returns valid utf-8
     }
 
     /// Shuts down the TLS session.

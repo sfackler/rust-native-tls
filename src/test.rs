@@ -2,6 +2,7 @@ use hex;
 #[allow(unused_imports)]
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::string::String;
 use std::thread;
 
 use super::*;

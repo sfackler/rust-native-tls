@@ -420,6 +420,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "alpn"), ignore)]
     fn alpn_google_h2() {
         let builder = p!(TlsConnector::builder().request_alpns(&["h2"]).build());
         let s = p!(TcpStream::connect("google.com:443"));
@@ -434,6 +435,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "alpn"), ignore)]
     fn alpn_google_invalid() {
         let builder = p!(TlsConnector::builder().request_alpns(&["h2c"]).build());
         let s = p!(TcpStream::connect("google.com:443"));
@@ -448,6 +450,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "alpn"), ignore)]
     fn alpn_google_none() {
         let builder = p!(TlsConnector::new());
         let s = p!(TcpStream::connect("google.com:443"));

@@ -420,42 +420,32 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(not(feature = "alpn"), ignore)]
+    #[cfg(feature = "alpn")]
     fn alpn_google_h2() {
         let builder = p!(TlsConnector::builder().request_alpns(&["h2"]).build());
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
-
-        assert_eq!(
-            p!(socket.negotiated_alpn())
-                .as_ref()
-                .map(|alpn| alpn.as_str()),
-            Some("h2")
-        );
+        let alpn = p!(socket.negotiated_alpn());
+        assert_eq!(alpn.as_deref(), Some(b"h2".as_ref()));
     }
 
     #[test]
-    #[cfg_attr(not(feature = "alpn"), ignore)]
+    #[cfg(feature = "alpn")]
     fn alpn_google_invalid() {
         let builder = p!(TlsConnector::builder().request_alpns(&["h2c"]).build());
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
-
-        assert_eq!(
-            p!(socket.negotiated_alpn())
-                .as_ref()
-                .map(|alpn| alpn.as_str()),
-            None
-        );
+        let alpn = p!(socket.negotiated_alpn());
+        assert_eq!(alpn.as_deref(), None);
     }
 
     #[test]
-    #[cfg_attr(not(feature = "alpn"), ignore)]
+    #[cfg(feature = "alpn")]
     fn alpn_google_none() {
         let builder = p!(TlsConnector::new());
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
-
-        assert_eq!(p!(socket.negotiated_alpn()), None);
+        let alpn = p!(socket.negotiated_alpn());
+        assert_eq!(alpn.as_deref(), None);
     }
 }

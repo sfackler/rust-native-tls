@@ -86,7 +86,8 @@ impl Identity {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "No identity found in PKCS #12 archive",
-                ).into());
+                )
+                .into());
             }
         };
 
@@ -112,7 +113,8 @@ impl Certificate {
             Err(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "PEM representation contains non-UTF-8 bytes",
-            ).into()),
+            )
+            .into()),
         }
     }
 
@@ -251,8 +253,13 @@ impl TlsConnector {
                 ))
             });
         }
-        if !self.alpn.is_empty() {
-            builder.request_application_protocols(&self.alpn.iter().map(|s| s.as_bytes()).collect::<Vec<_>>());
+        #[cfg(feature = "alpn")]
+        {
+            if !self.alpn.is_empty() {
+                builder.request_application_protocols(
+                    &self.alpn.iter().map(|s| s.as_bytes()).collect::<Vec<_>>(),
+                );
+            }
         }
         match builder.connect(cred, stream) {
             Ok(s) => Ok(TlsStream(s)),
@@ -324,6 +331,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         }
     }
 
+    #[cfg(feature = "alpn")]
     pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>, Error> {
         Ok(self.0.negotiated_application_protocol()?)
     }

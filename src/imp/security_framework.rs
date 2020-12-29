@@ -306,8 +306,11 @@ impl TlsConnector {
         builder.danger_accept_invalid_certs(self.danger_accept_invalid_certs);
         builder.trust_anchor_certificates_only(self.disable_built_in_roots);
 
-        if !self.alpn.is_empty() {
-            builder.alpn_protocols(&self.alpn.iter().map(String::as_str).collect::<Vec<_>>());
+        #[cfg(feature = "alpn")]
+        {
+            if !self.alpn.is_empty() {
+                builder.alpn_protocols(&self.alpn.iter().map(String::as_str).collect::<Vec<_>>());
+            }
         }
 
         match builder.handshake(domain, stream) {
@@ -395,6 +398,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(trust.certificate_at_index(0).map(Certificate))
     }
 
+    #[cfg(feature = "alpn")]
     pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>, Error> {
         match self.stream.context().alpn_protocols() {
             Ok(protocols) => {

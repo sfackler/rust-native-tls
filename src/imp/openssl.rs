@@ -274,21 +274,24 @@ impl TlsConnector {
             }
         }
 
-        if !builder.alpn.is_empty() {
-            // Wire format is each alpn preceded by its length as a byte.
-            let mut alpn_wire_format = Vec::with_capacity(
-                builder
-                    .alpn
-                    .iter()
-                    .map(|s| s.as_bytes().len())
-                    .sum::<usize>()
-                    + builder.alpn.len(),
-            );
-            for alpn in builder.alpn.iter().map(|s| s.as_bytes()) {
-                alpn_wire_format.push(alpn.len() as u8);
-                alpn_wire_format.extend(alpn);
+        #[cfg(feature = "alpn")]
+        {
+            if !builder.alpn.is_empty() {
+                // Wire format is each alpn preceded by its length as a byte.
+                let mut alpn_wire_format = Vec::with_capacity(
+                    builder
+                        .alpn
+                        .iter()
+                        .map(|s| s.as_bytes().len())
+                        .sum::<usize>()
+                        + builder.alpn.len(),
+                );
+                for alpn in builder.alpn.iter().map(|s| s.as_bytes()) {
+                    alpn_wire_format.push(alpn.len() as u8);
+                    alpn_wire_format.extend(alpn);
+                }
+                connector.set_alpn_protos(&alpn_wire_format)?;
             }
-            connector.set_alpn_protos(&alpn_wire_format)?;
         }
 
         #[cfg(target_os = "android")]
@@ -383,6 +386,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(self.0.ssl().peer_certificate().map(Certificate))
     }
 
+    #[cfg(feature = "alpn")]
     pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>, Error> {
         Ok(self
             .0

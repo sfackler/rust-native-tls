@@ -380,6 +380,7 @@ impl TlsConnectorBuilder {
     /// Request specific protocols through ALPN (Application-Layer Protocol Negotiation).
     ///
     /// Defaults to none
+    #[cfg(feature = "alpn")]
     pub fn request_alpns(&mut self, protocols: &[&str]) -> &mut TlsConnectorBuilder {
         self.alpn = protocols.iter().map(|s| (*s).to_owned()).collect();
         self
@@ -655,12 +656,9 @@ impl<S: io::Read + io::Write> TlsStream<S> {
     }
 
     /// Returns the negotiated ALPN protocols
-    pub fn negotiated_alpn(&self) -> Result<Option<String>> {
-        let protocol = self
-            .0
-            .negotiated_alpn()?
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
-        Ok(protocol)
+    #[cfg(feature = "alpn")]
+    pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>> {
+        Ok(self.0.negotiated_alpn()?)
     }
 
     /// Shuts down the TLS session.

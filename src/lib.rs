@@ -101,9 +101,6 @@
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 extern crate lazy_static;
 
-#[cfg(test)]
-extern crate hex;
-
 use std::any::Any;
 use std::error;
 use std::fmt;

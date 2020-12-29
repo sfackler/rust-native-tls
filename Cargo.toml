@@ -32,4 +32,5 @@ openssl-sys = "0.9.55"
 openssl-probe = "0.1"
 
 [dev-dependencies]
-hex = "0.4.2"
+tempfile = "3.0"
+test-cert-gen = "0.1"

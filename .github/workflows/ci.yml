@@ -22,8 +22,14 @@ jobs:
       - uses: sfackler/actions/rustfmt@master
   
   windows:
-    name: windows
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    name: test-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
       - uses: sfackler/actions/rustup@master
@@ -49,3 +55,4 @@ jobs:
           key: target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo test
       - run: cargo test --features alpn
+      - run: cargo test --features vendored

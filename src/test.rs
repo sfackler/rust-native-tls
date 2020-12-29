@@ -426,7 +426,7 @@ mod tests {
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
         let alpn = p!(socket.negotiated_alpn());
-        assert_eq!(alpn.as_deref(), Some(b"h2".as_ref()));
+        assert_eq!(alpn, Some(b"h2".to_vec()));
     }
 
     #[test]
@@ -436,7 +436,7 @@ mod tests {
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
         let alpn = p!(socket.negotiated_alpn());
-        assert_eq!(alpn.as_deref(), None);
+        assert_eq!(alpn, None);
     }
 
     #[test]
@@ -446,6 +446,6 @@ mod tests {
         let s = p!(TcpStream::connect("google.com:443"));
         let socket = p!(builder.connect("google.com", s));
         let alpn = p!(socket.negotiated_alpn());
-        assert_eq!(alpn.as_deref(), None);
+        assert_eq!(alpn, None);
     }
 }

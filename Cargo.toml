@@ -7,9 +7,13 @@ description = "A wrapper over a platform's native TLS implementation"
 repository = "https://github.com/sfackler/rust-native-tls"
 readme = "README.md"
 
+[package.metadata.docs.rs]
+features = ["alpn"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 vendored = ["openssl/vendored"]
-alpn = ["security-framework/alpn", "openssl/v102"] 
+alpn = ["security-framework/alpn"] 
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 security-framework = "2.0.0"

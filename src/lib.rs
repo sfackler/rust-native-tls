@@ -95,6 +95,7 @@
 //! ```
 #![doc(html_root_url = "https://docs.rs/native-tls/0.2")]
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[macro_use]
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -328,6 +329,7 @@ pub struct TlsConnectorBuilder {
     accept_invalid_hostnames: bool,
     use_sni: bool,
     disable_built_in_roots: bool,
+    #[cfg(feature = "alpn")]
     alpn: Vec<String>,
 }
 
@@ -379,8 +381,9 @@ impl TlsConnectorBuilder {
 
     /// Request specific protocols through ALPN (Application-Layer Protocol Negotiation).
     ///
-    /// Defaults to none
+    /// Defaults to no protocols.
     #[cfg(feature = "alpn")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alpn")))]
     pub fn request_alpns(&mut self, protocols: &[&str]) -> &mut TlsConnectorBuilder {
         self.alpn = protocols.iter().map(|s| (*s).to_owned()).collect();
         self
@@ -474,6 +477,7 @@ impl TlsConnector {
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
             disable_built_in_roots: false,
+            #[cfg(feature = "alpn")]
             alpn: vec![],
         }
     }
@@ -655,8 +659,9 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(self.0.tls_server_end_point()?)
     }
 
-    /// Returns the negotiated ALPN protocols
+    /// Returns the negotiated ALPN protocol.
     #[cfg(feature = "alpn")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alpn")))]
     pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>> {
         Ok(self.0.negotiated_alpn()?)
     }

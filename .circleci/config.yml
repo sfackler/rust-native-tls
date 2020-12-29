@@ -21,7 +21,7 @@ jobs:
             - /usr/local/cargo/registry/index
       - restore_cache:
           key: deps-<< parameters.image >>-{{ checksum "Cargo.lock" }}
-      - run: cargo test
+      - run: cargo test --features alpn
       - run: rustdoc --test README.md -L target/debug/deps -L target/debug
       - save_cache:
           key: deps-<< parameters.image >>-{{ checksum "Cargo.lock" }}
@@ -34,7 +34,7 @@ jobs:
       version:
         type: string
     macos:
-      xcode: "9.4.1"
+      xcode: "10.0.0"
     environment:
       RUST_BACKTRACE: 1
       RUSTFLAGS: -D warnings
@@ -51,7 +51,7 @@ jobs:
             - ~/.cargo/registry/index
       - restore_cache:
           key: macos-deps-<< parameters.version >>
-      - run: cargo test
+      - run: cargo test --features alpn
       - save_cache:
           key: macos-deps-<< parameters.version >>
           paths:

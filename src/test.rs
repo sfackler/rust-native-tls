@@ -2,6 +2,7 @@ use hex;
 #[allow(unused_imports)]
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::string::String;
 use std::thread;
 
 use super::*;
@@ -416,5 +417,35 @@ mod tests {
         assert_eq!(buf, b"world");
 
         p!(j.join());
+    }
+
+    #[test]
+    #[cfg(feature = "alpn")]
+    fn alpn_google_h2() {
+        let builder = p!(TlsConnector::builder().request_alpns(&["h2"]).build());
+        let s = p!(TcpStream::connect("google.com:443"));
+        let socket = p!(builder.connect("google.com", s));
+        let alpn = p!(socket.negotiated_alpn());
+        assert_eq!(alpn, Some(b"h2".to_vec()));
+    }
+
+    #[test]
+    #[cfg(feature = "alpn")]
+    fn alpn_google_invalid() {
+        let builder = p!(TlsConnector::builder().request_alpns(&["h2c"]).build());
+        let s = p!(TcpStream::connect("google.com:443"));
+        let socket = p!(builder.connect("google.com", s));
+        let alpn = p!(socket.negotiated_alpn());
+        assert_eq!(alpn, None);
+    }
+
+    #[test]
+    #[cfg(feature = "alpn")]
+    fn alpn_google_none() {
+        let builder = p!(TlsConnector::new());
+        let s = p!(TcpStream::connect("google.com:443"));
+        let socket = p!(builder.connect("google.com", s));
+        let alpn = p!(socket.negotiated_alpn());
+        assert_eq!(alpn, None);
     }
 }

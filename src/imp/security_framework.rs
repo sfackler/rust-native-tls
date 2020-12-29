@@ -264,6 +264,7 @@ pub struct TlsConnector {
     danger_accept_invalid_hostnames: bool,
     danger_accept_invalid_certs: bool,
     disable_built_in_roots: bool,
+    #[cfg(feature = "alpn")]
     alpn: Vec<String>,
 }
 
@@ -282,6 +283,7 @@ impl TlsConnector {
             danger_accept_invalid_hostnames: builder.accept_invalid_hostnames,
             danger_accept_invalid_certs: builder.accept_invalid_certs,
             disable_built_in_roots: builder.disable_built_in_roots,
+            #[cfg(feature = "alpn")]
             alpn: builder.alpn.clone(),
         })
     }

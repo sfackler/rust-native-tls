@@ -177,6 +177,11 @@ impl Certificate {
         Ok(Certificate(cert))
     }
 
+    pub fn stack_from_pem(buf: &[u8]) -> Result<Vec<Certificate>, Error> {
+        let mut certs = X509::stack_from_pem(buf)?;
+        Ok(certs.drain(..).map(Certificate).collect())
+    }
+
     pub fn to_der(&self) -> Result<Vec<u8>, Error> {
         let der = self.0.to_der()?;
         Ok(der)

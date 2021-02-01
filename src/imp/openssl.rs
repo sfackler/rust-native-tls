@@ -323,7 +323,12 @@ impl TlsConnector {
     }
 
     /// Create a `nativetls::TlsConnector` from a pre-configured openssl::ssl::SslConnector
-    pub fn from_openssl(connector: SslConnector, use_sni: bool, accept_invalid_hostnames: bool, accept_invalid_certs: bool) -> TlsConnector {
+    pub fn from_openssl(
+        connector: SslConnector,
+        use_sni: bool,
+        accept_invalid_hostnames: bool,
+        accept_invalid_certs: bool,
+    ) -> TlsConnector {
         TlsConnector {
             connector,
             use_sni,

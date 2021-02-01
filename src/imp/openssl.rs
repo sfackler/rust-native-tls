@@ -321,6 +321,16 @@ impl TlsConnector {
         let s = ssl.connect(domain, stream)?;
         Ok(TlsStream(s))
     }
+
+    /// Create a `nativetls::TlsConnector` from a pre-configured openssl::ssl::SslConnector
+    pub fn from_openssl(connector: SslConnector, use_sni: bool, accept_invalid_hostnames: bool, accept_invalid_certs: bool) -> TlsConnector {
+        TlsConnector {
+            connector,
+            use_sni,
+            accept_invalid_hostnames,
+            accept_invalid_certs,
+        }
+    }
 }
 
 impl fmt::Debug for TlsConnector {

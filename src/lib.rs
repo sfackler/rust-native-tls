@@ -433,6 +433,17 @@ impl TlsConnectorBuilder {
         let connector = imp::TlsConnector::new(self)?;
         Ok(TlsConnector(connector))
     }
+
+    /// Creates a new `TlsConnector` from a pre-configured openssl::ssl::TlsConnector
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+    pub fn from_openssl(&self, connector: openssl::ssl::SslConnector) -> TlsConnector {
+        let connector = imp::TlsConnector::from_openssl(connector,
+            self.use_sni,
+            self.accept_invalid_hostnames,
+            self.accept_invalid_certs,
+        );
+        TlsConnector(connector)
+    }
 }
 
 /// A builder for client-side TLS connections.

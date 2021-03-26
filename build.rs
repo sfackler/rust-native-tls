@@ -7,6 +7,9 @@ fn main() {
         if version >= 0x1_01_00_00_0 {
             println!("cargo:rustc-cfg=have_min_max_version");
         }
+        if version >= 0x1_01_01_00_0 {
+            println!("cargo:rustc-cfg=ossl111");
+        }
     }
 
     if let Ok(version) = env::var("DEP_OPENSSL_LIBRESSL_VERSION_NUMBER") {

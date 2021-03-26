@@ -316,6 +316,137 @@ pub enum Protocol {
     __NonExhaustive,
 }
 
+/// TLS cipher suite key-exchange algorithms.
+#[derive(Debug, Copy, Clone)]
+pub enum TlsKeyExchangeAlgorithm {
+    /// Diffie-Hellman ephemeral key exchange algorithm.
+    Dhe,
+    /// Ephemeral elliptic curve Diffie-Hellman key exchange algorithm.
+    Ecdhe,
+    /// RSA public key exchange algorithm.
+    Rsa,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+/// TLS cipher suite message signature algorithms.
+#[derive(Debug, Copy, Clone)]
+pub enum TlsSignatureAlgorithm {
+    /// DSA public key signature algorithm.
+    Dss,
+    /// Elliptic curve digital signature algorithm.
+    Ecdsa,
+    /// RSA public key signature algorithm.
+    Rsa,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+/// TLS cipher suite bulk encryption algorithms.
+#[derive(Debug, Copy, Clone)]
+pub enum TlsBulkEncryptionAlgorithm {
+    /// 128 bit AES.
+    Aes128,
+    /// 256 bit AES.
+    Aes256,
+    /// DES encryption algorithm.
+    Des,
+    /// RC2 block encryption algorithm.
+    Rc2,
+    /// RC4 stream encryption algorithm.
+    Rc4,
+    /// Triple DES encryption algorithm.
+    TripleDes,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+/// TLS cipher suite bulk encryption algorithms.
+#[derive(Debug, Copy, Clone)]
+pub enum TlsHashAlgorithm {
+    /// MD5 hashing algorithm.
+    Md5,
+    /// SHA hashing algorithm.
+    Sha1,
+    /// 256 bit SHA hashing algorithm.
+    Sha256,
+    /// 384 bit SHA hashing algorithm.
+    Sha384,
+    // TODO: Not supported by macOS Security Framework.
+    // /// 512 bit SHA hashing algorithm.
+    // Sha512,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
+/// Represents a collection of cipher suites, specified by a cartesian product of their separate
+/// algorithm components.
+///
+/// Note that the `Default` here is consistent across platforms and is not equivalent to the
+/// platform-specific defaults on each individual platform. [`CipherSuiteSet::default`] corresponds
+/// to DHE, ECDHE, and RSA for key exchange, ECDSA and RSA for signature, AES-128 and AES-256 for
+/// bulk encryption, and SHA1, SHA256, and SHA384 for hashing.
+#[derive(Debug, Clone)]
+pub struct CipherSuiteSet {
+    key_exchange: Vec<TlsKeyExchangeAlgorithm>,
+    signature: Vec<TlsSignatureAlgorithm>,
+    bulk_encryption: Vec<TlsBulkEncryptionAlgorithm>,
+    hash: Vec<TlsHashAlgorithm>,
+}
+
+impl Default for CipherSuiteSet {
+    fn default() -> Self {
+        // Based on the default TLS cipher suites in rust-openssl.
+        Self {
+            key_exchange: vec![
+                TlsKeyExchangeAlgorithm::Dhe,
+                TlsKeyExchangeAlgorithm::Ecdhe,
+                TlsKeyExchangeAlgorithm::Rsa,
+            ],
+            signature: vec![TlsSignatureAlgorithm::Ecdsa, TlsSignatureAlgorithm::Rsa],
+            bulk_encryption: vec![
+                TlsBulkEncryptionAlgorithm::Aes128,
+                TlsBulkEncryptionAlgorithm::Aes256,
+            ],
+            hash: vec![
+                TlsHashAlgorithm::Sha1,
+                TlsHashAlgorithm::Sha256,
+                TlsHashAlgorithm::Sha384,
+            ],
+        }
+    }
+}
+
+impl CipherSuiteSet {
+    /// Allow only ciphersuites with the specified key exchange algorithms.
+    pub fn key_exchange_algorithms(mut self, algs: &[TlsKeyExchangeAlgorithm]) -> Self {
+        assert!(!algs.is_empty(), "cannot specify 0 algorithms");
+        self.key_exchange = algs.to_vec();
+        self
+    }
+
+    /// Allow only ciphersuites with the specified signature algorithms.
+    pub fn signature_algorithms(mut self, algs: &[TlsSignatureAlgorithm]) -> Self {
+        assert!(!algs.is_empty(), "cannot specify 0 algorithms");
+        self.signature = algs.to_vec();
+        self
+    }
+
+    /// Allow only ciphersuites with the specified bulk encryption algorithms.
+    pub fn bulk_encryption_algorithms(mut self, algs: &[TlsBulkEncryptionAlgorithm]) -> Self {
+        assert!(!algs.is_empty(), "cannot specify 0 algorithms");
+        self.bulk_encryption = algs.to_vec();
+        self
+    }
+
+    /// Allow only ciphersuites with the specified hash algorithms.
+    pub fn hash_algorithms(mut self, algs: &[TlsHashAlgorithm]) -> Self {
+        assert!(!algs.is_empty(), "cannot specify 0 algorithms");
+        self.hash = algs.to_vec();
+        self
+    }
+}
+
 /// A builder for `TlsConnector`s.
 pub struct TlsConnectorBuilder {
     identity: Option<Identity>,
@@ -328,6 +459,7 @@ pub struct TlsConnectorBuilder {
     disable_built_in_roots: bool,
     #[cfg(feature = "alpn")]
     alpn: Vec<String>,
+    cipher_suites: Option<CipherSuiteSet>,
 }
 
 impl TlsConnectorBuilder {
@@ -428,6 +560,15 @@ impl TlsConnectorBuilder {
         self
     }
 
+    /// Sets the set of cipher suites that will be used in this TLS connection.
+    pub fn supported_cipher_suites(
+        &mut self,
+        cipher_suites: CipherSuiteSet,
+    ) -> &mut TlsConnectorBuilder {
+        self.cipher_suites = Some(cipher_suites);
+        self
+    }
+
     /// Creates a new `TlsConnector`.
     pub fn build(&self) -> Result<TlsConnector> {
         let connector = imp::TlsConnector::new(self)?;
@@ -476,6 +617,7 @@ impl TlsConnector {
             disable_built_in_roots: false,
             #[cfg(feature = "alpn")]
             alpn: vec![],
+            cipher_suites: None,
         }
     }
 

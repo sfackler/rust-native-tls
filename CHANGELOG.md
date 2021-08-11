@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [v0.2.8]
+
+### Fixed
+
+* Fixed an off by one error in the schannel backend's handling of max_protocol_version.
+
 ## [v0.2.7]
 
 ### Added
@@ -99,7 +105,8 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.7...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.8...master
+[v0.2.8]: https://github.com/sfackler/rust-native-tls/compare/v0.2.7...v0.2.8
 [v0.2.7]: https://github.com/sfackler/rust-native-tls/compare/v0.2.6...v0.2.7
 [v0.2.6]: https://github.com/sfackler/rust-native-tls/compare/v0.2.5...v0.2.6
 [v0.2.5]: https://github.com/sfackler/rust-native-tls/compare/v0.2.4...v0.2.5

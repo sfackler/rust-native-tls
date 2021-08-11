@@ -261,6 +261,7 @@ fn server_no_shared_protocol() {
     let socket = p!(TcpStream::connect(("localhost", port)));
     let builder = p!(TlsConnector::builder()
         .add_root_certificate(root_ca)
+        .min_protocol_version(Some(Protocol::Tlsv11))
         .max_protocol_version(Some(Protocol::Tlsv11))
         .build());
     assert!(builder.connect("localhost", socket).is_err());

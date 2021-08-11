@@ -22,7 +22,7 @@ static PROTOCOLS: &'static [Protocol] = &[
 
 fn convert_protocols(min: Option<::Protocol>, max: Option<::Protocol>) -> &'static [Protocol] {
     let mut protocols = PROTOCOLS;
-    if let Some(p) = max.and_then(|max| protocols.get(..max as usize)) {
+    if let Some(p) = max.and_then(|max| protocols.get(..=max as usize)) {
         protocols = p;
     }
     if let Some(p) = min.and_then(|min| protocols.get(min as usize..)) {

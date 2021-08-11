@@ -53,6 +53,5 @@ jobs:
         with:
           path: target
           key: target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
-      - run: cargo test
-      - run: cargo test --features alpn
       - run: cargo test --features vendored
+      - run: cargo test --features vendored,alpn

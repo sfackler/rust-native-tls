@@ -75,7 +75,7 @@ impl From<base::Error> for Error {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Identity {
     identity: SecIdentity,
     chain: Vec<SecCertificate>,
@@ -143,7 +143,7 @@ impl Identity {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Certificate(SecCertificate);
 
 impl Certificate {

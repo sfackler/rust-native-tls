@@ -157,7 +157,7 @@ impl From<imp::Error> for Error {
 ///
 /// An identity is an X509 certificate along with its corresponding private key and chain of certificates to a trusted
 /// root.
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Identity(imp::Identity);
 
 impl Identity {
@@ -180,7 +180,7 @@ impl Identity {
 }
 
 /// An X509 certificate.
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Certificate(imp::Certificate);
 
 impl Certificate {

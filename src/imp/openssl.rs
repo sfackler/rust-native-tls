@@ -144,7 +144,7 @@ impl From<ErrorStack> for Error {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Identity {
     pkey: PKey<Private>,
     cert: X509,
@@ -163,7 +163,7 @@ impl Identity {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Certificate(X509);
 
 impl Certificate {

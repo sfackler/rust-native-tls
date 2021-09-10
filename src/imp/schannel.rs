@@ -57,7 +57,7 @@ impl From<io::Error> for Error {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Identity {
     cert: CertContext,
 }
@@ -95,7 +95,7 @@ impl Identity {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Certificate(CertContext);
 
 impl Certificate {

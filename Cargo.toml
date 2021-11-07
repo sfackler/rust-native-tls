@@ -36,4 +36,4 @@ openssl-src = { version = "300.0.3", optional = true }
 
 [dev-dependencies]
 tempfile = "3.0"
-test-cert-gen = "0.1"
+test-cert-gen = "0.7"

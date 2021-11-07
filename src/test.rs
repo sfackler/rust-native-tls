@@ -347,10 +347,10 @@ fn import_same_identity_multiple_times() {
         &keys.server.cert_and_key_pkcs12.password
     ));
 
-    let p8buf = include_bytes!("../test/chain.pem");
-    let key = include_bytes!("../test/key.pem");
-    let _ = p!(Identity::from_pkcs8(p8buf, key));
-    let _ = p!(Identity::from_pkcs8(p8buf, key));
+    let cert = keys.server.cert_and_key.cert.to_pem().into_bytes();
+    let key = key_to_pem(keys.server.cert_and_key.key.get_der()).into_bytes();
+    let _ = p!(Identity::from_pkcs8(&cert, &key));
+    let _ = p!(Identity::from_pkcs8(&cert, &key));
 }
 
 #[test]
@@ -424,10 +424,11 @@ fn alpn_google_none() {
 
 #[test]
 fn server_pkcs8() {
-    let key = include_bytes!("../test/key.pem");
-    let cert = include_bytes!("../test/cert.pem");
+    let keys = test_cert_gen::keys();
+    let cert = keys.server.cert_and_key.cert.to_pem().into_bytes();
+    let key = key_to_pem(keys.server.cert_and_key.key.get_der()).into_bytes();
 
-    let ident = Identity::from_pkcs8(cert, key).unwrap();
+    let ident = Identity::from_pkcs8(&cert, &key).unwrap();
     let ident2 = ident.clone();
     let builder = p!(TlsAcceptor::new(ident));
 
@@ -445,8 +446,7 @@ fn server_pkcs8() {
         p!(socket.write_all(b"world"));
     });
 
-    let root_ca = include_bytes!("../test/root-ca.der");
-    let root_ca = Certificate::from_der(root_ca).unwrap();
+    let root_ca = Certificate::from_der(keys.client.ca.get_der()).unwrap();
 
     let socket = p!(TcpStream::connect(("localhost", port)));
     let mut builder = TlsConnector::builder();
@@ -459,7 +459,7 @@ fn server_pkcs8() {
 
     builder.add_root_certificate(root_ca);
     let builder = p!(builder.build());
-    let mut socket = p!(builder.connect("foobar.com", socket));
+    let mut socket = p!(builder.connect("localhost", socket));
 
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
@@ -471,9 +471,10 @@ fn server_pkcs8() {
 
 #[test]
 fn two_servers() {
-    let key = include_bytes!("../test/key.pem");
-    let cert = include_bytes!("../test/cert.pem");
-    let identity = p!(Identity::from_pkcs8(cert, key));
+    let keys1 = test_cert_gen::gen_keys();
+    let cert = keys1.server.cert_and_key.cert.to_pem().into_bytes();
+    let key = key_to_pem(keys1.server.cert_and_key.key.get_der()).into_bytes();
+    let identity = p!(Identity::from_pkcs8(&cert, &key));
     let builder = TlsAcceptor::builder(identity);
     let builder = p!(builder.build());
 
@@ -491,9 +492,10 @@ fn two_servers() {
         p!(socket.write_all(b"world"));
     });
 
-    let key = include_bytes!("../test/key2.pem");
-    let cert = include_bytes!("../test/cert2.pem");
-    let identity = p!(Identity::from_pkcs8(cert, key));
+    let keys2 = test_cert_gen::gen_keys();
+    let cert = keys2.server.cert_and_key.cert.to_pem().into_bytes();
+    let key = key_to_pem(keys2.server.cert_and_key.key.get_der()).into_bytes();
+    let identity = p!(Identity::from_pkcs8(&cert, &key));
     let builder = TlsAcceptor::builder(identity);
     let builder = p!(builder.build());
 
@@ -511,28 +513,26 @@ fn two_servers() {
         p!(socket.write_all(b"world"));
     });
 
-    let root_ca = include_bytes!("../test/root-ca.pem");
-    let root_ca = p!(Certificate::from_pem(root_ca));
+    let root_ca = Certificate::from_der(keys1.client.ca.get_der()).unwrap();
 
     let socket = p!(TcpStream::connect(("localhost", port)));
     let mut builder = TlsConnector::builder();
     builder.add_root_certificate(root_ca);
     let builder = p!(builder.build());
-    let mut socket = p!(builder.connect("foobar.com", socket));
+    let mut socket = p!(builder.connect("localhost", socket));
 
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
     p!(socket.read_to_end(&mut buf));
     assert_eq!(buf, b"world");
 
-    let root_ca = include_bytes!("../test/cert2.pem");
-    let root_ca = p!(Certificate::from_pem(root_ca));
+    let root_ca = Certificate::from_der(keys2.client.ca.get_der()).unwrap();
 
     let socket = p!(TcpStream::connect(("localhost", port2)));
     let mut builder = TlsConnector::builder();
     builder.add_root_certificate(root_ca);
     let builder = p!(builder.build());
-    let mut socket = p!(builder.connect("foobar.com", socket));
+    let mut socket = p!(builder.connect("localhost", socket));
 
     p!(socket.write_all(b"hello"));
     let mut buf = vec![];
@@ -541,4 +541,11 @@ fn two_servers() {
 
     p!(j.join());
     p!(j2.join());
+}
+
+fn key_to_pem(der: &[u8]) -> String {
+    pem::encode(&pem::Pem {
+        tag: "RSA PRIVATE KEY".to_owned(),
+        contents: der.to_owned(),
+    })
 }

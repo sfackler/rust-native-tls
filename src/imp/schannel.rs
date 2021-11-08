@@ -2,8 +2,8 @@ extern crate schannel;
 
 use self::schannel::cert_context::{CertContext, HashAlgorithm, KeySpec};
 use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
-use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::crypt_prov::{AcquireOptions, ProviderType};
+use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
 use std::error;
 use std::fmt;
@@ -119,8 +119,7 @@ impl Identity {
             Ok(container) => container,
             Err(_) => options.new_keyset(true).acquire(type_)?,
         };
-        container.import()
-            .import_pkcs8_pem(&key)?;
+        container.import().import_pkcs8_pem(&key)?;
 
         cert.set_key_prov_info()
             .container("schannel")
@@ -134,7 +133,7 @@ impl Identity {
             let certificate = Certificate::from_pem(int_cert)?;
             context = store.add_cert(&certificate.0, CertAdd::Always)?;
         }
-        Ok(Identity{cert: context})
+        Ok(Identity { cert: context })
     }
 }
 
@@ -428,7 +427,6 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     }
 }
 
-
 mod pem {
     /// Split data by PEM guard lines
     pub struct PemBlock<'a> {
@@ -466,45 +464,87 @@ mod pem {
     #[test]
     fn test_split() {
         // Split three certs, CRLF line terminators.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n\
+        assert_eq!(
+            PemBlock::new(
+                b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n\
             -----BEGIN SECOND-----\r\n-----END SECOND\r\n\
-            -----BEGIN THIRD-----\r\n-----END THIRD\r\n").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n" as &[u8],
-                 b"-----BEGIN SECOND-----\r\n-----END SECOND\r\n",
-                 b"-----BEGIN THIRD-----\r\n-----END THIRD\r\n"]);
+            -----BEGIN THIRD-----\r\n-----END THIRD\r\n"
+            )
+            .collect::<Vec<&[u8]>>(),
+            vec![
+                b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n" as &[u8],
+                b"-----BEGIN SECOND-----\r\n-----END SECOND\r\n",
+                b"-----BEGIN THIRD-----\r\n-----END THIRD\r\n"
+            ]
+        );
         // Split three certs, CRLF line terminators except at EOF.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n\
+        assert_eq!(
+            PemBlock::new(
+                b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n\
             -----BEGIN SECOND-----\r\n-----END SECOND-----\r\n\
-            -----BEGIN THIRD-----\r\n-----END THIRD-----").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n" as &[u8],
-                 b"-----BEGIN SECOND-----\r\n-----END SECOND-----\r\n",
-                 b"-----BEGIN THIRD-----\r\n-----END THIRD-----"]);
+            -----BEGIN THIRD-----\r\n-----END THIRD-----"
+            )
+            .collect::<Vec<&[u8]>>(),
+            vec![
+                b"-----BEGIN FIRST-----\r\n-----END FIRST-----\r\n" as &[u8],
+                b"-----BEGIN SECOND-----\r\n-----END SECOND-----\r\n",
+                b"-----BEGIN THIRD-----\r\n-----END THIRD-----"
+            ]
+        );
         // Split two certs, LF line terminators.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n\
-            -----BEGIN SECOND-----\n-----END SECOND\n").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8],
-                 b"-----BEGIN SECOND-----\n-----END SECOND\n"]);
+        assert_eq!(
+            PemBlock::new(
+                b"-----BEGIN FIRST-----\n-----END FIRST-----\n\
+            -----BEGIN SECOND-----\n-----END SECOND\n"
+            )
+            .collect::<Vec<&[u8]>>(),
+            vec![
+                b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8],
+                b"-----BEGIN SECOND-----\n-----END SECOND\n"
+            ]
+        );
         // Split two certs, CR line terminators.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\r-----END FIRST-----\r\
-            -----BEGIN SECOND-----\r-----END SECOND\r").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\r-----END FIRST-----\r" as &[u8],
-                 b"-----BEGIN SECOND-----\r-----END SECOND\r"]);
+        assert_eq!(
+            PemBlock::new(
+                b"-----BEGIN FIRST-----\r-----END FIRST-----\r\
+            -----BEGIN SECOND-----\r-----END SECOND\r"
+            )
+            .collect::<Vec<&[u8]>>(),
+            vec![
+                b"-----BEGIN FIRST-----\r-----END FIRST-----\r" as &[u8],
+                b"-----BEGIN SECOND-----\r-----END SECOND\r"
+            ]
+        );
         // Split two certs, LF line terminators except at EOF.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n\
-            -----BEGIN SECOND-----\n-----END SECOND").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8],
-                 b"-----BEGIN SECOND-----\n-----END SECOND"]);
+        assert_eq!(
+            PemBlock::new(
+                b"-----BEGIN FIRST-----\n-----END FIRST-----\n\
+            -----BEGIN SECOND-----\n-----END SECOND"
+            )
+            .collect::<Vec<&[u8]>>(),
+            vec![
+                b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8],
+                b"-----BEGIN SECOND-----\n-----END SECOND"
+            ]
+        );
         // Split a single cert, LF line terminators.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8]]);
+        assert_eq!(
+            PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----\n").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----\n" as &[u8]]
+        );
         // Split a single cert, LF line terminators except at EOF.
-        assert_eq!(PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----" as &[u8]]);
+        assert_eq!(
+            PemBlock::new(b"-----BEGIN FIRST-----\n-----END FIRST-----").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN FIRST-----\n-----END FIRST-----" as &[u8]]
+        );
         // (Don't) split garbage.
-        assert_eq!(PemBlock::new(b"junk").collect::<Vec<&[u8]>>(),
-            Vec::<&[u8]>::new());
-        assert_eq!(PemBlock::new(b"junk-----BEGIN garbage").collect::<Vec<&[u8]>>(),
-            vec![b"-----BEGIN garbage" as &[u8]]);
+        assert_eq!(
+            PemBlock::new(b"junk").collect::<Vec<&[u8]>>(),
+            Vec::<&[u8]>::new()
+        );
+        assert_eq!(
+            PemBlock::new(b"junk-----BEGIN garbage").collect::<Vec<&[u8]>>(),
+            vec![b"-----BEGIN garbage" as &[u8]]
+        );
     }
 }
-

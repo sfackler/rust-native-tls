@@ -87,8 +87,8 @@ impl Identity {
     pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let dir = TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
         let keychain = keychain::CreateOptions::new()
-                           .password("password")
-                           .create(dir.path().join("identity.keychain"))?;
+            .password("password")
+            .create(dir.path().join("identity.keychain"))?;
 
         let mut items = SecItems::default();
 

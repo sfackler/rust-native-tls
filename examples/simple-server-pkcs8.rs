@@ -25,7 +25,9 @@ fn main() {
         let mut buf = [0; 1024];
         let read = stream.read(&mut buf).unwrap();
         let received = std::str::from_utf8(&buf[0..read]).unwrap();
-        stream.write_all(format!("received '{}'", received).as_bytes()).unwrap();
+        stream
+            .write_all(format!("received '{}'", received).as_bytes())
+            .unwrap();
     }
 
     for stream in listener.incoming() {

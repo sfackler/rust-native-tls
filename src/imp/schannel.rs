@@ -122,7 +122,7 @@ impl Identity {
 
         for int_cert in cert_iter {
             let certificate = Certificate::from_pem(int_cert)?;
-            context = store.add_cert(&certificate.0, schannel::cert_store::CertAdd::Always)?;
+            context = store.add_cert(&certificate.0, CertAdd::Always)?;
         }
         Ok(Identity{cert: context})
     }

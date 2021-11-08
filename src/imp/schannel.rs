@@ -98,8 +98,18 @@ impl Identity {
     pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let mut store = Memory::new()?.into_store();
         let mut cert_iter = pem::PemBlock::new(pem).into_iter();
-        let leaf = cert_iter.next().expect("at least one certificate must be provided to create an identity");
-        let cert = CertContext::from_pem(std::str::from_utf8(leaf).map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "leaf cert contains invalid utf8"))?)?;
+        let leaf = cert_iter.next().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "at least one certificate must be provided to create an identity",
+            )
+        })?;
+        let cert = CertContext::from_pem(std::str::from_utf8(leaf).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "leaf cert contains invalid utf8",
+            )
+        })?)?;
 
         let mut options = AcquireOptions::new();
         options.container("schannel");

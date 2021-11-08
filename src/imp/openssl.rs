@@ -116,6 +116,7 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
 pub enum Error {
     Normal(ErrorStack),
     Ssl(ssl::Error, X509VerifyResult),
+    EmptyChain,
 }
 
 impl error::Error for Error {
@@ -123,6 +124,7 @@ impl error::Error for Error {
         match *self {
             Error::Normal(ref e) => error::Error::source(e),
             Error::Ssl(ref e, _) => error::Error::source(e),
+            Error::EmptyChain => None,
         }
     }
 }
@@ -133,6 +135,10 @@ impl fmt::Display for Error {
             Error::Normal(ref e) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, X509VerifyResult::OK) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, v) => write!(fmt, "{} ({})", e, v),
+            Error::EmptyChain => write!(
+                fmt,
+                "at least one certificate must be provided to create an identity"
+            ),
         }
     }
 }
@@ -164,14 +170,9 @@ impl Identity {
     pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
         let pkey = PKey::private_key_from_pem(key)?;
         let mut cert_chain = X509::stack_from_pem(buf)?.into_iter();
-        let cert = cert_chain.next();
+        let cert = cert_chain.next().ok_or(Error::EmptyChain)?;
         let chain = cert_chain.collect();
-        Ok(Identity {
-            pkey,
-            // an identity must have at least one certificate, the leaf cert
-            cert: cert.expect("at least one certificate must be provided to create an identity"),
-            chain,
-        })
+        Ok(Identity { pkey, cert, chain })
     }
 }
 

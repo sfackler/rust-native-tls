@@ -104,10 +104,14 @@ impl Identity {
             .keychain(&keychain)
             .import(&pem)?;
 
-        let ident = SecIdentity::with_certificate(&[keychain], &items.certificates[0])?;
+        let cert = items
+            .certificates
+            .get(0)
+            .ok_or_else(|| Error(base::Error::from(errSecParam)))?;
+        let ident = SecIdentity::with_certificate(&[keychain], cert)?;
         Ok(Identity {
             identity: ident,
-            chain: items.certificates
+            chain: items.certificates,
         })
     }
 

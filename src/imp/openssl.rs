@@ -163,7 +163,10 @@ impl Identity {
         Ok(Identity {
             pkey: parsed.pkey,
             cert: parsed.cert,
-            chain: parsed.chain.into_iter().flatten().collect(),
+            // > The stack is the reverse of what you might expect due to the way
+            // > PKCS12_parse is implemented, so we need to load it backwards.
+            // > https://github.com/sfackler/rust-native-tls/commit/05fb5e583be589ab63d9f83d986d095639f8ec44
+            chain: parsed.chain.into_iter().flatten().rev().collect(),
         })
     }
 

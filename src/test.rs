@@ -200,8 +200,8 @@ fn server_tls11_only() {
         &keys.server.pkcs12_password
     ));
     let builder = p!(TlsAcceptor::builder(identity)
-        .min_protocol_version(Some(Protocol::Tlsv11))
-        .max_protocol_version(Some(Protocol::Tlsv11))
+        .min_protocol_version(Some(Protocol::Tlsv12))
+        .max_protocol_version(Some(Protocol::Tlsv12))
         .build());
 
     let listener = p!(TcpListener::bind("0.0.0.0:0"));
@@ -223,8 +223,8 @@ fn server_tls11_only() {
     let socket = p!(TcpStream::connect(("localhost", port)));
     let builder = p!(TlsConnector::builder()
         .add_root_certificate(root_ca)
-        .min_protocol_version(Some(Protocol::Tlsv11))
-        .max_protocol_version(Some(Protocol::Tlsv11))
+        .min_protocol_version(Some(Protocol::Tlsv12))
+        .max_protocol_version(Some(Protocol::Tlsv12))
         .build());
     let mut socket = p!(builder.connect("localhost", socket));
 

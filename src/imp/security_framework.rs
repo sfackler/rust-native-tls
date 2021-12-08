@@ -390,6 +390,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
         Ok(self.stream.context().buffered_read_size()?)
     }
 
+    #[allow(deprecated)]
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
         let trust = match self.stream.context().peer_trust2()? {
             Some(trust) => trust,

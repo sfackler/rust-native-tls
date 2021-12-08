@@ -11,6 +11,7 @@ on:
 env:
   RUSTFLAGS: -Dwarnings
   RUST_BACKTRACE: 1
+  OPENSSL_CONF: test.conf
 
 jobs:
   rustfmt:
@@ -35,7 +36,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: sfackler/actions/rustup@master
         with:
-          version: 1.37.0
+          version: 1.53.0
       - run: echo "::set-output name=version::$(rustc --version)"
         id: rust-version
       - uses: actions/cache@v1
@@ -54,5 +55,5 @@ jobs:
         with:
           path: target
           key: target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
-      - run: cargo test --features vendored
-      - run: cargo test --features vendored,alpn
+      - run: cargo test --features vendored,openssl-src/legacy
+      - run: cargo test --features vendored,openssl-src/legacy,alpn

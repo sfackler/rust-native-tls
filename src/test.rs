@@ -186,7 +186,10 @@ fn peer_certificate() {
     let socket = p!(builder.connect("localhost", socket));
 
     let cert = socket.peer_certificate().unwrap().unwrap();
-    assert_eq!(cert.to_der().unwrap(), keys.client.ca.get_der());
+    assert_eq!(
+        cert.to_der().unwrap(),
+        keys.server.cert_and_key.cert.get_der()
+    );
 
     p!(j.join());
 }

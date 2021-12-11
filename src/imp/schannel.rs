@@ -111,8 +111,9 @@ impl Identity {
             )
         })?)?;
 
+        let name = gen_container_name();
         let mut options = AcquireOptions::new();
-        options.container("schannel");
+        options.container(&name);
         let type_ = ProviderType::rsa_full();
 
         let mut container = match options.acquire(type_) {
@@ -122,7 +123,7 @@ impl Identity {
         container.import().import_pkcs8_pem(&key)?;
 
         cert.set_key_prov_info()
-            .container("schannel")
+            .container(&name)
             .type_(type_)
             .keep_open(true)
             .key_spec(KeySpec::key_exchange())
@@ -135,6 +136,13 @@ impl Identity {
         }
         Ok(Identity { cert: context })
     }
+}
+
+// The name of the container must be unique to have multiple active keys.
+fn gen_container_name() -> String {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    format!("native-tls-{}", COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 #[derive(Clone)]

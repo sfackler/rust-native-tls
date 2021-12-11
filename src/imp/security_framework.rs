@@ -85,6 +85,10 @@ pub struct Identity {
 
 impl Identity {
     pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        if !key.starts_with(b"-----BEGIN PRIVATE KEY-----") {
+            return Err(Error(base::Error::from(errSecParam)));
+        }
+
         let dir = TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
         let keychain = keychain::CreateOptions::new()
             .password("password")

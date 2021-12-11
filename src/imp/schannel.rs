@@ -96,6 +96,10 @@ impl Identity {
     }
 
     pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        if !key.starts_with(b"-----BEGIN PRIVATE KEY-----") {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a PKCS#8 key").into());
+        }
+
         let mut store = Memory::new()?.into_store();
         let mut cert_iter = pem::PemBlock::new(pem).into_iter();
         let leaf = cert_iter.next().ok_or_else(|| {

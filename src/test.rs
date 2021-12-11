@@ -357,6 +357,16 @@ fn import_same_identity_multiple_times() {
 }
 
 #[test]
+fn from_pkcs8_rejects_rsa_key() {
+    let keys = test_cert_gen::keys();
+    let cert = keys.server.cert_and_key.cert.to_pem().into_bytes();
+    let rsa_key = key_to_pem(keys.server.cert_and_key.key.get_der());
+    assert!(Identity::from_pkcs8(&cert, rsa_key.as_bytes()).is_err());
+    let pkcs8_key = rsa_to_pkcs8(&rsa_key);
+    assert!(Identity::from_pkcs8(&cert, pkcs8_key.as_bytes()).is_ok());
+}
+
+#[test]
 fn shutdown() {
     let keys = test_cert_gen::keys();
 

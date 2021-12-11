@@ -117,6 +117,7 @@ pub enum Error {
     Normal(ErrorStack),
     Ssl(ssl::Error, X509VerifyResult),
     EmptyChain,
+    NotPkcs8,
 }
 
 impl error::Error for Error {
@@ -125,6 +126,7 @@ impl error::Error for Error {
             Error::Normal(ref e) => error::Error::source(e),
             Error::Ssl(ref e, _) => error::Error::source(e),
             Error::EmptyChain => None,
+            Error::NotPkcs8 => None,
         }
     }
 }
@@ -139,6 +141,7 @@ impl fmt::Display for Error {
                 fmt,
                 "at least one certificate must be provided to create an identity"
             ),
+            Error::NotPkcs8 => write!(fmt, "expected PKCS#8 PEM"),
         }
     }
 }
@@ -171,6 +174,10 @@ impl Identity {
     }
 
     pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        if !key.starts_with(b"-----BEGIN PRIVATE KEY-----") {
+            return Err(Error::NotPkcs8);
+        }
+
         let pkey = PKey::private_key_from_pem(key)?;
         let mut cert_chain = X509::stack_from_pem(buf)?.into_iter();
         let cert = cert_chain.next().ok_or(Error::EmptyChain)?;

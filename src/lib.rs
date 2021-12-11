@@ -123,8 +123,6 @@ mod imp;
 
 #[cfg(test)]
 mod test;
-#[cfg(test)]
-extern crate rsa;
 
 /// A typedef of the result-type returned by many methods.
 pub type Result<T> = result::Result<T, Error>;

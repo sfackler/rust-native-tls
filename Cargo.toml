@@ -35,7 +35,5 @@ openssl-probe = "0.1"
 openssl-src = { version = "300.0.3", optional = true }
 
 [dev-dependencies]
-pem = "1.0"
-rsa = { version = "0.5.0", features = ["alloc", "pem", "std"] }
 tempfile = "3.0"
 test-cert-gen = "0.7"

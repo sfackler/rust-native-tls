@@ -351,7 +351,7 @@ fn import_same_identity_multiple_times() {
     ));
 
     let cert = keys.server.cert_and_key.cert.to_pem().into_bytes();
-    let key = key_to_pem(keys.server.cert_and_key.key.get_der()).into_bytes();
+    let key = rsa_to_pkcs8(&key_to_pem(keys.server.cert_and_key.key.get_der())).into_bytes();
     let _ = p!(Identity::from_pkcs8(&cert, &key));
     let _ = p!(Identity::from_pkcs8(&cert, &key));
 }
@@ -429,7 +429,7 @@ fn alpn_google_none() {
 fn server_pkcs8() {
     let keys = test_cert_gen::keys();
     let cert = keys.server.cert_and_key.cert.to_pem().into_bytes();
-    let key = key_to_pem(keys.server.cert_and_key.key.get_der()).into_bytes();
+    let key = rsa_to_pkcs8(&key_to_pem(keys.server.cert_and_key.key.get_der())).into_bytes();
 
     let ident = Identity::from_pkcs8(&cert, &key).unwrap();
     let ident2 = ident.clone();
@@ -476,7 +476,7 @@ fn server_pkcs8() {
 fn two_servers() {
     let keys1 = test_cert_gen::gen_keys();
     let cert = keys1.server.cert_and_key.cert.to_pem().into_bytes();
-    let key = key_to_pem(keys1.server.cert_and_key.key.get_der()).into_bytes();
+    let key = rsa_to_pkcs8(&key_to_pem(keys1.server.cert_and_key.key.get_der())).into_bytes();
     let identity = p!(Identity::from_pkcs8(&cert, &key));
     let builder = TlsAcceptor::builder(identity);
     let builder = p!(builder.build());
@@ -497,7 +497,7 @@ fn two_servers() {
 
     let keys2 = test_cert_gen::gen_keys();
     let cert = keys2.server.cert_and_key.cert.to_pem().into_bytes();
-    let key = key_to_pem(keys2.server.cert_and_key.key.get_der()).into_bytes();
+    let key = rsa_to_pkcs8(&key_to_pem(keys2.server.cert_and_key.key.get_der())).into_bytes();
     let identity = p!(Identity::from_pkcs8(&cert, &key));
     let builder = TlsAcceptor::builder(identity);
     let builder = p!(builder.build());
@@ -551,4 +551,12 @@ fn key_to_pem(der: &[u8]) -> String {
         tag: "RSA PRIVATE KEY".to_owned(),
         contents: der.to_owned(),
     })
+}
+
+fn rsa_to_pkcs8(pem: &str) -> String {
+    use rsa::{pkcs1::FromRsaPrivateKey, pkcs8::ToPrivateKey, RsaPrivateKey};
+    let pkey = RsaPrivateKey::from_pkcs1_pem(pem).unwrap();
+    let pkcs8_pem = pkey.to_pkcs8_pem().unwrap();
+    let pkcs8_pem: &str = pkcs8_pem.as_ref();
+    pkcs8_pem.to_owned()
 }

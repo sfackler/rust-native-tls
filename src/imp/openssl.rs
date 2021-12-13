@@ -11,13 +11,238 @@ use self::openssl::ssl::{
     SslVerifyMode,
 };
 use self::openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
+use std::borrow;
+use std::collections::HashSet;
 use std::error;
 use std::fmt;
 use std::io;
 use std::sync::Once;
 
 use self::openssl::pkey::Private;
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use {
+    CipherSuiteSet, Protocol, TlsAcceptorBuilder, TlsBulkEncryptionAlgorithm, TlsConnectorBuilder,
+    TlsHashAlgorithm, TlsKeyExchangeAlgorithm, TlsSignatureAlgorithm,
+};
+
+const CIPHER_STRING_SUFFIX: &[&str] = &[
+    "!aNULL",
+    "!eNULL",
+    "!IDEA",
+    "!SEED",
+    "!SRP",
+    "!PSK",
+    "@STRENGTH",
+];
+
+fn cartesian_product(
+    xs: impl IntoIterator<Item = Vec<&'static str>>,
+    ys: impl IntoIterator<Item = &'static str> + Clone,
+) -> Vec<Vec<&'static str>> {
+    xs.into_iter()
+        .flat_map(move |x| ys.clone().into_iter().map(move |y| [&x, &[y][..]].concat()))
+        .collect()
+}
+
+/// AES-GCM ciphersuites aren't included in AES128 or AES256. However, specifying `AESGCM` in the
+/// cipher string doesn't allow us to specify the bitwidth of the AES cipher used, nor does it
+/// allow us to specify the bitwidth of the SHA algorithm.
+fn expand_gcm_algorithms(cipher_suites: &CipherSuiteSet) -> Vec<&'static str> {
+    let first = cipher_suites
+        .key_exchange
+        .iter()
+        .flat_map(|alg| -> &[&str] {
+            match alg {
+                TlsKeyExchangeAlgorithm::Dhe => &[
+                    "DHE-RSA-AES128-GCM-SHA256",
+                    "DHE-RSA-AES256-GCM-SHA384",
+                    "DHE-DSS-AES128-GCM-SHA256",
+                    "DHE-DSS-AES256-GCM-SHA384",
+                ],
+                TlsKeyExchangeAlgorithm::Ecdhe => &[
+                    "ECDHE-RSA-AES128-GCM-SHA256",
+                    "ECDHE-RSA-AES256-GCM-SHA384",
+                    "ECDHE-ECDSA-AES128-GCM-SHA256",
+                    "ECDHE-ECDSA-AES256-GCM-SHA384",
+                ],
+                TlsKeyExchangeAlgorithm::Rsa => &["AES128-GCM-SHA256", "AES256-GCM-SHA384"],
+                TlsKeyExchangeAlgorithm::__NonExhaustive => unreachable!(),
+            }
+        })
+        .copied();
+    let rest: &[HashSet<_>] = &[
+        cipher_suites
+            .signature
+            .iter()
+            .flat_map(|alg| -> &[&str] {
+                match alg {
+                    TlsSignatureAlgorithm::Dss => &[
+                        "DH-DSS-AES128-GCM-SHA256",
+                        "DH-DSS-AES256-GCM-SHA384",
+                        "DHE-DSS-AES128-GCM-SHA256",
+                        "DHE-DSS-AES256-GCM-SHA384",
+                    ],
+                    TlsSignatureAlgorithm::Ecdsa => &[
+                        "ECDH-ECDSA-AES128-GCM-SHA256",
+                        "ECDH-ECDSA-AES256-GCM-SHA384",
+                        "ECDHE-ECDSA-AES128-GCM-SHA256",
+                        "ECDHE-ECDSA-AES256-GCM-SHA384",
+                    ],
+                    TlsSignatureAlgorithm::Rsa => &[
+                        "AES128-GCM-SHA256",
+                        "AES256-GCM-SHA384",
+                        "DH-RSA-AES128-GCM-SHA256",
+                        "DH-RSA-AES256-GCM-SHA384",
+                        "DHE-RSA-AES128-GCM-SHA256",
+                        "DHE-RSA-AES256-GCM-SHA384",
+                        "ECDH-RSA-AES128-GCM-SHA256",
+                        "ECDH-RSA-AES256-GCM-SHA384",
+                        "ECDHE-RSA-AES128-GCM-SHA256",
+                        "ECDHE-RSA-AES256-GCM-SHA384",
+                    ],
+                    TlsSignatureAlgorithm::__NonExhaustive => unreachable!(),
+                }
+            })
+            .copied()
+            .collect(),
+        cipher_suites
+            .bulk_encryption
+            .iter()
+            .flat_map(|alg| -> &[&str] {
+                match alg {
+                    TlsBulkEncryptionAlgorithm::Aes128 => &[
+                        "AES128-GCM-SHA256",
+                        "DH-RSA-AES128-GCM-SHA256",
+                        "DH-DSS-AES128-GCM-SHA256",
+                        "DHE-RSA-AES128-GCM-SHA256",
+                        "DHE-DSS-AES128-GCM-SHA256",
+                        "ECDH-RSA-AES128-GCM-SHA256",
+                        "ECDH-ECDSA-AES128-GCM-SHA256",
+                        "ECDHE-RSA-AES128-GCM-SHA256",
+                        "ECDHE-ECDSA-AES128-GCM-SHA256",
+                    ],
+                    TlsBulkEncryptionAlgorithm::Aes256 => &[
+                        "AES256-GCM-SHA384",
+                        "DH-RSA-AES256-GCM-SHA384",
+                        "DH-DSS-AES256-GCM-SHA384",
+                        "DHE-RSA-AES256-GCM-SHA384",
+                        "DHE-DSS-AES256-GCM-SHA384",
+                        "ECDH-RSA-AES256-GCM-SHA384",
+                        "ECDH-ECDSA-AES256-GCM-SHA384",
+                        "ECDHE-RSA-AES256-GCM-SHA384",
+                        "ECDHE-ECDSA-AES256-GCM-SHA384",
+                    ],
+                    TlsBulkEncryptionAlgorithm::Des => &[],
+                    TlsBulkEncryptionAlgorithm::Rc2 => &[],
+                    TlsBulkEncryptionAlgorithm::Rc4 => &[],
+                    TlsBulkEncryptionAlgorithm::TripleDes => &[],
+                    TlsBulkEncryptionAlgorithm::__NonExhaustive => unreachable!(),
+                }
+            })
+            .copied()
+            .collect(),
+        cipher_suites
+            .hash
+            .iter()
+            .flat_map(|alg| -> &[&str] {
+                match alg {
+                    TlsHashAlgorithm::Md5 => &[],
+                    TlsHashAlgorithm::Sha1 => &[],
+                    TlsHashAlgorithm::Sha256 => &[
+                        "AES128-GCM-SHA256",
+                        "DH-RSA-AES128-GCM-SHA256",
+                        "DH-DSS-AES128-GCM-SHA256",
+                        "DHE-RSA-AES128-GCM-SHA256",
+                        "DHE-DSS-AES128-GCM-SHA256",
+                        "ECDH-RSA-AES128-GCM-SHA256",
+                        "ECDH-ECDSA-AES128-GCM-SHA256",
+                        "ECDHE-RSA-AES128-GCM-SHA256",
+                        "ECDHE-ECDSA-AES128-GCM-SHA256",
+                    ],
+                    TlsHashAlgorithm::Sha384 => &[
+                        "AES256-GCM-SHA384",
+                        "DH-RSA-AES256-GCM-SHA384",
+                        "DH-DSS-AES256-GCM-SHA384",
+                        "DHE-RSA-AES256-GCM-SHA384",
+                        "DHE-DSS-AES256-GCM-SHA384",
+                        "ECDH-RSA-AES256-GCM-SHA384",
+                        "ECDH-ECDSA-AES256-GCM-SHA384",
+                        "ECDHE-RSA-AES256-GCM-SHA384",
+                        "ECDHE-ECDSA-AES256-GCM-SHA384",
+                    ],
+                    TlsHashAlgorithm::__NonExhaustive => unreachable!(),
+                }
+            })
+            .copied()
+            .collect(),
+    ];
+
+    first
+        .filter(|alg| rest.iter().all(|algs| algs.contains(alg)))
+        .collect()
+}
+
+fn expand_algorithms(cipher_suites: &CipherSuiteSet) -> String {
+    let mut cipher_suite_strings: Vec<Vec<&'static str>> = vec![];
+
+    cipher_suite_strings.extend(cipher_suites.key_exchange.iter().map(|alg| {
+        vec![match alg {
+            TlsKeyExchangeAlgorithm::Dhe => "DHE",
+            TlsKeyExchangeAlgorithm::Ecdhe => "ECDHE",
+            TlsKeyExchangeAlgorithm::Rsa => "kRSA",
+            TlsKeyExchangeAlgorithm::__NonExhaustive => unreachable!(),
+        }]
+    }));
+
+    cipher_suite_strings = cartesian_product(
+        cipher_suite_strings,
+        cipher_suites.signature.iter().map(|alg| match alg {
+            TlsSignatureAlgorithm::Dss => "aDSS",
+            TlsSignatureAlgorithm::Ecdsa => "aECDSA",
+            TlsSignatureAlgorithm::Rsa => "aRSA",
+            TlsSignatureAlgorithm::__NonExhaustive => unreachable!(),
+        }),
+    );
+    cipher_suite_strings = cartesian_product(
+        cipher_suite_strings,
+        cipher_suites.bulk_encryption.iter().map(|alg| match alg {
+            TlsBulkEncryptionAlgorithm::Aes128 => "AES128",
+            TlsBulkEncryptionAlgorithm::Aes256 => "AES256",
+            TlsBulkEncryptionAlgorithm::Des => "DES",
+            TlsBulkEncryptionAlgorithm::Rc2 => "RC2",
+            TlsBulkEncryptionAlgorithm::Rc4 => "RC4",
+            TlsBulkEncryptionAlgorithm::TripleDes => "3DES",
+            TlsBulkEncryptionAlgorithm::__NonExhaustive => unreachable!(),
+        }),
+    );
+    cipher_suite_strings = cartesian_product(
+        cipher_suite_strings,
+        cipher_suites.hash.iter().map(|alg| match alg {
+            TlsHashAlgorithm::Md5 => "MD5",
+            TlsHashAlgorithm::Sha1 => "SHA1",
+            TlsHashAlgorithm::Sha256 => "SHA256",
+            TlsHashAlgorithm::Sha384 => "SHA384",
+            TlsHashAlgorithm::__NonExhaustive => unreachable!(),
+        }),
+    );
+
+    // GCM first, as `@STRENGTH` sorts purely on bitwidth, and otherwise respects the initial
+    // ordering. GCM is generally preferred over CBC for performance and security reasons.
+    expand_gcm_algorithms(cipher_suites)
+        .into_iter()
+        .map(borrow::Cow::Borrowed)
+        .chain(
+            cipher_suite_strings
+                .into_iter()
+                .map(|parts| borrow::Cow::Owned(parts.join("+"))),
+        )
+        .chain(
+            CIPHER_STRING_SUFFIX
+                .iter()
+                .map(|s| borrow::Cow::Borrowed(*s)),
+        )
+        .collect::<Vec<_>>()
+        .join(":")
+}
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -262,6 +487,9 @@ impl TlsConnector {
                 connector.add_extra_chain_cert(cert.to_owned())?;
             }
         }
+        if let Some(ref cipher_suites) = builder.cipher_suites {
+            connector.set_cipher_list(&expand_algorithms(cipher_suites))?;
+        }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut connector)?;
 
         if builder.disable_built_in_roots {
@@ -450,5 +678,40 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_algorithms_basic() {
+        assert_eq!(
+            expand_algorithms(&CipherSuiteSet {
+                key_exchange: vec![TlsKeyExchangeAlgorithm::Dhe, TlsKeyExchangeAlgorithm::Ecdhe],
+                signature: vec![TlsSignatureAlgorithm::Rsa],
+                bulk_encryption: vec![
+                    TlsBulkEncryptionAlgorithm::Aes128,
+                    TlsBulkEncryptionAlgorithm::Aes256
+                ],
+                hash: vec![TlsHashAlgorithm::Sha256, TlsHashAlgorithm::Sha384],
+            }),
+            "\
+            DHE-RSA-AES128-GCM-SHA256:\
+            DHE-RSA-AES256-GCM-SHA384:\
+            ECDHE-RSA-AES128-GCM-SHA256:\
+            ECDHE-RSA-AES256-GCM-SHA384:\
+            DHE+aRSA+AES128+SHA256:\
+            DHE+aRSA+AES128+SHA384:\
+            DHE+aRSA+AES256+SHA256:\
+            DHE+aRSA+AES256+SHA384:\
+            ECDHE+aRSA+AES128+SHA256:\
+            ECDHE+aRSA+AES128+SHA384:\
+            ECDHE+aRSA+AES256+SHA256:\
+            ECDHE+aRSA+AES256+SHA384:\
+            !aNULL:!eNULL:!IDEA:!SEED:!SRP:!PSK:@STRENGTH\
+            ",
+        );
     }
 }

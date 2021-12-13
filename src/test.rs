@@ -416,3 +416,31 @@ fn alpn_google_none() {
     let alpn = p!(socket.negotiated_alpn());
     assert_eq!(alpn, None);
 }
+
+#[test]
+fn badssl_cipher_suites_no_rsa() {
+    let builder = p!(TlsConnector::builder()
+        .supported_cipher_suites(
+            // Oddly, on Windows, allowing RSA key exchange, but not RSA signature algorithms still
+            // allows a successful TLS connection, despite there being no non-RSA signature cipher
+            // suites in the Mozilla Intermediate set AFAICT. Removing RSA from the key exchange
+            // algorithms causes this test to work as expected.
+            CipherSuiteSet::default()
+                .key_exchange_algorithms(&[TlsKeyExchangeAlgorithm::Ecdhe])
+                .signature_algorithms(&[TlsSignatureAlgorithm::Ecdsa])
+        )
+        .build());
+    let s = p!(TcpStream::connect("mozilla-intermediate.badssl.com:443"));
+    assert!(builder
+        .connect("mozilla-intermediate.badssl.com", s)
+        .is_err());
+}
+
+#[test]
+fn badssl_cipher_suites_default() {
+    let builder = p!(TlsConnector::builder()
+        .supported_cipher_suites(CipherSuiteSet::default())
+        .build());
+    let s = p!(TcpStream::connect("mozilla-intermediate.badssl.com:443"));
+    p!(builder.connect("mozilla-intermediate.badssl.com", s));
+}

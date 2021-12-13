@@ -2,14 +2,86 @@ extern crate schannel;
 
 use self::schannel::cert_context::{CertContext, HashAlgorithm};
 use self::schannel::cert_store::{CertAdd, CertStore, Memory, PfxImportOptions};
-use self::schannel::schannel_cred::{Direction, Protocol, SchannelCred};
+use self::schannel::schannel_cred::{Algorithm, Direction, Protocol, SchannelCred};
 use self::schannel::tls_stream;
 use std::error;
 use std::fmt;
 use std::io;
 use std::str;
 
-use {TlsAcceptorBuilder, TlsConnectorBuilder};
+use {
+    CipherSuiteSet, TlsAcceptorBuilder, TlsBulkEncryptionAlgorithm, TlsConnectorBuilder,
+    TlsHashAlgorithm, TlsKeyExchangeAlgorithm, TlsSignatureAlgorithm,
+};
+
+impl From<TlsKeyExchangeAlgorithm> for Algorithm {
+    fn from(other: TlsKeyExchangeAlgorithm) -> Self {
+        match other {
+            TlsKeyExchangeAlgorithm::Dhe => Algorithm::DhEphem,
+            TlsKeyExchangeAlgorithm::Ecdhe => Algorithm::EcdhEphem,
+            TlsKeyExchangeAlgorithm::Rsa => Algorithm::RsaKeyx,
+            TlsKeyExchangeAlgorithm::__NonExhaustive => unreachable!(),
+        }
+    }
+}
+
+impl From<TlsSignatureAlgorithm> for Algorithm {
+    fn from(other: TlsSignatureAlgorithm) -> Self {
+        match other {
+            TlsSignatureAlgorithm::Dss => Algorithm::DssSign,
+            TlsSignatureAlgorithm::Ecdsa => Algorithm::Ecdsa,
+            TlsSignatureAlgorithm::Rsa => Algorithm::RsaSign,
+            TlsSignatureAlgorithm::__NonExhaustive => unreachable!(),
+        }
+    }
+}
+
+impl From<TlsBulkEncryptionAlgorithm> for Algorithm {
+    fn from(other: TlsBulkEncryptionAlgorithm) -> Self {
+        match other {
+            TlsBulkEncryptionAlgorithm::Aes128 => Algorithm::Aes128,
+            TlsBulkEncryptionAlgorithm::Aes256 => Algorithm::Aes256,
+            TlsBulkEncryptionAlgorithm::Des => Algorithm::Des,
+            TlsBulkEncryptionAlgorithm::Rc2 => Algorithm::Rc2,
+            TlsBulkEncryptionAlgorithm::Rc4 => Algorithm::Rc4,
+            TlsBulkEncryptionAlgorithm::TripleDes => Algorithm::TripleDes,
+            TlsBulkEncryptionAlgorithm::__NonExhaustive => unreachable!(),
+        }
+    }
+}
+
+impl From<TlsHashAlgorithm> for Algorithm {
+    fn from(other: TlsHashAlgorithm) -> Self {
+        match other {
+            TlsHashAlgorithm::Md5 => Algorithm::Md5,
+            TlsHashAlgorithm::Sha1 => Algorithm::Sha1,
+            TlsHashAlgorithm::Sha256 => Algorithm::Sha256,
+            TlsHashAlgorithm::Sha384 => Algorithm::Sha384,
+            TlsHashAlgorithm::__NonExhaustive => unreachable!(),
+        }
+    }
+}
+
+fn expand_algorithms(cipher_suites: &CipherSuiteSet) -> Vec<Algorithm> {
+    let mut ret = vec![];
+    ret.extend(
+        cipher_suites
+            .key_exchange
+            .iter()
+            .copied()
+            .map(Algorithm::from),
+    );
+    ret.extend(cipher_suites.signature.iter().copied().map(Algorithm::from));
+    ret.extend(
+        cipher_suites
+            .bulk_encryption
+            .iter()
+            .copied()
+            .map(Algorithm::from),
+    );
+    ret.extend(cipher_suites.hash.iter().copied().map(Algorithm::from));
+    ret
+}
 
 const SEC_E_NO_CREDENTIALS: u32 = 0x8009030E;
 
@@ -190,6 +262,7 @@ pub struct TlsConnector {
     disable_built_in_roots: bool,
     #[cfg(feature = "alpn")]
     alpn: Vec<String>,
+    supported_algorithms: Vec<Algorithm>,
 }
 
 impl TlsConnector {
@@ -211,6 +284,10 @@ impl TlsConnector {
             disable_built_in_roots: builder.disable_built_in_roots,
             #[cfg(feature = "alpn")]
             alpn: builder.alpn.clone(),
+            supported_algorithms: match &builder.cipher_suites {
+                Some(cipher_suites) => expand_algorithms(cipher_suites),
+                None => vec![],
+            },
         })
     }
 
@@ -222,6 +299,9 @@ impl TlsConnector {
         builder.enabled_protocols(convert_protocols(self.min_protocol, self.max_protocol));
         if let Some(cert) = self.cert.as_ref() {
             builder.cert(cert.clone());
+        }
+        if !self.supported_algorithms.is_empty() {
+            builder.supported_algorithms(&self.supported_algorithms);
         }
         let cred = builder.acquire(Direction::Outbound)?;
         let mut builder = tls_stream::Builder::new();

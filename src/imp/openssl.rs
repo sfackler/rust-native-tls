@@ -5,7 +5,7 @@ use self::openssl::error::ErrorStack;
 use self::openssl::hash::MessageDigest;
 use self::openssl::nid::Nid;
 use self::openssl::pkcs12::Pkcs12;
-use self::openssl::pkey::PKey;
+use self::openssl::pkey::{PKey, Private};
 use self::openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
@@ -16,7 +16,6 @@ use std::fmt;
 use std::io;
 use std::sync::Once;
 
-use self::openssl::pkey::Private;
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 #[cfg(have_min_max_version)]
@@ -117,6 +116,8 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
 pub enum Error {
     Normal(ErrorStack),
     Ssl(ssl::Error, X509VerifyResult),
+    EmptyChain,
+    NotPkcs8,
 }
 
 impl error::Error for Error {
@@ -124,6 +125,8 @@ impl error::Error for Error {
         match *self {
             Error::Normal(ref e) => error::Error::source(e),
             Error::Ssl(ref e, _) => error::Error::source(e),
+            Error::EmptyChain => None,
+            Error::NotPkcs8 => None,
         }
     }
 }
@@ -134,6 +137,11 @@ impl fmt::Display for Error {
             Error::Normal(ref e) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, X509VerifyResult::OK) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, v) => write!(fmt, "{} ({})", e, v),
+            Error::EmptyChain => write!(
+                fmt,
+                "at least one certificate must be provided to create an identity"
+            ),
+            Error::NotPkcs8 => write!(fmt, "expected PKCS#8 PEM"),
         }
     }
 }
@@ -158,8 +166,23 @@ impl Identity {
         Ok(Identity {
             pkey: parsed.pkey,
             cert: parsed.cert,
-            chain: parsed.chain.into_iter().flatten().collect(),
+            // > The stack is the reverse of what you might expect due to the way
+            // > PKCS12_parse is implemented, so we need to load it backwards.
+            // > https://github.com/sfackler/rust-native-tls/commit/05fb5e583be589ab63d9f83d986d095639f8ec44
+            chain: parsed.chain.into_iter().flatten().rev().collect(),
         })
+    }
+
+    pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        if !key.starts_with(b"-----BEGIN PRIVATE KEY-----") {
+            return Err(Error::NotPkcs8);
+        }
+
+        let pkey = PKey::private_key_from_pem(key)?;
+        let mut cert_chain = X509::stack_from_pem(buf)?.into_iter();
+        let cert = cert_chain.next().ok_or(Error::EmptyChain)?;
+        let chain = cert_chain.collect();
+        Ok(Identity { pkey, cert, chain })
     }
 }
 
@@ -258,7 +281,10 @@ impl TlsConnector {
         if let Some(ref identity) = builder.identity {
             connector.set_certificate(&identity.0.cert)?;
             connector.set_private_key(&identity.0.pkey)?;
-            for cert in identity.0.chain.iter().rev() {
+            for cert in identity.0.chain.iter() {
+                // https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_extra_chain_cert.html
+                // specifies that "When sending a certificate chain, extra chain certificates are
+                // sent in order following the end entity certificate."
                 connector.add_extra_chain_cert(cert.to_owned())?;
             }
         }
@@ -342,7 +368,10 @@ impl TlsAcceptor {
         let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
         acceptor.set_private_key(&builder.identity.0.pkey)?;
         acceptor.set_certificate(&builder.identity.0.cert)?;
-        for cert in builder.identity.0.chain.iter().rev() {
+        for cert in builder.identity.0.chain.iter() {
+            // https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_extra_chain_cert.html
+            // specifies that "When sending a certificate chain, extra chain certificates are
+            // sent in order following the end entity certificate."
             acceptor.add_extra_chain_cert(cert.to_owned())?;
         }
         supported_protocols(builder.min_protocol, builder.max_protocol, &mut acceptor)?;

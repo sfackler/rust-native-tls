@@ -85,6 +85,12 @@ pub struct Identity {
 }
 
 impl Identity {
+    #[cfg(target_os = "ios")]
+    pub fn from_pkcs8(_: &[u8], _: &[u8]) -> Result<Identity, Error> {
+        panic!("Not implemented on iOS");
+    }
+
+    #[cfg(not(target_os = "ios"))]
     pub fn from_pkcs8(pem: &[u8], key: &[u8]) -> Result<Identity, Error> {
         if !key.starts_with(b"-----BEGIN PRIVATE KEY-----") {
             return Err(Error(base::Error::from(errSecParam)));
@@ -215,7 +221,7 @@ impl Certificate {
     }
 
     #[cfg(target_os = "ios")]
-    pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
+    pub fn from_pem(_: &[u8]) -> Result<Certificate, Error> {
         panic!("Not implemented on iOS");
     }
 

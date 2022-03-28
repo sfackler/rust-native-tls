@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [v0.2.10]
+
+### Fixed
+
+* Fixed the build for iOS.
+
+## [v0.2.9]
+
+### Added
+
+* Added `Identity::from_pkcs8`.
+
 ## [v0.2.8]
 
 ### Fixed
@@ -105,7 +117,9 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.8...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.10...master
+[v0.2.10]: https://github.com/sfackler/rust-native-tls/compare/v0.2.9...v0.2.10
+[v0.2.9]: https://github.com/sfackler/rust-native-tls/compare/v0.2.8...v0.2.9
 [v0.2.8]: https://github.com/sfackler/rust-native-tls/compare/v0.2.7...v0.2.8
 [v0.2.7]: https://github.com/sfackler/rust-native-tls/compare/v0.2.6...v0.2.7
 [v0.2.6]: https://github.com/sfackler/rust-native-tls/compare/v0.2.5...v0.2.6

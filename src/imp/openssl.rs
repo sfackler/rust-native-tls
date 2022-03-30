@@ -1,22 +1,20 @@
-extern crate openssl;
-extern crate openssl_probe;
-
-use self::openssl::error::ErrorStack;
-use self::openssl::hash::MessageDigest;
-use self::openssl::nid::Nid;
-use self::openssl::pkcs12::Pkcs12;
-use self::openssl::pkey::{PKey, Private};
-use self::openssl::ssl::{
+use log::debug;
+use openssl::error::ErrorStack;
+use openssl::hash::MessageDigest;
+use openssl::nid::Nid;
+use openssl::pkcs12::Pkcs12;
+use openssl::pkey::{PKey, Private};
+use openssl::ssl::{
     self, MidHandshakeSslStream, SslAcceptor, SslConnector, SslContextBuilder, SslMethod,
     SslVerifyMode,
 };
-use self::openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
+use openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
 use std::error;
 use std::fmt;
 use std::io;
 use std::sync::Once;
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -24,7 +22,7 @@ fn supported_protocols(
     max: Option<Protocol>,
     ctx: &mut SslContextBuilder,
 ) -> Result<(), ErrorStack> {
-    use self::openssl::ssl::SslVersion;
+    use openssl::ssl::SslVersion;
 
     fn cvt(p: Protocol) -> SslVersion {
         match p {
@@ -48,7 +46,7 @@ fn supported_protocols(
     max: Option<Protocol>,
     ctx: &mut SslContextBuilder,
 ) -> Result<(), ErrorStack> {
-    use self::openssl::ssl::SslOptions;
+    use openssl::ssl::SslOptions;
 
     let no_ssl_mask = SslOptions::NO_SSLV2
         | SslOptions::NO_SSLV3
@@ -132,7 +130,7 @@ impl error::Error for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Error::Normal(ref e) => fmt::Display::fmt(e, fmt),
             Error::Ssl(ref e, X509VerifyResult::OK) => fmt::Display::fmt(e, fmt),
@@ -212,7 +210,7 @@ impl<S> fmt::Debug for MidHandshakeTlsStream<S>
 where
     S: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }
@@ -350,7 +348,7 @@ impl TlsConnector {
 }
 
 impl fmt::Debug for TlsConnector {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("TlsConnector")
             // n.b. SslConnector is a newtype on SslContext which implements a noop Debug so it's omitted
             .field("use_sni", &self.use_sni)
@@ -391,7 +389,7 @@ impl TlsAcceptor {
 pub struct TlsStream<S>(ssl::SslStream<S>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }

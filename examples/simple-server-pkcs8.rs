@@ -1,5 +1,3 @@
-extern crate native_tls;
-
 use native_tls::{Identity, TlsAcceptor, TlsStream};
 use std::fs::File;
 use std::io::{Read, Write};

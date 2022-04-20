@@ -194,7 +194,7 @@ fn random_password() -> Result<String, Error> {
         .copy_bytes(&mut bytes)
         .map_err(|_| Error(base::Error::from(errSecIO)))?;
     let mut s = String::with_capacity(2 * bytes.len());
-    for byte in bytes {
+    for byte in &bytes {
         write!(s, "{:02X}", byte).map_err(|_| Error(base::Error::from(errSecIO)))?;
     }
     Ok(s)

@@ -11,7 +11,6 @@ on:
 env:
   RUSTFLAGS: -Dwarnings
   RUST_BACKTRACE: 1
-  OPENSSL_CONF: test.conf
 
 jobs:
   rustfmt:
@@ -55,5 +54,5 @@ jobs:
         with:
           path: target
           key: target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
-      - run: cargo test --features vendored,openssl-src/legacy
-      - run: cargo test --features vendored,openssl-src/legacy,alpn
+      - run: cargo test --features vendored
+      - run: cargo test --features vendored

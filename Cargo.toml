@@ -31,9 +31,6 @@ openssl = "0.10.29"
 openssl-sys = "0.9.55"
 openssl-probe = "0.1"
 
-[target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.build_dependencies]
-openssl-src = { version = "300.0.3", optional = true }
-
 [dev-dependencies]
 tempfile = "3.0"
 test-cert-gen = "0.7"

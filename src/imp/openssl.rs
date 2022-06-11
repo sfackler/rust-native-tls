@@ -368,6 +368,29 @@ impl TlsAcceptor {
         let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
         acceptor.set_private_key(&builder.identity.0.pkey)?;
         acceptor.set_certificate(&builder.identity.0.cert)?;
+        #[cfg(feature = "alpn")]
+        if !builder.alpn.is_empty() {
+            use self::openssl::ssl::SslRef;
+            // Wire format is each alpn preceded by its length as a byte.
+            let mut alpn_wire_format = Vec::with_capacity(
+                builder
+                    .alpn
+                    .iter()
+                    .map(|s| s.as_bytes().len())
+                    .sum::<usize>()
+                    + builder.alpn.len(),
+            );
+            for alpn in builder.alpn.iter().map(|s| s.as_bytes()) {
+                alpn_wire_format.push(alpn.len() as u8);
+                alpn_wire_format.extend(alpn);
+            }
+            acceptor.set_alpn_protos(&alpn_wire_format)?;
+            // set uo ALPN selection routine - as select_next_proto
+            acceptor.set_alpn_select_callback(move |_: &mut SslRef, list: &[u8]| {
+                    openssl::ssl::select_next_proto(&alpn_wire_format, list).ok_or(
+                            openssl::ssl::AlpnError::NOACK)
+            });
+        }
         for cert in builder.identity.0.chain.iter() {
             // https://www.openssl.org/docs/manmaster/man3/SSL_CTX_add_extra_chain_cert.html
             // specifies that "When sending a certificate chain, extra chain certificates are

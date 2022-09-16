@@ -184,6 +184,10 @@ impl Identity {
         let chain = cert_chain.collect();
         Ok(Identity { pkey, cert, chain })
     }
+
+    pub fn from_raw(context: RawType) -> Identity {
+        Identity { pkey: context.0, cert: context.1, chain: context.2 }
+    }
 }
 
 #[derive(Clone)]

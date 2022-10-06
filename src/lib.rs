@@ -10,7 +10,7 @@
 //!
 //! This crate uses SChannel on Windows (via the `schannel` crate), Secure
 //! Transport on OSX (via the `security-framework` crate), and OpenSSL (via the
-//! `openssl` crate) on all other platforms. Future futures may also enable
+//! `openssl` crate) on all other platforms. Future features may also enable
 //! other TLS frameworks as well, but these initial libraries are likely to
 //! remain as the defaults.
 //!

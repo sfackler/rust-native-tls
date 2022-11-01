@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [v0.2.11]
+
+### Fixed
+
+* Removed an unused build dependency.
+
 ## [v0.2.10]
 
 ### Fixed
@@ -117,7 +123,8 @@
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.10...master
+[Unreleased]: https://github.com/sfackler/rust-native-tls/compare/v0.2.11...master
+[v0.2.11]: https://github.com/sfackler/rust-native-tls/compare/v0.2.10...v0.2.11
 [v0.2.10]: https://github.com/sfackler/rust-native-tls/compare/v0.2.9...v0.2.10
 [v0.2.9]: https://github.com/sfackler/rust-native-tls/compare/v0.2.8...v0.2.9
 [v0.2.8]: https://github.com/sfackler/rust-native-tls/compare/v0.2.7...v0.2.8

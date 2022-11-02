@@ -6,6 +6,7 @@ license = "MIT/Apache-2.0"
 description = "A wrapper over a platform's native TLS implementation"
 repository = "https://github.com/sfackler/rust-native-tls"
 readme = "README.md"
+edition = "2018"
 
 [package.metadata.docs.rs]
 features = ["alpn"]

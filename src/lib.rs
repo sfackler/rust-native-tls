@@ -98,19 +98,12 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[macro_use]
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-extern crate lazy_static;
-
 use std::any::Any;
 use std::error;
 use std::fmt;
 use std::io;
 use std::result;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
-#[macro_use]
-extern crate log;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[path = "imp/security_framework.rs"]
 mod imp;
@@ -137,13 +130,13 @@ impl error::Error for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, fmt)
     }
 }
 
 impl fmt::Debug for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }
@@ -223,7 +216,7 @@ impl<S> fmt::Debug for MidHandshakeTlsStream<S>
 where
     S: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }
@@ -290,7 +283,7 @@ impl<S> fmt::Display for HandshakeError<S>
 where
     S: Any + fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             HandshakeError::Failure(ref e) => fmt::Display::fmt(e, fmt),
             HandshakeError::WouldBlock(_) => fmt.write_str("the handshake process was interrupted"),
@@ -633,7 +626,7 @@ impl TlsAcceptor {
 pub struct TlsStream<S>(imp::TlsStream<S>);
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }

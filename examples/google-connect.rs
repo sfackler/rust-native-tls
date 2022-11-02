@@ -1,5 +1,3 @@
-extern crate native_tls;
-
 use native_tls::TlsConnector;
 use std::io::{Read, Write};
 use std::net::TcpStream;

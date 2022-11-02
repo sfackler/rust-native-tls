@@ -1,39 +1,36 @@
-extern crate libc;
-extern crate security_framework;
-extern crate security_framework_sys;
-extern crate tempfile;
-
-use self::security_framework::base;
-use self::security_framework::certificate::SecCertificate;
-use self::security_framework::identity::SecIdentity;
-use self::security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
-use self::security_framework::random::SecRandom;
-use self::security_framework::secure_transport::{
+use security_framework::base;
+use security_framework::certificate::SecCertificate;
+use security_framework::identity::SecIdentity;
+use security_framework::import_export::{ImportedIdentity, Pkcs12ImportOptions};
+use security_framework::random::SecRandom;
+use security_framework::secure_transport::{
     self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
 };
-use self::security_framework_sys::base::{errSecIO, errSecParam};
-use self::tempfile::TempDir;
+use security_framework_sys::base::{errSecIO, errSecParam};
 use std::error;
 use std::fmt;
 use std::io;
 use std::str;
 use std::sync::Mutex;
 use std::sync::Once;
+use tempfile::TempDir;
 
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::certificate::{PropertyType, SecCertificateExt};
+use lazy_static::lazy_static;
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::certificate_oids::CertificateOid;
+use security_framework::os::macos::certificate::{PropertyType, SecCertificateExt};
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::identity::SecIdentityExt;
+use security_framework::os::macos::certificate_oids::CertificateOid;
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::import_export::{
+use security_framework::os::macos::identity::SecIdentityExt;
+#[cfg(not(target_os = "ios"))]
+use security_framework::os::macos::import_export::{
     ImportOptions, Pkcs12ImportOptionsExt, SecItems,
 };
 #[cfg(not(target_os = "ios"))]
-use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
+use security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 static SET_AT_EXIT: Once = Once::new();
 
@@ -61,13 +58,13 @@ impl error::Error for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, fmt)
     }
 }
 
 impl fmt::Debug for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, fmt)
     }
 }
@@ -264,7 +261,7 @@ impl<S> fmt::Debug for MidHandshakeTlsStream<S>
 where
     S: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             MidHandshakeTlsStream::Server(ref s, _) => s.fmt(fmt),
             MidHandshakeTlsStream::Client(ref s) => s.fmt(fmt),
@@ -427,7 +424,7 @@ pub struct TlsStream<S> {
 }
 
 impl<S: fmt::Debug> fmt::Debug for TlsStream<S> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.stream, fmt)
     }
 }

@@ -330,6 +330,7 @@ pub enum Protocol {
 }
 
 /// A builder for `TlsConnector`s.
+#[derive(Clone)]
 pub struct TlsConnectorBuilder {
     identity: Option<Identity>,
     min_protocol: Option<Protocol>,

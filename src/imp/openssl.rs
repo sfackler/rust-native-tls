@@ -32,6 +32,7 @@ fn supported_protocols(
             Protocol::Tlsv10 => SslVersion::TLS1,
             Protocol::Tlsv11 => SslVersion::TLS1_1,
             Protocol::Tlsv12 => SslVersion::TLS1_2,
+            Protocol::Tlsv13 => SslVersion::TLS1_3,
             Protocol::__NonExhaustive => unreachable!(),
         }
     }

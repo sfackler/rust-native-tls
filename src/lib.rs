@@ -311,6 +311,7 @@ impl<S> From<imp::HandshakeError<S>> for HandshakeError<S> {
 
 /// SSL/TLS protocol versions.
 #[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
 pub enum Protocol {
     /// The SSL 3.0 protocol.
     ///
@@ -325,8 +326,6 @@ pub enum Protocol {
     Tlsv11,
     /// The TLS 1.2 protocol.
     Tlsv12,
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 /// A builder for `TlsConnector`s.

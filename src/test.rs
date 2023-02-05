@@ -141,7 +141,7 @@ fn certificate_from_pem() {
     let keys = test_cert_gen::keys();
 
     let der_path = dir.path().join("cert.der");
-    fs::write(&der_path, &keys.client.ca.get_der()).unwrap();
+    fs::write(&der_path, keys.client.ca.get_der()).unwrap();
     let output = Command::new("openssl")
         .arg("x509")
         .arg("-in")

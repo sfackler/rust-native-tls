@@ -34,4 +34,4 @@ openssl-probe = "0.1"
 
 [dev-dependencies]
 tempfile = "3.0"
-test-cert-gen = "0.7"
+test-cert-gen = "0.9"

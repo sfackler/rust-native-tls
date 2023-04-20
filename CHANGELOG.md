@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [v0.2.12]
+
+### Fixed
+
+* Remove unneeded private key check for PKCS#8
+
 ## [v0.2.11]
 
 ### Fixed

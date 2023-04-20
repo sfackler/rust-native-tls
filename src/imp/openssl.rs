@@ -171,10 +171,6 @@ impl Identity {
     }
 
     pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
-        if !key.starts_with(b"-----BEGIN PRIVATE KEY-----") {
-            return Err(Error::NotPkcs8);
-        }
-
         let pkey = PKey::private_key_from_pem(key)?;
         let mut cert_chain = X509::stack_from_pem(buf)?.into_iter();
         let cert = cert_chain.next().ok_or(Error::EmptyChain)?;

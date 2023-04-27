@@ -1,85 +1,54 @@
 extern crate mbedtls;
 
-use self::mbedtls::ssl::context::IoCallback;
-
 use self::mbedtls::alloc::{Box as MbedtlsBox, List as MbedtlsList};
 use self::mbedtls::hash::{Md, Type as MdType};
 use self::mbedtls::pk::Pk;
-use self::mbedtls::pkcs12::{Pfx, Pkcs12Error};
-use self::mbedtls::rng::{CtrDrbg, OsEntropy};
+use self::mbedtls::rng::{CtrDrbg, Rdseed};
+#[cfg(feature = "alpn")]
+use self::mbedtls::ssl::config::NullTerminatedStrList;
 use self::mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use self::mbedtls::ssl::{Config, Context, Version};
 use self::mbedtls::x509::certificate::Certificate as MbedtlsCert;
 use self::mbedtls::Error as TlsError;
-use self::mbedtls::Result as TlsResult;
 
+use std::convert::TryFrom;
 use std::error;
 use std::fmt::{self, Debug};
-use std::fs;
-use std::io::{self, Read};
+use std::io;
 use std::sync::Arc;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
-fn load_ca_certs(dir: &str) -> TlsResult<Vec<::Certificate>> {
-    let paths = fs::read_dir(dir).map_err(|_| TlsError::X509FileIoError)?;
-
-    let mut certs = Vec::new();
-
-    for path in paths {
-        if let Ok(mut file) = fs::File::open(path.unwrap().path()) {
-            let mut contents = Vec::new();
-            if let Ok(_) = file.read_to_end(&mut contents) {
-                contents.push(0); // needs NULL terminator
-                if let Ok(cert) = ::Certificate::from_pem(&contents) {
-                    certs.push(cert);
-                }
-            }
-        }
-    }
-
-    Ok(certs)
-}
-
-fn load_system_trust_roots() -> Result<Vec<::Certificate>, Error> {
-    let paths = [
-        "/etc/pki/CA/certs",                  // Fedora, RHEL
-        "/usr/share/ca-certificates/mozilla", // Ubuntu, Debian, Arch, Gentoo
-    ];
-
-    for path in paths.iter() {
-        if let Ok(certs) = load_ca_certs(path) {
-            return Ok(certs);
-        }
-    }
-
-    Err(Error::Custom(
-        "Could not load system default trust roots".to_owned(),
-    ))
-}
-
 #[derive(Debug)]
 pub enum Error {
-    Normal(TlsError),
-    Pkcs12(Pkcs12Error),
+    Tls(TlsError),
+    Pkcs12(yasna::ASN1Error),
+    Pkcs5(pkcs5::Error),
+    Der(pkcs5::der::Error),
     Custom(String),
-}
-
-#[derive(Debug, Copy, Clone)]
-enum ProtocolRole {
-    Client,
-    Server,
 }
 
 impl From<TlsError> for Error {
     fn from(err: TlsError) -> Error {
-        Error::Normal(err)
+        Error::Tls(err)
     }
 }
 
-impl From<Pkcs12Error> for Error {
-    fn from(err: Pkcs12Error) -> Error {
+impl From<yasna::ASN1Error> for Error {
+    fn from(err: yasna::ASN1Error) -> Error {
         Error::Pkcs12(err)
+    }
+}
+
+impl From<pkcs5::Error> for Error {
+    fn from(err: pkcs5::Error) -> Error {
+        Error::Pkcs5(err)
+    }
+}
+
+impl From<pkcs5::der::Error> for Error {
+    fn from(err: pkcs5::der::Error) -> Error {
+        Error::Der(err)
     }
 }
 
@@ -91,66 +60,166 @@ impl<S> From<TlsError> for HandshakeError<S> {
 
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // error::Error::source(&self)
-        todo!()
+        match *self {
+            Error::Tls(ref e) => e.source(),
+            Error::Pkcs12(ref e) => e.source(),
+            Error::Pkcs5(_) => None,
+            Error::Der(_) => None,
+            Error::Custom(_) => None,
+        }
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::Normal(ref e) => fmt::Display::fmt(e, fmt),
+            Error::Tls(ref e) => fmt::Display::fmt(e, fmt),
             Error::Pkcs12(ref e) => fmt::Display::fmt(e, fmt),
+            Error::Pkcs5(ref e) => fmt::Display::fmt(e, fmt),
+            Error::Der(ref e) => fmt::Display::fmt(e, fmt),
             Error::Custom(ref e) => fmt::Display::fmt(e, fmt),
         }
     }
 }
 
-fn map_version(protocol: Option<Protocol>) -> Option<Version> {
-    if let Some(protocol) = protocol {
-        match protocol {
-            Protocol::Sslv3 => Some(Version::Ssl3),
-            Protocol::Tlsv10 => Some(Version::Tls1_0),
-            Protocol::Tlsv11 => Some(Version::Tls1_1),
-            Protocol::Tlsv12 => Some(Version::Tls1_2),
-            _ => None,
-        }
-    } else {
-        None
+fn to_mbedtls_version(protocol: Protocol) -> Version {
+    match protocol {
+        Protocol::Sslv3 => Version::Ssl3,
+        Protocol::Tlsv10 => Version::Tls1_0,
+        Protocol::Tlsv11 => Version::Tls1_1,
+        Protocol::Tlsv12 => Version::Tls1_2,
     }
 }
 
-pub struct Identity(Pfx);
+trait NullTerminated {
+    fn null_terminated(&self) -> Vec<u8>;
+}
+
+impl<T: AsRef<[u8]>> NullTerminated for T {
+    fn null_terminated(&self) -> Vec<u8> {
+        let mut buf = self.as_ref().to_vec();
+        buf.push(0);
+        buf
+    }
+}
+
+fn pkcs12_decode_key_bag<B: AsRef<[u8]>>(
+    key_bag: &p12::EncryptedPrivateKeyInfo,
+    pass: B,
+) -> Result<Vec<u8>, Error> {
+    // try to decrypt the key with algorithms supported by p12 crate
+    if let Some(decrypted) = key_bag.decrypt(pass.as_ref()) {
+        Ok(decrypted)
+    // try to decrypt the key with algorithms supported by pkcs5 standard
+    } else if let p12::AlgorithmIdentifier::OtherAlg(_) = key_bag.encryption_algorithm {
+        // write the algorithm identifier back to DER format
+        let algorithm_der =
+            yasna::construct_der(|writer| key_bag.encryption_algorithm.write(writer));
+        // and construct pkcs5 decoder from it
+        let scheme = pkcs5::EncryptionScheme::try_from(&algorithm_der[..])?;
+
+        Ok(scheme.decrypt(pass.as_ref(), &key_bag.encrypted_data)?)
+    } else {
+        Err(Error::Custom(
+            "Unsupported key encryption algorithm".to_owned(),
+        ))
+    }
+}
+
+#[derive(Clone)]
+pub struct Identity {
+    key: Arc<Pk>,
+    certificates: Arc<MbedtlsList<MbedtlsCert>>,
+}
 
 impl Identity {
     pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
-        let pkcs12 = Pfx::parse(buf).map_err(Error::Pkcs12)?;
-        let decrypted = pkcs12.decrypt(&pass, None).map_err(Error::Pkcs12)?;
-        Ok(Identity(decrypted))
+        let pfx = p12::PFX::parse(buf)?;
+        let key = pfx
+            .bags(pass)?
+            .iter()
+            .find_map(|safe_bag| {
+                if let p12::SafeBagKind::Pkcs8ShroudedKeyBag(ref key_bag) = safe_bag.bag {
+                    Some(pkcs12_decode_key_bag(key_bag, pass))
+                } else {
+                    None
+                }
+            })
+            .ok_or(Error::Custom("No private key in pkcs12 DER".to_owned()))?
+            .map(|key| Pk::from_private_key(&key, Some(pass.as_bytes())))??;
+        let certificates: MbedtlsList<_> = pfx
+            .cert_bags(pass)?
+            .iter()
+            .map(|cert| MbedtlsCert::from_der(cert))
+            .collect::<Result<_, _>>()?;
+
+        if !certificates.is_empty() {
+            Ok(Identity {
+                key: Arc::new(key),
+                certificates: Arc::new(certificates),
+            })
+        } else {
+            Err(Error::Custom(
+                "PKCS12 file is missing certificate chain".to_owned(),
+            ))
+        }
+    }
+
+    pub fn from_pkcs8(buf: &[u8], key: &[u8]) -> Result<Identity, Error> {
+        let key = Pk::from_private_key(&key.null_terminated(), None)?;
+        let certificates = MbedtlsCert::from_pem_multiple(&buf.null_terminated())?;
+
+        if !certificates.is_empty() {
+            Ok(Identity {
+                key: Arc::new(key),
+                certificates: Arc::new(certificates),
+            })
+        } else {
+            Err(Error::Custom(
+                "X509 chain file is missing certificate chain".to_owned(),
+            ))
+        }
+    }
+
+    fn certificates(&self) -> Arc<MbedtlsList<MbedtlsCert>> {
+        self.certificates.clone()
+    }
+
+    fn private_key(&self) -> Arc<Pk> {
+        self.key.clone()
     }
 }
 
-impl Clone for Identity {
-    fn clone(&self) -> Self {
-        Identity(self.0.clone())
+impl Debug for Identity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Identity")
+            .field(
+                "certificates",
+                &self
+                    .certificates
+                    .iter()
+                    .map(|cert| cert.as_der().to_vec())
+                    .collect::<Vec<_>>(),
+            )
+            .field(
+                "key_name",
+                &self.key.name().map(String::from).map_err(Error::Tls),
+            )
+            .finish()
     }
 }
 
 #[derive(Clone)]
 pub struct Certificate(MbedtlsBox<MbedtlsCert>);
-unsafe impl Sync for Certificate {}
 
 impl Certificate {
     pub fn from_der(buf: &[u8]) -> Result<Certificate, Error> {
-        let cert = MbedtlsCert::from_der(buf).map_err(Error::Normal)?;
+        let cert = MbedtlsCert::from_der(buf).map_err(Error::Tls)?;
         Ok(Certificate(cert))
     }
 
     pub fn from_pem(buf: &[u8]) -> Result<Certificate, Error> {
-        // Mbedtls needs there to be a trailing NULL byte ...
-        let mut pem = buf.to_vec();
-        pem.push(0);
-        let cert = MbedtlsCert::from_pem(&pem).map_err(Error::Normal)?;
+        let cert = MbedtlsCert::from_pem(&buf.null_terminated()).map_err(Error::Tls)?;
         Ok(Certificate(cert))
     }
 
@@ -160,332 +229,60 @@ impl Certificate {
     }
 }
 
-fn cert_to_vec(certs_in: &[::Certificate]) -> Vec<MbedtlsBox<MbedtlsCert>> {
-    certs_in.iter().map(|cert| (cert.0).0.clone()).collect()
+impl Debug for Certificate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Certificate")
+            .field(&self.0.as_der())
+            .finish()
+    }
 }
 
-#[allow(unused)]
 pub struct TlsStream<S> {
-    role: ProtocolRole,
-    ca_certs: Vec<MbedtlsBox<MbedtlsCert>>,
-    ca_cert_list: Arc<MbedtlsList<MbedtlsCert>>,
-    cred_pk: Option<Arc<Pk>>,
-    cred_certs: Vec<MbedtlsBox<MbedtlsCert>>,
-    cred_cert_list: Arc<MbedtlsList<MbedtlsCert>>,
-    entropy: Arc<OsEntropy>,
-    rng: Arc<CtrDrbg>,
-    config: Arc<Config>,
     ctx: Context<S>,
-}
-
-unsafe impl<S> Sync for TlsStream<S> {}
-unsafe impl<S> Send for TlsStream<S> {}
-
-impl<S> Debug for TlsStream<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TlsStream")
-            .field("role", &self.role)
-            .field("ca_certs", &self.ca_certs)
-            // .field("ca_cert_list", &self.ca_cert_list)
-            // .field("cred_pk", &self.cred_pk)
-            // .field("cred_certs", &self.cred_certs)
-            // .field("cred_cert_list", &self.cred_cert_list)
-            // .field("entropy", &self.entropy)
-            // .field("rng", &self.rng)
-            // .field("config", &self.config)
-            // .field("ctx", &self.ctx)
-            // .field("stream", &self.stream)
-            .finish()
-    }
-}
-
-#[derive(Debug)]
-pub struct MidHandshakeTlsStream<S> {
-    stream: TlsStream<S>,
-    error: Error,
-}
-
-pub enum HandshakeError<S> {
-    Failure(Error),
-    WouldBlock(MidHandshakeTlsStream<S>),
-}
-
-impl<S> MidHandshakeTlsStream<S> {
-    pub fn get_ref(&self) -> &S {
-        self.stream.get_ref()
-    }
-
-    pub fn get_mut(&mut self) -> &mut S {
-        self.stream.get_mut()
-    }
-}
-
-impl<S> MidHandshakeTlsStream<S>
-where
-    S: io::Read + io::Write,
-{
-    pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
-        Ok(self.stream)
-    }
-}
-
-#[derive(Clone)]
-pub struct TlsConnector {
-    min_protocol: Option<Protocol>,
-    max_protocol: Option<Protocol>,
-    root_certificates: Vec<::Certificate>,
-    identity: Option<::Identity>,
-    accept_invalid_certs: bool,
-    accept_invalid_hostnames: bool,
-    use_sni: bool,
-}
-
-impl Debug for TlsConnector {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TlsConnector")
-            .field("min_protocol", &self.min_protocol)
-            .field("max_protocol", &self.max_protocol)
-            // .field("root_certificates", &self.root_certificates)
-            // .field("identity", &self.identity)
-            .field("accept_invalid_certs", &self.accept_invalid_certs)
-            .field("accept_invalid_hostnames", &self.accept_invalid_hostnames)
-            .field("use_sni", &self.use_sni)
-            .finish()
-    }
-}
-
-impl TlsConnector {
-    pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
-        let trust_roots = if builder.root_certificates.len() > 0 {
-            builder.root_certificates.clone()
-        } else {
-            load_system_trust_roots()?
-        };
-
-        Ok(TlsConnector {
-            min_protocol: builder.min_protocol,
-            max_protocol: builder.max_protocol,
-            root_certificates: trust_roots,
-            identity: builder.identity.clone(),
-            accept_invalid_certs: builder.accept_invalid_certs,
-            accept_invalid_hostnames: builder.accept_invalid_hostnames,
-            use_sni: builder.use_sni,
-        })
-    }
-
-    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: IoCallback,
-    {
-        println!("CONNECTING IN MBETLS");
-        let identity = if let Some(identity) = &self.identity {
-            let mut keys = (identity.0).0.private_keys().collect::<Vec<_>>();
-            let certificates = (identity.0).0.certificates().collect::<Vec<_>>();
-
-            if keys.len() != 1 {
-                return Err(HandshakeError::Failure(Error::Custom(
-                    "Unexpected number of keys in PKCS12 file".to_owned(),
-                )));
-            }
-            if certificates.len() == 0 {
-                return Err(HandshakeError::Failure(Error::Custom(
-                    "PKCS12 file is missing certificate chain".to_owned(),
-                )));
-            }
-
-            let mut cert_chain = vec![];
-            for cert in certificates {
-                cert_chain.push(cert.0?);
-            }
-
-            fn pk_clone(pk: &mut Pk) -> TlsResult<Pk> {
-                let der = pk.write_private_der_vec()?;
-                Pk::from_private_key(&der, None)
-            }
-            let key = Box::new(keys.pop().unwrap().0.map_err(|_| TlsError::PkInvalidAlg)?);
-
-            Some((cert_chain, key))
-        } else {
-            None
-        };
-
-        let ca_vec = cert_to_vec(&self.root_certificates);
-        let mut ca_list = MbedtlsList::new();
-        ca_vec.clone().into_iter().for_each(|c| ca_list.push(c));
-        let ca_list = Arc::new(ca_list);
-
-        let entropy = Arc::new(OsEntropy::new());
-        let rng = Arc::new(CtrDrbg::new(entropy.clone(), None)?);
-        let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-        config.set_rng(rng.clone());
-        config.set_ca_list(ca_list.clone(), None);
-
-        let mut cred_certs = Default::default();
-        let mut cred_cert_list = Arc::new(MbedtlsList::new());
-        let mut cred_pk = None;
-
-        if let Some((certificates, mut pk)) = identity {
-            cred_certs = certificates.to_vec();
-            let mut tmp = MbedtlsList::new();
-            cred_certs.clone().into_iter().for_each(|c| tmp.push(c));
-            cred_cert_list = Arc::new(tmp);
-
-            let cpk = Arc::new(Pk::from_private_key(&pk.write_private_der_vec()?, None)?);
-            cred_pk = Some(cpk.clone());
-
-            config.push_cert(cred_cert_list.clone(), cpk.clone())?;
-        }
-
-        if self.accept_invalid_certs {
-            config.set_authmode(mbedtls::ssl::config::AuthMode::None);
-        }
-
-        if let Some(min_version) = map_version(self.min_protocol) {
-            config.set_min_version(min_version)?;
-        }
-        if let Some(max_version) = map_version(self.max_protocol) {
-            config.set_max_version(max_version)?;
-        }
-
-        let config = Arc::new(config);
-        let mut ctx = Context::new(config.clone());
-
-        let hostname = if self.accept_invalid_hostnames {
-            None
-        } else {
-            Some(domain)
-        };
-
-        ctx.establish(stream, hostname)?;
-
-        Ok(TlsStream {
-            role: ProtocolRole::Client,
-            ca_certs: ca_vec,
-            ca_cert_list: ca_list,
-            cred_pk: cred_pk,
-            cred_certs: cred_certs,
-            cred_cert_list: cred_cert_list,
-            entropy,
-            rng,
-            config,
-            ctx,
-        })
-    }
-}
-
-#[derive(Clone)]
-pub struct TlsAcceptor {
-    identity: Pfx,
-    min_protocol: Option<Protocol>,
-    max_protocol: Option<Protocol>,
-}
-
-impl TlsAcceptor {
-    pub fn new(builder: &TlsAcceptorBuilder) -> Result<TlsAcceptor, Error> {
-        Ok(TlsAcceptor {
-            identity: (builder.identity.0).0.clone(),
-            min_protocol: builder.min_protocol,
-            max_protocol: builder.max_protocol,
-        })
-    }
-
-    pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
-    where
-        S: IoCallback,
-    {
-        println!("ACCEPTING IN MBETLS");
-        let mut keys = self.identity.private_keys().collect::<Vec<_>>();
-        let certificates = self.identity.certificates().collect::<Vec<_>>();
-
-        if keys.len() != 1 {
-            return Err(HandshakeError::Failure(Error::Custom(
-                "Unexpected number of keys in PKCS12 file".to_owned(),
-            )));
-        }
-        if certificates.len() == 0 {
-            return Err(HandshakeError::Failure(Error::Custom(
-                "PKCS12 file is missing certificate chain".to_owned(),
-            )));
-        }
-
-        let mut cert_chain = vec![];
-        for cert in certificates {
-            cert_chain.push(cert.0?);
-        }
-
-        let key: &mut Pk = &mut keys.pop().unwrap().0.map_err(|_| TlsError::PkInvalidAlg)?;
-
-        let pk = Arc::new(Pk::from_private_key(&key.write_private_der_vec()?, None)?);
-        let mut cert_list = MbedtlsList::new();
-        cert_chain
-            .to_vec()
-            .into_iter()
-            .for_each(|c| cert_list.push(c));
-        let cert_list = Arc::new(cert_list);
-
-        let entropy = Arc::new(OsEntropy::new());
-        let rng = Arc::new(CtrDrbg::new(entropy.clone(), None)?);
-        let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
-        config.set_rng(rng.clone());
-        config.push_cert(cert_list.clone(), pk.clone())?;
-
-        if let Some(min_version) = map_version(self.min_protocol) {
-            config.set_min_version(min_version)?;
-        }
-        if let Some(max_version) = map_version(self.max_protocol) {
-            config.set_max_version(max_version)?;
-        }
-
-        let config = Arc::new(config);
-
-        let mut ctx = Context::new(config.clone());
-
-        ctx.establish(stream, None)?;
-
-        Ok(TlsStream {
-            role: ProtocolRole::Server,
-            ca_certs: Vec::new(),
-            ca_cert_list: Arc::new(MbedtlsList::new()),
-            cred_pk: Some(pk),
-            cred_certs: cert_chain,
-            cred_cert_list: cert_list,
-            entropy,
-            rng,
-            config,
-            ctx,
-        })
-    }
+    role: Endpoint,
+    identity: Option<Identity>,
 }
 
 impl<S> TlsStream<S> {
     pub fn get_ref(&self) -> &S {
-        self.ctx.io().unwrap()
+        self.ctx.io().expect("Not connected")
     }
 
     pub fn get_mut(&mut self) -> &mut S {
-        self.ctx.io_mut().unwrap()
+        self.ctx.io_mut().expect("Not connected")
     }
 
     pub fn buffered_read_size(&self) -> Result<usize, Error> {
         Ok(self.ctx.bytes_available())
     }
 
+    #[cfg(feature = "alpn")]
+    pub fn negotiated_alpn(&self) -> Result<Option<Vec<u8>>, Error> {
+        Ok(self.ctx.get_alpn_protocol()?.map(|s| s.as_bytes().to_vec()))
+    }
+
     pub fn peer_certificate(&self) -> Result<Option<Certificate>, Error> {
-        match self.ctx.peer_cert()? {
-            None => Ok(None),
-            Some(certs) => match certs.iter().next() {
-                None => Ok(None),
-                Some(c) => Ok(Some(Certificate::from_der(c.as_der())?)),
+        let cert = match self.ctx.peer_cert() {
+            Ok(Some(certs)) => certs.iter().next().map(|cert| Certificate(cert.clone())),
+            Ok(_) => None,
+            Err(e) => match e {
+                TlsError::SslBadInputData => None,
+                _ => return Err(Error::Tls(e)),
             },
-        }
+        };
+        Ok(cert)
     }
 
     fn server_certificate(&self) -> Result<Option<Certificate>, Error> {
         match self.role {
-            ProtocolRole::Client => self.peer_certificate(),
-            ProtocolRole::Server => match self.cred_certs.first() {
+            Endpoint::Client => self.peer_certificate(),
+            Endpoint::Server => match self.identity {
+                Some(ref idt) => Ok(idt
+                    .certificates()
+                    .iter()
+                    .map(|cert| Certificate(cert.clone()))
+                    .next()),
                 None => Ok(None),
-                Some(c) => Ok(Some(Certificate::from_der(c.as_der())?)),
             },
         }
     }
@@ -503,14 +300,14 @@ impl<S> TlsStream<S> {
 
         let der = cert.to_der()?;
         let mut digest = vec![0; 64];
-        let len = Md::hash(md, &der, &mut digest).map_err(Error::Normal)?;
+        let len = Md::hash(md, &der, &mut digest).map_err(Error::Tls)?;
         digest.truncate(len);
 
         Ok(Some(digest))
     }
 
     pub fn shutdown(&mut self) -> io::Result<()> {
-        // Shutdown happens as a result of drop ...
+        self.ctx.close();
         Ok(())
     }
 }
@@ -528,5 +325,199 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.ctx.flush()
+    }
+}
+
+impl<S> Debug for TlsStream<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TlsStream")
+            .field(
+                "role",
+                &match self.role {
+                    Endpoint::Client => "client",
+                    Endpoint::Server => "server",
+                },
+            )
+            .field("identity", &self.identity)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+pub struct MidHandshakeTlsStream<S>(TlsStream<S>);
+
+pub enum HandshakeError<S> {
+    Failure(Error),
+    // this is actually unused
+    WouldBlock(MidHandshakeTlsStream<S>),
+}
+
+impl<S> MidHandshakeTlsStream<S> {
+    pub fn get_ref(&self) -> &S {
+        self.0.get_ref()
+    }
+
+    pub fn get_mut(&mut self) -> &mut S {
+        self.0.get_mut()
+    }
+}
+
+impl<S> MidHandshakeTlsStream<S>
+where
+    S: io::Read + io::Write,
+{
+    pub fn handshake(self) -> Result<TlsStream<S>, HandshakeError<S>> {
+        Ok(self.0)
+    }
+}
+
+#[derive(Clone)]
+pub struct TlsConnector {
+    config: Arc<Config>,
+    identity: Option<::Identity>,
+    accept_invalid_hostnames: bool,
+}
+
+impl Debug for TlsConnector {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TlsConnector")
+            .field("identity", &self.identity.as_ref().map(|idt| &idt.0))
+            .field("accept_invalid_hostnames", &self.accept_invalid_hostnames)
+            .finish()
+    }
+}
+
+impl TlsConnector {
+    pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
+        let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
+
+        // Set Rng
+        let entropy = Arc::new(Rdseed);
+        let rng = Arc::new(CtrDrbg::new(entropy, None)?);
+        config.set_rng(rng);
+
+        // Set root certificates
+        let ca_list = builder
+            .root_certificates
+            .iter()
+            .map(|cert| (cert.0).0.clone())
+            .collect();
+        config.set_ca_list(Arc::new(ca_list), None);
+
+        // Add identity certificates and key
+        if let Some(identity) = &builder.identity {
+            config.push_cert(identity.0.certificates(), identity.0.private_key())?;
+        }
+
+        // Set authmode
+        if builder.accept_invalid_certs {
+            config.set_authmode(mbedtls::ssl::config::AuthMode::None);
+        }
+
+        // Set minimum protocol version
+        if let Some(min_version) = builder.min_protocol.map(to_mbedtls_version) {
+            config.set_min_version(min_version)?;
+        }
+
+        // Set maximum protocol version
+        if let Some(max_version) = builder.max_protocol.map(to_mbedtls_version) {
+            config.set_max_version(max_version)?;
+        }
+
+        #[cfg(feature = "alpn")]
+        {
+            if !builder.alpn.is_empty() {
+                let alpns: Vec<_> = builder
+                    .alpn
+                    .iter()
+                    .map(|protocol| protocol.as_str())
+                    .collect();
+                config.set_alpn_protocols(Arc::new(NullTerminatedStrList::new(&alpns)?))?;
+            }
+        }
+
+        Ok(TlsConnector {
+            config: Arc::new(config),
+            identity: builder.identity.clone(),
+            accept_invalid_hostnames: builder.accept_invalid_hostnames,
+        })
+    }
+
+    pub fn connect<S>(&self, domain: &str, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
+    {
+        // Create mbedtls context
+        let mut ctx = Context::new(self.config.clone());
+
+        // Establish connection
+        let hostname = if self.accept_invalid_hostnames {
+            None
+        } else {
+            Some(domain)
+        };
+
+        ctx.establish(stream, hostname)?;
+
+        Ok(TlsStream {
+            ctx,
+            role: Endpoint::Client,
+            identity: self.identity.clone().map(|idt| idt.0),
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct TlsAcceptor {
+    config: Arc<Config>,
+    identity: Identity,
+}
+
+impl TlsAcceptor {
+    pub fn new(builder: &TlsAcceptorBuilder) -> Result<TlsAcceptor, Error> {
+        let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
+
+        // Set Rng
+        let entropy = Arc::new(Rdseed);
+        let rng = Arc::new(CtrDrbg::new(entropy, None)?);
+        config.set_rng(rng);
+
+        // Add identity certificates and key
+        config.push_cert(
+            builder.identity.0.certificates(),
+            builder.identity.0.private_key(),
+        )?;
+
+        // Set minimum protocol version
+        if let Some(min_version) = builder.min_protocol.map(to_mbedtls_version) {
+            config.set_min_version(min_version)?;
+        }
+
+        // Set maximum protocol version
+        if let Some(max_version) = builder.max_protocol.map(to_mbedtls_version) {
+            config.set_max_version(max_version)?;
+        }
+
+        Ok(TlsAcceptor {
+            config: Arc::new(config),
+            identity: (builder.identity.0).clone(),
+        })
+    }
+
+    pub fn accept<S>(&self, stream: S) -> Result<TlsStream<S>, HandshakeError<S>>
+    where
+        S: io::Read + io::Write,
+    {
+        // Create mbedtls context
+        let mut ctx = Context::new(self.config.clone());
+
+        // Establish connection
+        ctx.establish(stream, None)?;
+
+        Ok(TlsStream {
+            ctx,
+            role: Endpoint::Server,
+            identity: Some(self.identity.clone()),
+        })
     }
 }

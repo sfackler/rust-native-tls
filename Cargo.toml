@@ -26,15 +26,20 @@ tempfile = "3.1.0"
 [target.'cfg(target_os = "windows")'.dependencies]
 schannel = "0.1.17"
 
-[target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_os = "espidf")))'.dependencies]
+[target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios", target_env = "sgx")))'.dependencies]
 log = "0.4.5"
 openssl = "0.10.29"
 openssl-sys = "0.9.55"
 openssl-probe = "0.1"
 
-[target.'cfg(target_os = "espidf")'.dependencies]
-mbedtls = { version = "0.8.1", features = ["pkcs12", "std"], path = "/home/mabez/development/rust/embedded/util/rust-mbedtls/mbedtls" }
+[target.'cfg(target_env = "sgx")'.dependencies]
+mbedtls = { version = "0.9.1", features = ["std", "rdrand", "mpi_force_c_code" ], default-features = false }
+pkcs5 = { version = "0.7.1", features = ["alloc", "pbes2"] }
+p12 = "0.6.3"
+yasna = "0.5"
 
 [dev-dependencies]
+lazy_static = "1.4.0"
 tempfile = "3.0"
 test-cert-gen = "0.9"
+ureq = "2.6"

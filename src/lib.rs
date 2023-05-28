@@ -98,10 +98,6 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[macro_use]
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-extern crate lazy_static;
-
 use std::any::Any;
 use std::error;
 use std::fmt;

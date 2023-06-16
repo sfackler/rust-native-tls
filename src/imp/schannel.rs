@@ -65,7 +65,7 @@ pub struct Identity {
 
 impl Identity {
     pub fn from_pkcs12(buf: &[u8], pass: &str) -> Result<Identity, Error> {
-        let store = PfxImportOptions::new().password(pass).import(buf)?;
+        let store = PfxImportOptions::new().password(pass).named_no_persist_key(true).import(buf)?;
         let mut identity = None;
 
         for cert in store.certs() {

@@ -121,7 +121,7 @@ impl Identity {
         let ident = SecIdentity::with_certificate(&[keychain], cert)?;
         Ok(Identity {
             identity: ident,
-            chain: items.certificates,
+            chain: items.certificates.into_iter().skip(1).collect(),
         })
     }
 

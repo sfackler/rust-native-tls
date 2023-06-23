@@ -106,13 +106,13 @@ impl Identity {
             .filename("key.pem")
             .items(&mut items)
             .keychain(&keychain)
-            .import(&key)?;
+            .import(key)?;
 
         ImportOptions::new()
             .filename("chain.pem")
             .items(&mut items)
             .keychain(&keychain)
-            .import(&pem)?;
+            .import(pem)?;
 
         let cert = items
             .certificates
@@ -121,7 +121,7 @@ impl Identity {
         let ident = SecIdentity::with_certificate(&[keychain], cert)?;
         Ok(Identity {
             identity: ident,
-            chain: items.certificates,
+            chain: items.certificates.into_iter().skip(1).collect(),
         })
     }
 
@@ -507,11 +507,7 @@ impl<S: io::Read + io::Write> TlsStream<S> {
             _ => return Ok(None),
         };
 
-        let algorithm = match section
-            .iter()
-            .filter(|p| p.label().to_string() == "Algorithm")
-            .next()
-        {
+        let algorithm = match section.iter().find(|p| p.label() == "Algorithm") {
             Some(property) => property,
             None => return Ok(None),
         };

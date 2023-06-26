@@ -325,6 +325,8 @@ pub enum Protocol {
 }
 
 /// A builder for `TlsConnector`s.
+///
+/// You can get one from [`TlsConnector::builder()`](TlsConnector::builder)
 pub struct TlsConnectorBuilder {
     identity: Option<Identity>,
     min_protocol: Option<Protocol>,
@@ -513,6 +515,8 @@ impl TlsConnector {
 }
 
 /// A builder for `TlsAcceptor`s.
+///
+/// You can get one from [`TlsAcceptor::builder()`](TlsAcceptor::builder)
 pub struct TlsAcceptorBuilder {
     identity: Identity,
     min_protocol: Option<Protocol>,

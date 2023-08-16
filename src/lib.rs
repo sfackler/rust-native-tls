@@ -322,6 +322,8 @@ pub enum Protocol {
     Tlsv11,
     /// The TLS 1.2 protocol.
     Tlsv12,
+    /// The TLS 1.3 protocol.
+    Tlsv13,
 }
 
 /// A builder for `TlsConnector`s.

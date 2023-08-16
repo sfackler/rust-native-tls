@@ -49,6 +49,7 @@ fn convert_protocol(protocol: Protocol) -> SslProtocol {
         Protocol::Tlsv10 => SslProtocol::TLS1,
         Protocol::Tlsv11 => SslProtocol::TLS11,
         Protocol::Tlsv12 => SslProtocol::TLS12,
+        Protocol::Tlsv13 => SslProtocol::TLS13,
     }
 }
 

@@ -19,7 +19,6 @@ static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Tls10,
     Protocol::Tls11,
     Protocol::Tls12,
-    Protocol::Tls13,
 ];
 
 fn convert_protocols(min: Option<::Protocol>, max: Option<::Protocol>) -> &'static [Protocol] {

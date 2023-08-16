@@ -22,8 +22,8 @@ fn main() {
             println!("cargo:rustc-cfg=have_min_max_version");
         }
 
-        // TLS 1.3 requires libressl 3.2
-        if version >= 0x3_02_01_00_0 {
+        // TLS 1.3 requires libressl 3.4.0
+        if version >= 0x3_04_00_00_0 {
             println!("cargo:rustc-cfg=have_tls13_version");
         }
     }

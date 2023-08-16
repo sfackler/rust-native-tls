@@ -323,7 +323,9 @@ pub enum Protocol {
     /// The TLS 1.2 protocol.
     Tlsv12,
     /// The TLS 1.3 protocol.
-    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios", have_tls13_version))]
+    ///
+    /// Requires OpenSSL 1.1.1 or LibreSSL 3.4.0 or newer.
+    #[cfg(have_tls13_version)]
     Tlsv13,
 }
 

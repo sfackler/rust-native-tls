@@ -16,6 +16,7 @@ macro_rules! p {
     };
 }
 
+#[cfg(have_tls13_version)]
 #[test]
 fn connect_google_tls13() {
     let builder = p!(

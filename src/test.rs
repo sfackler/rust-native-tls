@@ -16,7 +16,7 @@ macro_rules! p {
     };
 }
 
-#[cfg(have_tls13_version)]
+#[cfg(any(target_os = "windows", have_tls13_version))]
 #[test]
 fn connect_google_tls13() {
     let builder = p!(

@@ -324,8 +324,8 @@ pub enum Protocol {
     Tlsv12,
     /// The TLS 1.3 protocol.
     ///
-    /// Requires OpenSSL 1.1.1 or LibreSSL 3.4.0 or newer.
-    #[cfg(have_tls13_version)]
+    /// Only works on Windows, or with openssl >= 1.1.1 or libressl >= 3.4.0.
+    /// It will fail at runtime when used in other situations.
     Tlsv13,
 }
 

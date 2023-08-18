@@ -23,22 +23,24 @@ fn supported_protocols(
     min: Option<Protocol>,
     max: Option<Protocol>,
     ctx: &mut SslContextBuilder,
-) -> Result<(), ErrorStack> {
+) -> Result<(), Error> {
     use self::openssl::ssl::SslVersion;
 
-    fn cvt(p: Protocol) -> SslVersion {
+    fn cvt(p: Protocol) -> Result<SslVersion, Error> {
         match p {
-            Protocol::Sslv3 => SslVersion::SSL3,
-            Protocol::Tlsv10 => SslVersion::TLS1,
-            Protocol::Tlsv11 => SslVersion::TLS1_1,
-            Protocol::Tlsv12 => SslVersion::TLS1_2,
+            Protocol::Sslv3 => Ok(SslVersion::SSL3),
+            Protocol::Tlsv10 => Ok(SslVersion::TLS1),
+            Protocol::Tlsv11 => Ok(SslVersion::TLS1_1),
+            Protocol::Tlsv12 => Ok(SslVersion::TLS1_2),
             #[cfg(have_tls13_version)]
-            Protocol::Tlsv13 => SslVersion::TLS1_3,
+            Protocol::Tlsv13 => Ok(SslVersion::TLS1_3),
+            #[cfg(not(have_tls13_version))]
+            Protocol::Tlsv13 => Err(Error::UnsupportedTls13)
         }
     }
 
-    ctx.set_min_proto_version(min.map(cvt))?;
-    ctx.set_max_proto_version(max.map(cvt))?;
+    ctx.set_min_proto_version(min.map(cvt).transpose()?)?;
+    ctx.set_max_proto_version(max.map(cvt).transpose()?)?;
 
     Ok(())
 }
@@ -117,6 +119,7 @@ pub enum Error {
     Ssl(ssl::Error, X509VerifyResult),
     EmptyChain,
     NotPkcs8,
+    UnsupportedTls13,
 }
 
 impl error::Error for Error {
@@ -126,6 +129,7 @@ impl error::Error for Error {
             Error::Ssl(ref e, _) => error::Error::source(e),
             Error::EmptyChain => None,
             Error::NotPkcs8 => None,
+            Error::UnsupportedTls13 => None,
         }
     }
 }
@@ -141,6 +145,7 @@ impl fmt::Display for Error {
                 "at least one certificate must be provided to create an identity"
             ),
             Error::NotPkcs8 => write!(fmt, "expected PKCS#8 PEM"),
+            Error::UnsupportedTls13 => write!(fmt, "TLS version 1.3 not supported"),
         }
     }
 }

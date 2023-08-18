@@ -43,12 +43,14 @@ static SET_AT_EXIT: Once = Once::new();
 #[cfg(not(target_os = "ios"))]
 static TEMP_KEYCHAIN: Lazy<Mutex<Option<(SecKeychain, TempDir)>>> = Lazy::new(|| Mutex::new(None));
 
-fn convert_protocol(protocol: Protocol) -> SslProtocol {
+fn convert_protocol(protocol: Protocol) -> Result<SslProtocol, Error> {
     match protocol {
-        Protocol::Sslv3 => SslProtocol::SSL3,
-        Protocol::Tlsv10 => SslProtocol::TLS1,
-        Protocol::Tlsv11 => SslProtocol::TLS11,
-        Protocol::Tlsv12 => SslProtocol::TLS12,
+        Protocol::Sslv3 => Ok(SslProtocol::SSL3),
+        Protocol::Tlsv10 => Ok(SslProtocol::TLS1),
+        Protocol::Tlsv11 => Ok(SslProtocol::TLS11),
+        Protocol::Tlsv12 => Ok(SslProtocol::TLS12),
+        // Not supported in SecureTransport API used in security_framework
+        Protocol::Tlsv13 => Err(Error(base::Error::from("TLS 1.3 is not supported")))
     }
 }
 

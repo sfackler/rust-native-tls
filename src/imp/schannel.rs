@@ -14,6 +14,8 @@ use {TlsAcceptorBuilder, TlsConnectorBuilder};
 
 const SEC_E_NO_CREDENTIALS: u32 = 0x8009030E;
 
+pub type RawType = self::schannel::cert_context::CertContext;
+
 static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Ssl3,
     Protocol::Tls10,
@@ -140,6 +142,12 @@ impl Identity {
         }
         Ok(Identity { cert: context })
     }
+
+
+    pub fn from_raw(context: CertContext) -> Identity {
+        Identity { cert: context }
+    }
+
 }
 
 // The name of the container must be unique to have multiple active keys.

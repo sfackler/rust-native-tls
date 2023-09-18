@@ -186,6 +186,11 @@ impl Identity {
         let identity = imp::Identity::from_pkcs8(pem, key)?;
         Ok(Identity(identity))
     }
+
+    /// Creates a certificate context out of the raw type available on the platform
+    pub fn from_raw(context: imp::RawType) -> Identity {
+        Identity(imp::Identity::from_raw(context))
+    }
 }
 
 /// An X509 certificate.

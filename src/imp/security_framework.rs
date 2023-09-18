@@ -49,6 +49,8 @@ fn convert_protocol(protocol: Protocol) -> SslProtocol {
     }
 }
 
+pub type RawType = (SecIdentity, Vec<SecCertificate>);
+
 pub struct Error(base::Error);
 
 impl error::Error for Error {
@@ -143,6 +145,10 @@ impl Identity {
                 .filter(|c| c.to_der() != identity_cert)
                 .collect(),
         })
+    }
+
+    pub fn from_raw(context: RawType) -> Identity {
+        Identity { identity: context.0, chain: context.1 }
     }
 
     #[cfg(not(target_os = "ios"))]

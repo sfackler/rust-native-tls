@@ -1,5 +1,4 @@
 extern crate libc;
-extern crate once_cell;
 extern crate security_framework;
 extern crate security_framework_sys;
 extern crate tempfile;
@@ -22,8 +21,6 @@ use std::sync::Mutex;
 use std::sync::Once;
 
 #[cfg(not(target_os = "ios"))]
-use self::once_cell::sync::Lazy;
-#[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate::{PropertyType, SecCertificateExt};
 #[cfg(not(target_os = "ios"))]
 use self::security_framework::os::macos::certificate_oids::CertificateOid;
@@ -41,7 +38,7 @@ use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 static SET_AT_EXIT: Once = Once::new();
 
 #[cfg(not(target_os = "ios"))]
-static TEMP_KEYCHAIN: Lazy<Mutex<Option<(SecKeychain, TempDir)>>> = Lazy::new(|| Mutex::new(None));
+static TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, TempDir)>> = Mutex::new(None);
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
     match protocol {

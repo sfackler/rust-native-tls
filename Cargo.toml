@@ -8,11 +8,32 @@ repository = "https://github.com/sfackler/rust-native-tls"
 readme = "README.md"
 rust-version = "1.53.0"
 
+[package.metadata.docs.rs]
+features = ["alpn"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
+openssl = ["dep:log", "dep:openssl", "dep:openssl-sys", "dep:openssl-probe"]
+
 vendored = ["openssl/vendored"]
-alpn = []
+alpn = ["security-framework/alpn"]
 
 [dependencies]
+log = { version = "0.4.5", optional = true }
+openssl = { version = "0.10.29", optional = true }
+openssl-sys = { version = "0.9.55", optional = true }
+openssl-probe = { version = "0.1", optional = true }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+security-framework = "2.0.0"
+security-framework-sys = "2.0.0"
+libc = "0.2"
+tempfile = "3.1.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+schannel = "0.1.17"
+
+[target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 log = "0.4.5"
 openssl = "0.10.29"
 openssl-sys = "0.9.55"

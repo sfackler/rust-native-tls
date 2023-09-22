@@ -55,4 +55,33 @@ jobs:
           path: target
           key: target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo test --features vendored
-      - run: cargo test --features vendored
+
+  mbedtls:
+    name: test-mbedtls
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: sfackler/actions/rustup@master
+        with:
+          version: 1.63.0
+      - run: echo "::set-output name=version::$(rustc --version)"
+        id: rust-version
+      # trigger mbedtls implementation
+      - run: sed -i 's/target_env = "sgx"/target_env = "gnu"/' {Cargo.toml,src/lib.rs,src/test.rs}
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry/index
+          key: index-${{ runner.os }}-mbdetls-${{ github.run_number }}
+          restore-keys: |
+            index-${{ runner.os }}-mbedtls-
+      - run: cargo generate-lockfile
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry/cache
+          key: registry-${{ runner.os }}-mbedtls-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - run: cargo fetch
+      - uses: actions/cache@v1
+        with:
+          path: target
+          key: target-${{ runner.os }}-mbedtls-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - run: cargo test --features alpn --lib

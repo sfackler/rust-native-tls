@@ -104,17 +104,31 @@ use std::fmt;
 use std::io;
 use std::result;
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "ios",
+    target_env = "sgx"
+)))]
 #[macro_use]
 extern crate log;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[path = "imp/security_framework.rs"]
 mod imp;
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(target_env = "sgx")))]
 #[path = "imp/schannel.rs"]
 mod imp;
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "ios",
+    target_os = "espidf",
+    target_env = "sgx"
+)))]
 #[path = "imp/openssl.rs"]
+mod imp;
+#[cfg(target_env = "sgx")]
+#[path = "imp/mbedtls.rs"]
 mod imp;
 
 #[cfg(test)]

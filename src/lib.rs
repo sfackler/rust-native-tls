@@ -210,6 +210,12 @@ impl Certificate {
         let der = self.0.to_der()?;
         Ok(der)
     }
+
+    /// Returns the PEM-encoded representation of this certificate
+    pub fn to_pem(&self) -> Result<Vec<u8>> {
+        let pem = self.0.to_pem()?;
+        Ok(pem)
+    }
 }
 
 /// A TLS stream which has been interrupted midway through the handshake process.

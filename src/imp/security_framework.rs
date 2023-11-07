@@ -225,6 +225,10 @@ impl Certificate {
     pub fn to_der(&self) -> Result<Vec<u8>, Error> {
         Ok(self.0.to_der())
     }
+
+    pub fn to_pem(&self) -> Result<Vec<u8>, Error> {
+        panic!("Not implemented on macOS/iOS");
+    }
 }
 
 pub enum HandshakeError<S> {

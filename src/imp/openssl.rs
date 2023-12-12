@@ -201,6 +201,11 @@ impl Certificate {
         let der = self.0.to_der()?;
         Ok(der)
     }
+
+    pub fn to_pem(&self) -> Result<Vec<u8>, Error> {
+        let pem = self.0.to_pem()?;
+        Ok(pem)
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(MidHandshakeSslStream<S>);

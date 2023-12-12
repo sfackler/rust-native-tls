@@ -175,6 +175,10 @@ impl Certificate {
     pub fn to_der(&self) -> Result<Vec<u8>, Error> {
         Ok(self.0.to_der().to_vec())
     }
+
+    pub fn to_pem(&self) -> Result<Vec<u8>, Error> {
+        Ok(self.0.to_pem().into_bytes())
+    }
 }
 
 pub struct MidHandshakeTlsStream<S>(tls_stream::MidHandshakeTlsStream<S>);

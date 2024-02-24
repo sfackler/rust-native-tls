@@ -94,9 +94,11 @@ impl Identity {
         }
 
         let dir = TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
-        let keychain = keychain::CreateOptions::new()
+        let mut keychain = keychain::CreateOptions::new()
             .password(&random_password()?)
             .create(dir.path().join("identity.keychain"))?;
+
+        keychain.set_settings(&KeychainSettings::default())?;
 
         let mut items = SecItems::default();
 

@@ -15,6 +15,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 vendored = ["openssl/vendored"]
 alpn = ["security-framework/alpn"]
+force-openssl = ["openssl", "openssl-sys", "openssl-probe", "log"]
 
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "watchos", target_os = "tvos"))'.dependencies]
 security-framework = "2.0.0"
@@ -30,6 +31,13 @@ log = "0.4.5"
 openssl = "0.10.29"
 openssl-sys = "0.9.55"
 openssl-probe = "0.1"
+
+# Used when the force-openssl feature is enabled.
+[dependencies]
+log = { version = "0.4.5", optional = true }
+openssl = { version = "0.10.29", optional = true }
+openssl-sys = { version = "0.9.55", optional = true }
+openssl-probe = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tempfile = "3.0"

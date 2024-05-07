@@ -1,7 +1,6 @@
 extern crate libc;
 extern crate security_framework;
 extern crate security_framework_sys;
-extern crate tempfile;
 
 use self::security_framework::base;
 use self::security_framework::certificate::SecCertificate;
@@ -12,7 +11,6 @@ use self::security_framework::secure_transport::{
     self, ClientBuilder, SslConnectionType, SslContext, SslProtocol, SslProtocolSide,
 };
 use self::security_framework_sys::base::{errSecIO, errSecParam};
-use self::tempfile::TempDir;
 use std::error;
 use std::fmt;
 use std::io;
@@ -38,7 +36,7 @@ use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 static SET_AT_EXIT: Once = Once::new();
 
 #[cfg(not(any(target_os = "ios", target_os = "watchos", target_os = "tvos")))]
-static TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, TempDir)>> = Mutex::new(None);
+static TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, tempfile::TempDir)>> = Mutex::new(None);
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
     match protocol {
@@ -93,7 +91,7 @@ impl Identity {
             return Err(Error(base::Error::from(errSecParam)));
         }
 
-        let dir = TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
+        let dir = tempfile::TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
         let keychain = keychain::CreateOptions::new()
             .password(&random_password()?)
             .create(dir.path().join("identity.keychain"))?;
@@ -159,7 +157,8 @@ impl Identity {
         let keychain = match *TEMP_KEYCHAIN.lock().unwrap() {
             Some((ref keychain, _)) => keychain.clone(),
             ref mut lock @ None => {
-                let dir = TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
+                let dir =
+                    tempfile::TempDir::new().map_err(|_| Error(base::Error::from(errSecIO)))?;
 
                 let mut keychain = keychain::CreateOptions::new()
                     .password(pass)

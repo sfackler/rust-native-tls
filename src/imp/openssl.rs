@@ -113,7 +113,7 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
 fn load_ohos_root_certs(connector: &mut SslContextBuilder) -> Result<(), Error> {
     use std::fs;
 
-    if let Ok(dir) = fs::read_dir("/system/etc/security/cacerts") {
+    if let Ok(dir) = fs::read_dir("/system/etc/security/certificates") {
         let certs = dir
             .filter_map(|r| r.ok())
             .filter_map(|e| fs::read(e.path()).ok())

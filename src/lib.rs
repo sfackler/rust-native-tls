@@ -334,6 +334,7 @@ pub struct TlsConnectorBuilder {
     accept_invalid_certs: bool,
     accept_invalid_hostnames: bool,
     use_sni: bool,
+    allow_partial: bool,
     disable_built_in_roots: bool,
     #[cfg(feature = "alpn")]
     alpn: Vec<String>,
@@ -420,6 +421,16 @@ impl TlsConnectorBuilder {
         self
     }
 
+    /// Controls whether to accept "partial" certificate chains. Setting this to true means that you
+    /// can use an intermediate cert to verify the server cert, and don't need the full chain to the
+    /// root. This only applies to the Openssl backend.
+    ///
+    /// Defaults to `true`.
+    pub fn allow_partial(&mut self, allow_partial: bool) -> &mut TlsConnectorBuilder {
+        self.allow_partial = allow_partial;
+        self
+    }
+
     /// Controls the use of hostname verification.
     ///
     /// Defaults to `false`.
@@ -480,6 +491,7 @@ impl TlsConnector {
             max_protocol: None,
             root_certificates: vec![],
             use_sni: true,
+            allow_partial: true,
             accept_invalid_certs: false,
             accept_invalid_hostnames: false,
             disable_built_in_roots: false,

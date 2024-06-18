@@ -520,6 +520,8 @@ pub struct TlsAcceptorBuilder {
     identity: Identity,
     min_protocol: Option<Protocol>,
     max_protocol: Option<Protocol>,
+    #[cfg(feature = "alpn")]
+    alpn: Vec<String>,
 }
 
 impl TlsAcceptorBuilder {
@@ -540,6 +542,16 @@ impl TlsAcceptorBuilder {
     /// Defaults to `None`.
     pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
         self.max_protocol = protocol;
+        self
+    }
+    
+    /// Accept specific protocols through ALPN (Application-Layer Protocol Negotiation).
+    ///
+    /// Defaults to empty.
+    #[cfg(feature = "alpn")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "alpn")))]
+    pub fn accept_alpn(&mut self, protocols: &[&str]) -> &mut TlsAcceptorBuilder {
+        self.alpn = protocols.iter().map(|s| (*s).to_owned()).collect();
         self
     }
 
@@ -607,6 +619,8 @@ impl TlsAcceptor {
             identity,
             min_protocol: Some(Protocol::Tlsv10),
             max_protocol: None,
+            #[cfg(feature = "alpn")]
+            alpn: vec![],
         }
     }
 

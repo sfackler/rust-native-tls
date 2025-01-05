@@ -55,7 +55,7 @@ use self::security_framework::os::macos::import_export::{
 )))]
 use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecKeychain};
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 #[allow(dead_code)]
 static SET_AT_EXIT: Once = Once::new();

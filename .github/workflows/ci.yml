@@ -77,3 +77,25 @@ jobs:
     - name: Abort on error
       if: ${{ failure() }}
       run: echo "iOS build job failed" && false
+
+  build_n_test_android:
+    strategy:
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install cargo ndk and rust compiler for android target
+      if: ${{ !cancelled() }}
+      run: |
+        cargo install --locked cargo-ndk
+        rustup target add x86_64-linux-android
+    - name: clippy
+      if: ${{ !cancelled() }}
+      run: cargo ndk -t x86_64 clippy --features vendored -- -D warnings
+    - name: Build
+      if: ${{ !cancelled() }}
+      run: |
+        cargo ndk -t x86_64 rustc --verbose --features vendored --lib --crate-type=cdylib
+    - name: Abort on error
+      if: ${{ failure() }}
+      run: echo "Android build job failed" && false

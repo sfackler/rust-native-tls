@@ -10,7 +10,7 @@ use std::fmt;
 use std::io;
 use std::str;
 
-use {TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{TlsAcceptorBuilder, TlsConnectorBuilder};
 
 const SEC_E_NO_CREDENTIALS: u32 = 0x8009030E;
 
@@ -21,7 +21,10 @@ static PROTOCOLS: &'static [Protocol] = &[
     Protocol::Tls12,
 ];
 
-fn convert_protocols(min: Option<::Protocol>, max: Option<::Protocol>) -> &'static [Protocol] {
+fn convert_protocols(
+    min: Option<crate::Protocol>,
+    max: Option<crate::Protocol>,
+) -> &'static [Protocol] {
     let mut protocols = PROTOCOLS;
     if let Some(p) = max.and_then(|max| protocols.get(..=max as usize)) {
         protocols = p;
@@ -236,8 +239,8 @@ impl<S> From<io::Error> for HandshakeError<S> {
 pub struct TlsConnector {
     cert: Option<CertContext>,
     roots: CertStore,
-    min_protocol: Option<::Protocol>,
-    max_protocol: Option<::Protocol>,
+    min_protocol: Option<crate::Protocol>,
+    max_protocol: Option<crate::Protocol>,
     use_sni: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
@@ -327,8 +330,8 @@ impl TlsConnector {
 #[derive(Clone)]
 pub struct TlsAcceptor {
     cert: CertContext,
-    min_protocol: Option<::Protocol>,
-    max_protocol: Option<::Protocol>,
+    min_protocol: Option<crate::Protocol>,
+    max_protocol: Option<crate::Protocol>,
 }
 
 impl TlsAcceptor {

@@ -16,9 +16,9 @@ use std::fmt;
 use std::io;
 use std::sync::Once;
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
-#[cfg(have_min_max_version)]
+#[cfg(feature = "have_min_max_version")]
 fn supported_protocols(
     min: Option<Protocol>,
     max: Option<Protocol>,
@@ -41,7 +41,7 @@ fn supported_protocols(
     Ok(())
 }
 
-#[cfg(not(have_min_max_version))]
+#[cfg(not(feature = "have_min_max_version"))]
 fn supported_protocols(
     min: Option<Protocol>,
     max: Option<Protocol>,

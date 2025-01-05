@@ -1,3 +1,4 @@
+.VSCodeCounter/
 target
 Cargo.lock
 .idea

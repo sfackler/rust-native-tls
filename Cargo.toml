@@ -12,6 +12,9 @@ rust-version = "1.53.0"
 features = ["alpn"]
 rustdoc-args = ["--cfg", "docsrs"]
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [features]
 vendored = ["openssl/vendored"]
 alpn = ["security-framework/alpn"]

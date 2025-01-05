@@ -16,7 +16,7 @@ use std::fmt;
 use std::io;
 use std::sync::Once;
 
-use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+use crate::{Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(

@@ -15,7 +15,6 @@ use std::error;
 use std::fmt;
 use std::io;
 use std::str;
-use std::sync::Mutex;
 use std::sync::Once;
 
 #[cfg(not(any(
@@ -58,6 +57,7 @@ use self::security_framework::os::macos::keychain::{self, KeychainSettings, SecK
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
+#[allow(dead_code)]
 static SET_AT_EXIT: Once = Once::new();
 
 #[cfg(not(any(
@@ -66,7 +66,8 @@ static SET_AT_EXIT: Once = Once::new();
     target_os = "tvos",
     target_os = "visionos"
 )))]
-static TEMP_KEYCHAIN: Mutex<Option<(SecKeychain, tempfile::TempDir)>> = Mutex::new(None);
+static TEMP_KEYCHAIN: std::sync::Mutex<Option<(SecKeychain, tempfile::TempDir)>> =
+    std::sync::Mutex::new(None);
 
 fn convert_protocol(protocol: Protocol) -> SslProtocol {
     match protocol {
@@ -233,6 +234,7 @@ impl Identity {
     }
 }
 
+#[allow(dead_code)]
 fn random_password() -> Result<String, Error> {
     use std::fmt::Write;
     let mut bytes = [0_u8; 10];
@@ -479,6 +481,7 @@ impl TlsAcceptor {
 
 pub struct TlsStream<S> {
     stream: secure_transport::SslStream<S>,
+    #[allow(dead_code)]
     cert: Option<SecCertificate>,
 }
 
@@ -641,6 +644,7 @@ impl<S: io::Read + io::Write> io::Write for TlsStream<S> {
     }
 }
 
+#[allow(dead_code)]
 enum Digest {
     Sha224,
     Sha256,
@@ -649,9 +653,10 @@ enum Digest {
 }
 
 impl Digest {
+    #[allow(dead_code)]
     fn hash(&self, data: &[u8]) -> Vec<u8> {
         unsafe {
-            assert!(data.len() <= CC_LONG::max_value() as usize);
+            assert!(data.len() <= CC_LONG::MAX as usize);
             match *self {
                 Digest::Sha224 => {
                     let mut buf = [0; CC_SHA224_DIGEST_LENGTH];
@@ -679,16 +684,24 @@ impl Digest {
 }
 
 // FIXME ideally we'd pull these in from elsewhere
+#[allow(dead_code)]
 const CC_SHA224_DIGEST_LENGTH: usize = 28;
+#[allow(dead_code)]
 const CC_SHA256_DIGEST_LENGTH: usize = 32;
+#[allow(dead_code)]
 const CC_SHA384_DIGEST_LENGTH: usize = 48;
+#[allow(dead_code)]
 const CC_SHA512_DIGEST_LENGTH: usize = 64;
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code)]
 type CC_LONG = u32;
 
 extern "C" {
+    #[allow(dead_code)]
     fn CC_SHA224(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    #[allow(dead_code)]
     fn CC_SHA256(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    #[allow(dead_code)]
     fn CC_SHA384(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
+    #[allow(dead_code)]
     fn CC_SHA512(data: *const u8, len: CC_LONG, md: *mut u8) -> *mut u8;
 }

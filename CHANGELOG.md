@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [v0.2.12]
+
+### Fixed
+
+* Stopped using a deprecated openssl-probe API.
+
 ## [v0.2.11]
 
 ### Fixed

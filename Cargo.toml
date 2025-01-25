@@ -29,7 +29,7 @@ schannel = "0.1.17"
 
 [target.'cfg(not(any(target_os = "windows", target_vendor = "apple")))'.dependencies]
 log = "0.4.5"
-openssl = "0.10.46"
+openssl = "0.10.69"
 openssl-sys = "0.9.81"
 openssl-probe = "0.1"
 

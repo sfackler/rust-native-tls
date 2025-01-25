@@ -14,7 +14,6 @@ use self::openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
 use std::error;
 use std::fmt;
 use std::io;
-use std::sync::Once;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
 
@@ -83,11 +82,6 @@ fn supported_protocols(
     ctx.set_options(options);
 
     Ok(())
-}
-
-fn init_trust() {
-    static ONCE: Once = Once::new();
-    ONCE.call_once(openssl_probe::init_ssl_cert_env_vars);
 }
 
 #[cfg(target_os = "android")]
@@ -272,9 +266,11 @@ pub struct TlsConnector {
 
 impl TlsConnector {
     pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
-        init_trust();
-
         let mut connector = SslConnector::builder(SslMethod::tls())?;
+
+        let probe = openssl_probe::probe();
+        connector.load_verify_locations(probe.cert_file.as_deref(), probe.cert_dir.as_deref())?;
+
         if let Some(ref identity) = builder.identity {
             connector.set_certificate(&identity.0.cert)?;
             connector.set_private_key(&identity.0.pkey)?;

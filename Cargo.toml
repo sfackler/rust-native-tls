@@ -36,3 +36,7 @@ openssl-probe = "0.1"
 [dev-dependencies]
 tempfile = "3.0"
 test-cert-gen = "0.9"
+
+[patch.crates-io]
+openssl = { git = "https://github.com/sfackler/rust-openssl", branch = "verify-locations" }
+openssl-sys = { git = "https://github.com/sfackler/rust-openssl", branch = "verify-locations" }

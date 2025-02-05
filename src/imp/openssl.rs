@@ -11,6 +11,7 @@ use self::openssl::ssl::{
     SslVerifyMode,
 };
 use self::openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
+use self::openssl::x509::verify::X509VerifyFlags;
 use std::error;
 use std::fmt;
 use std::io;
@@ -260,6 +261,7 @@ impl<S> From<ErrorStack> for HandshakeError<S> {
 pub struct TlsConnector {
     connector: SslConnector,
     use_sni: bool,
+    allow_partial: bool,
     accept_invalid_hostnames: bool,
     accept_invalid_certs: bool,
 }
@@ -319,6 +321,7 @@ impl TlsConnector {
         Ok(TlsConnector {
             connector: connector.build(),
             use_sni: builder.use_sni,
+            allow_partial: builder.allow_partial,
             accept_invalid_hostnames: builder.accept_invalid_hostnames,
             accept_invalid_certs: builder.accept_invalid_certs,
         })
@@ -337,6 +340,11 @@ impl TlsConnector {
             ssl.set_verify(SslVerifyMode::NONE);
         }
 
+        if self.allow_partial {
+            let params = ssl.param_mut();
+            params.set_flags(X509VerifyFlags::PARTIAL_CHAIN)?;
+        }
+
         let s = ssl.connect(domain, stream)?;
         Ok(TlsStream(s))
     }
@@ -347,6 +355,7 @@ impl fmt::Debug for TlsConnector {
         fmt.debug_struct("TlsConnector")
             // n.b. SslConnector is a newtype on SslContext which implements a noop Debug so it's omitted
             .field("use_sni", &self.use_sni)
+            .field("allow_partial", &self.allow_partial)
             .field("accept_invalid_hostnames", &self.accept_invalid_hostnames)
             .field("accept_invalid_certs", &self.accept_invalid_certs)
             .finish()

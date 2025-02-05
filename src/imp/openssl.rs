@@ -103,6 +103,25 @@ fn load_android_root_certs(connector: &mut SslContextBuilder) -> Result<(), Erro
     Ok(())
 }
 
+#[cfg(target_env = "ohos")]
+fn load_ohos_root_certs(connector: &mut SslContextBuilder) -> Result<(), Error> {
+    use std::fs;
+
+    if let Ok(dir) = fs::read_dir("/etc/security/certificates") {
+        let certs = dir
+            .filter_map(|r| r.ok())
+            .filter_map(|e| fs::read(e.path()).ok())
+            .filter_map(|b| X509::from_pem(&b).ok());
+        for cert in certs {
+            if let Err(err) = connector.cert_store_mut().add_cert(cert) {
+                debug!("load_ohos_root_certs error: {:?}", err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum Error {
     Normal(ErrorStack),
@@ -315,6 +334,9 @@ impl TlsConnector {
 
         #[cfg(target_os = "android")]
         load_android_root_certs(&mut connector)?;
+
+        #[cfg(target_env = "ohos")]
+        load_ohos_root_certs(&mut connector)?;
 
         Ok(TlsConnector {
             connector: connector.build(),

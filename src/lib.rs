@@ -316,8 +316,16 @@ pub enum Protocol {
     /// you are not sure if you need to enable this protocol, you should not.
     Sslv3,
     /// The TLS 1.0 protocol.
+    ///
+    /// # Warning
+    ///
+    /// Deprecated in 2021 (RFC 8996)
     Tlsv10,
     /// The TLS 1.1 protocol.
+    ///
+    /// # Warning
+    ///
+    /// Deprecated in 2021 (RFC 8996)
     Tlsv11,
     /// The TLS 1.2 protocol.
     Tlsv12,
@@ -350,7 +358,7 @@ impl TlsConnectorBuilder {
     ///
     /// A value of `None` enables support for the oldest protocols supported by the implementation.
     ///
-    /// Defaults to `Some(Protocol::Tlsv10)`.
+    /// Defaults to `Some(Protocol::Tlsv12)`.
     pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsConnectorBuilder {
         self.min_protocol = protocol;
         self
@@ -476,7 +484,7 @@ impl TlsConnector {
     pub fn builder() -> TlsConnectorBuilder {
         TlsConnectorBuilder {
             identity: None,
-            min_protocol: Some(Protocol::Tlsv10),
+            min_protocol: Some(Protocol::Tlsv12),
             max_protocol: None,
             root_certificates: vec![],
             use_sni: true,
@@ -527,7 +535,7 @@ impl TlsAcceptorBuilder {
     ///
     /// A value of `None` enables support for the oldest protocols supported by the implementation.
     ///
-    /// Defaults to `Some(Protocol::Tlsv10)`.
+    /// Defaults to `Some(Protocol::Tlsv12)`.
     pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut TlsAcceptorBuilder {
         self.min_protocol = protocol;
         self
@@ -605,7 +613,7 @@ impl TlsAcceptor {
     pub fn builder(identity: Identity) -> TlsAcceptorBuilder {
         TlsAcceptorBuilder {
             identity,
-            min_protocol: Some(Protocol::Tlsv10),
+            min_protocol: Some(Protocol::Tlsv12),
             max_protocol: None,
         }
     }

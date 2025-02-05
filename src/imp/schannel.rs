@@ -172,6 +172,13 @@ impl Certificate {
         }
     }
 
+    pub fn stack_from_pem(buf: &[u8]) -> Result<Vec<Certificate>, Error> {
+        pem::PemBlock::new(buf)
+            .iter()
+            .map(|pem| CertContext::from_pem(pem).map(Certificate))
+            .collect()
+    }
+
     pub fn to_der(&self) -> Result<Vec<u8>, Error> {
         Ok(self.0.to_der().to_vec())
     }

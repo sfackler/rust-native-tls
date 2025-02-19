@@ -11,11 +11,15 @@ use self::openssl::ssl::{
     SslVerifyMode,
 };
 use self::openssl::x509::{store::X509StoreBuilder, X509VerifyResult, X509};
+use self::openssl_probe::ProbeResult;
 use std::error;
 use std::fmt;
 use std::io;
+use std::sync::LazyLock;
 
 use {Protocol, TlsAcceptorBuilder, TlsConnectorBuilder};
+
+static PROBE_RESULT: LazyLock<ProbeResult> = LazyLock::new(openssl_probe::probe);
 
 #[cfg(have_min_max_version)]
 fn supported_protocols(
@@ -268,8 +272,17 @@ impl TlsConnector {
     pub fn new(builder: &TlsConnectorBuilder) -> Result<TlsConnector, Error> {
         let mut connector = SslConnector::builder(SslMethod::tls())?;
 
-        let probe = openssl_probe::probe();
-        connector.load_verify_locations(probe.cert_file.as_deref(), probe.cert_dir.as_deref())?;
+        // We need to load these separately so an error on one doesn't prevent the other from loading.
+        if let Some(cert_file) = &PROBE_RESULT.cert_file {
+            if let Err(e) = connector.load_verify_locations(Some(cert_file), None) {
+                debug!("load_verify_locations cert file error: {:?}", e);
+            }
+        }
+        if let Some(cert_dir) = &PROBE_RESULT.cert_dir {
+            if let Err(e) = connector.load_verify_locations(None, Some(cert_dir)) {
+                debug!("load_verify_locations cert dir error: {:?}", e);
+            }
+        }
 
         if let Some(ref identity) = builder.identity {
             connector.set_certificate(&identity.0.cert)?;

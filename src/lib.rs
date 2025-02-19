@@ -321,6 +321,11 @@ pub enum Protocol {
     Tlsv11,
     /// The TLS 1.2 protocol.
     Tlsv12,
+    /// The TLS 1.3 protocol.
+    ///
+    /// Only works on Windows, or with openssl >= 1.1.1 or libressl >= 3.4.0.
+    /// It will fail at runtime when used in other situations.
+    Tlsv13,
 }
 
 /// A builder for `TlsConnector`s.

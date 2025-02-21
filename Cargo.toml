@@ -17,7 +17,7 @@ vendored = ["openssl/vendored"]
 alpn = ["security-framework/alpn"]
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
-security-framework = "2.0.0"
+security-framework = "3.1.0"
 security-framework-sys = "2.0.0"
 libc = "0.2"
 
